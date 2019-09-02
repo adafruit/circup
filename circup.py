@@ -25,7 +25,9 @@ import os
 import ctypes
 import glob
 import re
-import github
+import requests
+from semver import compare
+from tqdm import tqdm
 from subprocess import check_output
 
 
@@ -130,12 +132,11 @@ def get_repos_file(repository, filename):
     # Extract the repository's path for the GitHub API.
     owner, repos_name = repository.split("/")[-2:]
     repos_path = "{}/{}".format(owner, repos_name.replace(".git", ""))
-    # Reference the remote repository.
-    gh = github.Github()
-    repos = gh.get_repo(repos_path)
-    # Return the content of filename.
-    source = repos.get_contents(filename)
-    return source.decoded_content.decode("utf-8")
+    url = "https://raw.githubusercontent.com/{}/master/{}".format(
+        repos_path, filename
+    )
+    response = requests.get(url)
+    return response.text
 
 
 def extract_metadata(code):
@@ -156,7 +157,8 @@ def extract_metadata(code):
     for line in lines:
         if DUNDER_ASSIGN_RE.search(line):
             exec(line, result)
-    del result["__builtins__"]  # Side effect of using exec, but not needed.
+    if "__builtins__" in result:
+        del result["__builtins__"]  # Side effect of using exec, not needed.
     return result
 
 
@@ -164,6 +166,8 @@ def find_modules():
     """
     Returns a list of paths to ``.py`` modules in the ``lib`` directory on a
     connected Adafruit device.
+
+    :return: A list of filpaths to modules in the lib directory on the device.
     """
     device_path = find_device()
     if device_path is None:
@@ -171,8 +175,81 @@ def find_modules():
     return glob.glob(os.path.join(device_path, "lib", "*.py"))
 
 
+def check_version(filepath):
+    """
+    Given a path to an Adafruit module file, extract the metadata and check
+    the latest version via GitHub. Return a tuple contining the current local
+    version and the remote version::
+
+        ("1.0.1", "1.2.0")
+
+    If a version cannot be determined then ``None`` will be used instead.
+
+    :param str filepath: A path to an Adafruit module file.
+    :return: A tuple containing the current local and remote versions.
+    """
+    with open(filepath) as source_file:
+        source_code = source_file.read()
+    metadata = extract_metadata(source_code)
+    module_file = os.path.basename(filepath)
+    current_version = metadata.get("__version__")
+    repo = metadata.get("__repo__")
+    if current_version and repo:
+        remote_source = get_repos_file(repo, module_file)
+        remote_metadata = extract_metadata(remote_source)
+        return (current_version, remote_metadata.get("__version__"))
+    return (None, None)
+
+
+def check_modules():  # pragma: no cover
+    """
+    Gathers modules from a connected Adafruit device. Checks each module for
+    an update. Displays progress bar and tabular output of all modules that
+    require updating.
+    """
+    local_modules = find_modules()
+    results = {}
+    problems = {}
+    print("Found {} modules to check...\n".format(len(local_modules)))
+    for module in tqdm(local_modules):
+        module_name = os.path.basename(module)[:-3]
+        version_state = check_version(module)
+        if None in version_state:
+            version_state = [
+                "unknown" if x is None else x for x in version_state
+            ]
+            results[module_name] = version_state
+        else:
+            try:
+                if compare(*version_state) < 0:
+                    results[module_name] = version_state
+            except ValueError:
+                # Incorrect semver so log this.
+                problems[module_name] = version_state
+    # Nice tabular display.
+    data = [("Package", "Version", "Latest")]
+    for k, v in results.items():
+        data.append((k, v[0], v[1]))
+    col_width = [0, 0, 0]
+    for row in data:
+        for i, word in enumerate(row):
+            col_width[i] = max(len(word) + 2, col_width[i])
+    dashes = tuple(("-" * (width - 1) for width in col_width))
+    data.insert(1, dashes)
+    for row in data:
+        output = ""
+        for i in range(3):
+            output += row[i].ljust(col_width[i])
+        print(output)
+    print("✨ 🍰 ✨")
+    # TODO: Do something better than this...
+    if problems:
+        print("\n\n💥 💔 💥 Problem modules with incorrect semver...\n")
+        print(problems.keys())
+
+
 def main():  # pragma: no cover
     """
-    TODO: Finish this. Just checking things work.
+    TODO: Finish this properly. Just checking things work.
     """
-    print(find_device())
+    check_modules()

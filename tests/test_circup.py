@@ -122,17 +122,18 @@ def test_get_repos_file():
     """
     repository = "https://github.com/adafruit/SomeLibrary.git"
     filename = "somelibrary.py"
-    mock_github = mock.MagicMock()  # Mock away the API shim.
-    mock_repos = mock.MagicMock()  # Mock repository object.
-    mock_source = mock.MagicMock()  # Mock source file.
-    mock_github.get_repo.return_value = mock_repos
-    mock_repos.get_contents.return_value = mock_source
-    mock_source.decoded_content = b"# Python content of the file\n"
-    with mock.patch("circup.github.Github", return_value=mock_github):
+    mock_response = mock.MagicMock()
+    mock_response.text = "# Python content of the file\n"
+    url = (
+        "https://raw.githubusercontent.com/"
+        "adafruit/SomeLibrary/master/somelibrary.py"
+    )
+    with mock.patch(
+        "circup.requests.get", return_value=mock_response
+    ) as mock_get:
         result = circup.get_repos_file(repository, filename)
-        assert result == mock_source.decoded_content.decode("utf-8")
-        mock_github.get_repo.assert_called_once_with("adafruit/SomeLibrary")
-        mock_repos.get_contents.assert_called_once_with(filename)
+        assert result == mock_response.text
+        mock_get.assert_called_once_with(url)
 
 
 def test_extract_metadata():
@@ -175,3 +176,35 @@ def test_find_modules_no_device_connected():
     ) as ex:
         circup.find_modules()
         assert ex.value.args[0] == "Could find a connected Adafruit device."
+
+
+def test_check_version():
+    """
+    Ensure the expected calls are made for extracting both the local and
+    remote version information for the referenced single file module.
+
+    The local_module.py and remote_module.py "fixture" files contain versions:
+    ``"1.2.3"`` and ``"2.3.4"`` respectively. The referenced GitHub repository
+    is: ``"https://github.com/adafruit/SomeLibrary.git"``
+    """
+    filepath = "tests/local_module.py"
+    with open("tests/remote_module.py") as remote_module:
+        remote_source = remote_module.read()
+    with mock.patch(
+        "circup.get_repos_file", return_value=remote_source
+    ) as mock_grf:
+        result = circup.check_version(filepath)
+        assert result == ("1.2.3", "2.3.4")
+        mock_grf.assert_called_once_with(
+            "https://github.com/adafruit/SomeLibrary.git", "local_module.py"
+        )
+
+
+def test_check_version_unknown_version():
+    """
+    If no version information is available from the local file, the resulting
+    tuple contains two None values: ``(None, None)``
+    """
+    filepath = "tests/local_module.py"
+    with mock.patch("circup.extract_metadata", return_value={}):
+        assert circup.check_version(filepath) == (None, None)

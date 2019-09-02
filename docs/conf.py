@@ -59,3 +59,21 @@ html_theme = 'alabaster'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+html_logo = 'logo.png'
+
+html_theme_options = {
+    'description': "The CircuitPython Library Updater",
+    'logo_name': True,
+    'logo_text_align': 'center',
+    'github_user': 'adafruit',
+    'github_repo': 'circup',
+    'page_width': '1200px',
+}
+
+html_sidebars = {
+    '**': [
+        'about.html',
+        'searchbox.html',
+    ]
+}

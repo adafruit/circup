@@ -44,7 +44,7 @@ __email__ = "ntoll@ntoll.org"
 
 #: The unique USB vendor ID for Adafruit boards.
 VENDOR_ID = 9114
-#: The regex used to extract __version__ and __repo__ assignments within code.
+#: The regex used to extract ``__version__`` and ``__repo__`` assignments.
 DUNDER_ASSIGN_RE = re.compile(r"""^__\w+__\s*=\s*['"].+['"]$""")
 
 
@@ -126,7 +126,6 @@ def get_repos_file(repository, filename):
     :param str repository: The full path to the GitHub repository.
     :param str filename: The name of the file within the GitHub repository.
     :return: The content of the file.
-    :raises ValueError: if the repository or filename is unknown.
     """
     # Extract the repository's path for the GitHub API.
     owner, repos_name = repository.split("/")[-2:]

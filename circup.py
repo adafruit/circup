@@ -21,6 +21,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+import github
+import re
 from serial.tools.list_ports import comports as list_serial_ports
 
 
@@ -37,7 +39,10 @@ __author__ = "Adafruit Industries"
 __email__ = "ntoll@ntoll.org"
 
 
-VENDOR_ID = 9114  #: The unique USB vendor ID for Adafruit boards.
+#: The unique USB vendor ID for Adafruit boards.
+VENDOR_ID = 9114
+#: The regex used to extract __version__ and __repo__ assignments within code.
+DUNDER_ASSIGN_RE = re.compile(r"""^__\w+__\s*=\s*['"].+['"]$""")
 
 
 def find_device():
@@ -51,6 +56,56 @@ def find_device():
         if port.vid == VENDOR_ID:
             return (port.device, port.description)
     return (None, None)
+
+
+def get_repos_file(repository, filename):
+    """
+    Given a GitHub repository and a file contained therein, either returns the
+    content of that file, or raises an exception.
+
+    :param str repository: The full path to the GitHub repository.
+    :param str filename: The name of the file within the GitHub repository.
+    :return: The content of the file.
+    :raises ValueError: if the repository or filename is unknown.
+    """
+    # Extract the repository's path for the GitHub API.
+    owner, repos_name = repository.split("/")[-2:]
+    repos_path = "{}/{}".format(owner, repos_name.replace(".git", ""))
+    # Reference the remote repository.
+    gh = github.Github()
+    try:
+        repos = gh.get_repo(repos_path)
+    except github.GithubException.UnknownObjectException:
+        raise ValueError("Unknown repository.")
+    source = repos.get_contents(filename)
+    return source.decoded_content
+
+
+def extract_metadata(code):
+    """
+    Given some Adafruit library code, return a dictionary containing metadata
+    extracted from dunder attributes found therein.
+
+    Such metadata assignments should be simple and single-line. For example::
+
+        __version__ = "1.1.4"
+        __repo__ = "https://github.com/adafruit/SomeLibrary.git"
+
+    :param str code: The source code containing the version details.
+    :return: The dunder based metadata found in the code as a dictionary.
+    """
+    result = {}
+    lines = code.split()
+    for line in lines:
+        if DUNDER_ASSIGN_RE.search(line):
+            exec(line, result)
+    return result
+
+
+def check_version(path):
+    """
+    TODO: Finish this...
+    """
 
 
 def main():  # pragma: no cover

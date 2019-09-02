@@ -22,7 +22,7 @@ with open(os.path.join(base_dir, "CHANGES.rst"), encoding="utf8") as f:
     changes = f.read()
 
 
-install_requires = ["pyserial>=3.0,<4.0", "PyGithub>=1.43.8"]
+install_requires = ["PyGithub>=1.43.8", "semver>=2.8.1"]
 
 extras_require = {
     "tests": [

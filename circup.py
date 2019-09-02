@@ -21,9 +21,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
-import github
+import os
+import ctypes
+import glob
 import re
-from serial.tools.list_ports import comports as list_serial_ports
+import github
+from subprocess import check_output
 
 
 # IMPORTANT
@@ -47,15 +50,72 @@ DUNDER_ASSIGN_RE = re.compile(r"""^__\w+__\s*=\s*['"].+['"]$""")
 
 def find_device():
     """
-    Returns a tuple containing the port's device and description for a
-    connected Adafruit device. If no device is connected, the tuple will be
-    (None, None).
+    Return the location on the filesystem for the connected Adafruit device.
+    This is based upon how Mu discovers this information.
+
+    :return: The path to the device on the local filesystem.
     """
-    ports = list_serial_ports()
-    for port in ports:
-        if port.vid == VENDOR_ID:
-            return (port.device, port.description)
-    return (None, None)
+    device_dir = None
+    # Attempt to find the path on the filesystem that represents the plugged in
+    # CIRCUITPY board.
+    if os.name == "posix":
+        # Linux / OSX
+        for mount_command in ["mount", "/sbin/mount"]:
+            try:
+                mount_output = check_output(mount_command).splitlines()
+                mounted_volumes = [x.split()[2] for x in mount_output]
+                for volume in mounted_volumes:
+                    if volume.endswith(b"CIRCUITPY"):
+                        device_dir = volume.decode("utf-8")
+            except FileNotFoundError:
+                next
+    elif os.name == "nt":
+        # Windows
+
+        def get_volume_name(disk_name):
+            """
+            Each disk or external device connected to windows has an attribute
+            called "volume name". This function returns the volume name for the
+            given disk/device.
+
+            Based upon answer given here: http://stackoverflow.com/a/12056414
+            """
+            vol_name_buf = ctypes.create_unicode_buffer(1024)
+            ctypes.windll.kernel32.GetVolumeInformationW(
+                ctypes.c_wchar_p(disk_name),
+                vol_name_buf,
+                ctypes.sizeof(vol_name_buf),
+                None,
+                None,
+                None,
+                None,
+                0,
+            )
+            return vol_name_buf.value
+
+        #
+        # In certain circumstances, volumes are allocated to USB
+        # storage devices which cause a Windows popup to raise if their
+        # volume contains no media. Wrapping the check in SetErrorMode
+        # with SEM_FAILCRITICALERRORS (1) prevents this popup.
+        #
+        old_mode = ctypes.windll.kernel32.SetErrorMode(1)
+        try:
+            for disk in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+                path = "{}:\\".format(disk)
+                if (
+                    os.path.exists(path)
+                    and get_volume_name(path) == "CIRCUITPY"
+                ):
+                    device_dir = path
+                    # Report only the FIRST device found.
+                    break
+        finally:
+            ctypes.windll.kernel32.SetErrorMode(old_mode)
+    else:
+        # No support for unknown operating systems.
+        raise NotImplementedError('OS "{}" not supported.'.format(os.name))
+    return device_dir
 
 
 def get_repos_file(repository, filename):
@@ -73,12 +133,10 @@ def get_repos_file(repository, filename):
     repos_path = "{}/{}".format(owner, repos_name.replace(".git", ""))
     # Reference the remote repository.
     gh = github.Github()
-    try:
-        repos = gh.get_repo(repos_path)
-    except github.GithubException.UnknownObjectException:
-        raise ValueError("Unknown repository.")
+    repos = gh.get_repo(repos_path)
+    # Return the content of filename.
     source = repos.get_contents(filename)
-    return source.decoded_content
+    return source.decoded_content.decode("utf-8")
 
 
 def extract_metadata(code):
@@ -95,17 +153,23 @@ def extract_metadata(code):
     :return: The dunder based metadata found in the code as a dictionary.
     """
     result = {}
-    lines = code.split()
+    lines = code.split("\n")
     for line in lines:
         if DUNDER_ASSIGN_RE.search(line):
             exec(line, result)
+    del result["__builtins__"]  # Side effect of using exec, but not needed.
     return result
 
 
-def check_version(path):
+def find_modules():
     """
-    TODO: Finish this...
+    Returns a list of paths to ``.py`` modules in the ``lib`` directory on a
+    connected Adafruit device.
     """
+    device_path = find_device()
+    if device_path is None:
+        raise IOError("Could not find a connected Adafruit device.")
+    return glob.glob(os.path.join(device_path, "lib", "*.py"))
 
 
 def main():  # pragma: no cover

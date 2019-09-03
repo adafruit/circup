@@ -21,14 +21,28 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+import logging
+import tempfile
 import os
+import sys
 import ctypes
 import glob
 import re
 import requests
-from semver import compare
-from tqdm import tqdm
+import click
+from datetime import datetime
+from semver import compare, parse
 from subprocess import check_output
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logfile = os.path.join(tempfile.gettempdir(), "circup.log")
+logfile_handler = logging.FileHandler(logfile)
+log_formatter = logging.Formatter("%(levelname)s: %(message)s")
+logfile_handler.setFormatter(log_formatter)
+logger.addHandler(logfile_handler)
+click.echo("Logging to {}\n".format(logfile))
 
 
 # IMPORTANT
@@ -48,6 +62,70 @@ __email__ = "ntoll@ntoll.org"
 VENDOR_ID = 9114
 #: The regex used to extract ``__version__`` and ``__repo__`` assignments.
 DUNDER_ASSIGN_RE = re.compile(r"""^__\w+__\s*=\s*['"].+['"]$""")
+#: Flag to indicate if the command is being run in verbose mode.
+VERBOSE = False
+
+
+class Module:
+    """
+    Represents a CircuitPython module
+    """
+
+    def __init__(self, path, repo, local_version, remote_version):
+        """
+        :param str path: The path to the module on the connected CIRCUITPYTHON
+        device.
+        :param str repo: The URL of the Git repository for this module.
+        :param str local_version: The semver value for the local copy.
+        :param str remote_version: The semver value for the remote copy.
+        """
+        self.path = path
+        self.file = os.path.basename(path)
+        self.name = self.file[:-3]
+        self.repo = repo
+        self.local_version = local_version
+        self.remote_version = remote_version
+        logger.info(self)
+
+    @property
+    def outofdate(self):
+        """
+        Returns a boolean to indicate if this module is out of date.
+        """
+        if self.local_version and self.remote_version:
+            try:
+                return compare(self.local_version, self.remote_version) < 0
+            except ValueError as ex:
+                logger.warning(
+                    "Module '{}' has incorrect semver value.".format(self.name)
+                )
+                logger.warning(ex)
+        return True  # Assume out of date to try to update.
+
+    @property
+    def row(self):
+        """
+        Returns a tuple of items to display in a table row to show the module's
+        name, local version and remote version.
+        """
+        loc = self.local_version if self.local_version else "unknown"
+        rem = self.remote_version if self.remote_version else "unknown"
+        return (self.name, loc, rem)
+
+    def __repr__(self):
+        """
+        Helps with log files.
+        """
+        return repr(
+            {
+                "path": self.path,
+                "file": self.file,
+                "name": self.name,
+                "repo": self.repo,
+                "local_version": self.local_version,
+                "remote_version": self.remote_version,
+            }
+        )
 
 
 def find_device():
@@ -117,6 +195,7 @@ def find_device():
     else:
         # No support for unknown operating systems.
         raise NotImplementedError('OS "{}" not supported.'.format(os.name))
+    logger.info("Found device: {}".format(device_dir))
     return device_dir
 
 
@@ -135,7 +214,9 @@ def get_repos_file(repository, filename):
     url = "https://raw.githubusercontent.com/{}/master/{}".format(
         repos_path, filename
     )
+    logger.info("Requesting remote file: {}".format(url))
     response = requests.get(url)
+    logger.info(response)
     return response.text
 
 
@@ -159,6 +240,7 @@ def extract_metadata(code):
             exec(line, result)
     if "__builtins__" in result:
         del result["__builtins__"]  # Side effect of using exec, not needed.
+    logger.info("Extracted metadata: {}".format(result))
     return result
 
 
@@ -175,81 +257,145 @@ def find_modules():
     return glob.glob(os.path.join(device_path, "lib", "*.py"))
 
 
-def check_version(filepath):
+def check_file_versions(filepath):
     """
     Given a path to an Adafruit module file, extract the metadata and check
-    the latest version via GitHub. Return a tuple contining the current local
-    version and the remote version::
-
-        ("1.0.1", "1.2.0")
-
-    If a version cannot be determined then ``None`` will be used instead.
+    the latest version via GitHub. Return an instance of the Module class.
 
     :param str filepath: A path to an Adafruit module file.
-    :return: A tuple containing the current local and remote versions.
+    :return: An instance of the Module class containing metadata.
     """
     with open(filepath) as source_file:
         source_code = source_file.read()
     metadata = extract_metadata(source_code)
     module_file = os.path.basename(filepath)
-    current_version = metadata.get("__version__")
-    repo = metadata.get("__repo__")
-    if current_version and repo:
+    module_name = module_file[:-3]
+    logger.info("Checking versions for module '{}'.".format(module_name))
+    local_version = metadata.get("__version__", "")
+    try:
+        parse(local_version)
+    except ValueError:
+        local_version = None
+    repo = metadata.get("__repo__", "unknown")
+    remote_version = None
+    if local_version and repo:
         remote_source = get_repos_file(repo, module_file)
         remote_metadata = extract_metadata(remote_source)
-        return (current_version, remote_metadata.get("__version__"))
-    return (None, None)
+        remote_version = remote_metadata.get("__version__", "")
+    return Module(filepath, repo, local_version, remote_version)
 
 
-def check_modules():  # pragma: no cover
+def check_module(module):
     """
-    Gathers modules from a connected Adafruit device. Checks each module for
-    an update. Displays progress bar and tabular output of all modules that
-    require updating.
+    Shim. TODO: finish this.
     """
+    return check_file_versions(module)
+
+
+# ----------- CLI command definitions  ----------- #
+
+# The following functions have IO side effects (for instance they emit to
+# stdout). Ergo, these are not checked with unit tests. Most of the
+# functionality they provide is provided by the functions above, which *are*
+# tested. Most of the logic of the following functions is to prepare things for
+# presentation to / interaction with the user.
+
+
+@click.group()
+@click.option(
+    "--verbose", is_flag=True, help="Comprehensive logging is sent to stdout."
+)
+@click.version_option(
+    version=__version__,
+    prog_name="CircUp",
+    message="%(prog)s, A CircuitPython module updater. Version %(version)s",
+)
+def main(verbose):  # pragma: no cover
+    """
+    A tool to manage and update libraries on a CircuitPython device.
+    """
+    if verbose:
+        # Configure additional logging to stdout.
+        global VERBOSE
+        VERBOSE = True
+        verbose_handler = logging.StreamHandler(sys.stdout)
+        verbose_handler.setLevel(logging.INFO)
+        verbose_handler.setFormatter(log_formatter)
+        logger.addHandler(verbose_handler)
+    logger.info("\n\n\nStarted {}".format(datetime.now()))
+
+
+@main.command()
+def freeze():  # pragma: no cover
+    """
+    Output details of all the modules found on the connected CIRCUITPYTHON
+    device.
+    """
+    logger.info("Freeze")
     local_modules = find_modules()
-    results = {}
-    problems = {}
-    print("Found {} modules to check...\n".format(len(local_modules)))
-    for module in tqdm(local_modules):
-        module_name = os.path.basename(module)[:-3]
-        version_state = check_version(module)
-        if None in version_state:
-            version_state = [
-                "unknown" if x is None else x for x in version_state
-            ]
-            results[module_name] = version_state
-        else:
-            try:
-                if compare(*version_state) < 0:
-                    results[module_name] = version_state
-            except ValueError:
-                # Incorrect semver so log this.
-                problems[module_name] = version_state
+    for module in local_modules:
+        with open(module) as source_file:
+            source_code = source_file.read()
+            metadata = extract_metadata(source_code)
+            module_file = os.path.basename(module)
+            module_name = module_file[:-3]
+            output = "{}=={}".format(
+                module_name, metadata.get("__version__", "unknown")
+            )
+            click.echo(output)
+            logger.info(output)
+
+
+@main.command()
+def list():  # pragma: no cover
+    """
+    Lists all out of date modules found on the connected CIRCUITPYTHON device.
+    """
+    logger.info("List")
+    local_modules = find_modules()
+    results = []
+    click.echo("Found {} modules to check...\n".format(len(local_modules)))
+    if VERBOSE:
+        # No CLI effects, just allow logs to be emitted.
+        for item in local_modules:
+            module = check_module(item)
+            if module.outofdate:
+                results.append(module)
+    else:
+        # Use a progress bar instead.
+        with click.progressbar(local_modules) as bar:
+            for item in bar:
+                module = check_module(item)
+                if module.outofdate:
+                    results.append(module)
     # Nice tabular display.
     data = [("Package", "Version", "Latest")]
-    for k, v in results.items():
-        data.append((k, v[0], v[1]))
+    for item in results:
+        data.append(item.row)
     col_width = [0, 0, 0]
     for row in data:
         for i, word in enumerate(row):
             col_width[i] = max(len(word) + 2, col_width[i])
     dashes = tuple(("-" * (width - 1) for width in col_width))
     data.insert(1, dashes)
+    click.echo(
+        "\nThe following packages are out of date or probably need "
+        "an update.\n"
+    )
     for row in data:
         output = ""
         for i in range(3):
             output += row[i].ljust(col_width[i])
-        print(output)
-    print("✨ 🍰 ✨")
-    # TODO: Do something better than this...
-    if problems:
-        print("\n\n💥 💔 💥 Problem modules with incorrect semver...\n")
-        print(problems.keys())
+        if not VERBOSE:
+            click.echo(output)
+        logger.info(output)
+    click.echo("\n✨ 🍰 ✨")
 
 
-def main():  # pragma: no cover
+@main.command()
+def update():  # pragma: no cover
     """
-    TODO: Finish this properly. Just checking things work.
+    Checks for out-of-date modules on the connected CIRCUITPYTHON device, and
+    prompts the user to confirm updating such modules.
     """
-    check_modules()
+    logger.info("Update")

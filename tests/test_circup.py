@@ -28,6 +28,86 @@ import pytest
 from unittest import mock
 
 
+def test_Module_init():
+    """
+    Ensure the Module instance is set up as expected and logged.
+    """
+    path = os.path.join("foo", "bar", "baz", "module.py")
+    repo = "https://github.com/adafruit/SomeLibrary.git"
+    local_version = "1.2.3"
+    remote_version = "3.2.1"
+    with mock.patch("circup.logger.info") as mock_logger:
+        m = circup.Module(path, repo, local_version, remote_version)
+        mock_logger.assert_called_once_with(m)
+        assert m.path == path
+        assert m.file == "module.py"
+        assert m.name == "module"
+        assert m.repo == repo
+        assert m.local_version == local_version
+        assert m.remote_version == remote_version
+
+
+def test_Module_outofdate():
+    """
+    Ensure the ``outofdate`` property on a Module instance returns the expected
+    boolean value to correctly indicate if the referenced module is, in fact,
+    out of date.
+    """
+    path = os.path.join("foo", "bar", "baz", "module.py")
+    repo = "https://github.com/adafruit/SomeLibrary.git"
+    m1 = circup.Module(path, repo, "1.2.3", "3.2.1")
+    m2 = circup.Module(path, repo, "1.2.3", "1.2.3")
+    m3 = circup.Module(path, repo, "3.2.1", "1.2.3")  # shouldn't happen!
+    assert m1.outofdate is True
+    assert m2.outofdate is False
+    assert m3.outofdate is False
+
+
+def test_Module_outofdate_bad_versions():
+    """
+    Sometimes, the version is not a valid semver value. In this case, the
+    ``outofdate`` property assumes the module should be updated (to correct
+    this problem). Such a problem should be logged.
+    """
+    path = os.path.join("foo", "bar", "baz", "module.py")
+    repo = "https://github.com/adafruit/SomeLibrary.git"
+    m = circup.Module(path, repo, "1.2.3", "hello")
+    with mock.patch("circup.logger.warning") as mock_logger:
+        assert m.outofdate is True
+        assert mock_logger.call_count == 2
+
+
+def test_Module_row():
+    """
+    Ensure the tuple contains the expected items to be correctly displayed in
+    a table of version-related results.
+    """
+    path = os.path.join("foo", "bar", "baz", "module.py")
+    repo = "https://github.com/adafruit/SomeLibrary.git"
+    m = circup.Module(path, repo, "1.2.3", "")
+    assert m.row == ("module", "1.2.3", "unknown")
+
+
+def test_Module_repr():
+    """
+    """
+    path = os.path.join("foo", "bar", "baz", "module.py")
+    repo = "https://github.com/adafruit/SomeLibrary.git"
+    local_version = "1.2.3"
+    remote_version = "3.2.1"
+    m = circup.Module(path, repo, local_version, remote_version)
+    assert repr(m) == repr(
+        {
+            "path": path,
+            "file": "module.py",
+            "name": "module",
+            "repo": repo,
+            "local_version": local_version,
+            "remote_version": remote_version,
+        }
+    )
+
+
 def test_find_device_posix_exists():
     """
     Simulate being on os.name == 'posix' and a call to "mount" returns a
@@ -178,10 +258,11 @@ def test_find_modules_no_device_connected():
         assert ex.value.args[0] == "Could find a connected Adafruit device."
 
 
-def test_check_version():
+def test_check_file_versions():
     """
     Ensure the expected calls are made for extracting both the local and
-    remote version information for the referenced single file module.
+    remote version information for the referenced single file module. This
+    should be returned as an instance of circup.Module.
 
     The local_module.py and remote_module.py "fixture" files contain versions:
     ``"1.2.3"`` and ``"2.3.4"`` respectively. The referenced GitHub repository
@@ -193,18 +274,38 @@ def test_check_version():
     with mock.patch(
         "circup.get_repos_file", return_value=remote_source
     ) as mock_grf:
-        result = circup.check_version(filepath)
-        assert result == ("1.2.3", "2.3.4")
+        result = circup.check_file_versions(filepath)
+        assert isinstance(result, circup.Module)
+        assert repr(result) == repr(
+            circup.Module(
+                filepath,
+                "https://github.com/adafruit/SomeLibrary.git",
+                "1.2.3",
+                "2.3.4",
+            )
+        )
         mock_grf.assert_called_once_with(
             "https://github.com/adafruit/SomeLibrary.git", "local_module.py"
         )
 
 
-def test_check_version_unknown_version():
+def test_check_file_versions_unknown_version():
     """
     If no version information is available from the local file, the resulting
-    tuple contains two None values: ``(None, None)``
+    circup.Module class has None set against the two potentail versions (local
+    and remote).
     """
     filepath = "tests/local_module.py"
     with mock.patch("circup.extract_metadata", return_value={}):
-        assert circup.check_version(filepath) == (None, None)
+        result = circup.check_file_versions(filepath)
+        assert result.local_version is None
+        assert result.remote_version is None
+
+
+def test_check_module():
+    """
+    TODO: Finish this.
+    """
+    with mock.patch("circup.check_file_versions") as mock_cfv:
+        circup.check_module("foo")
+        mock_cfv.assert_called_once_with("foo")

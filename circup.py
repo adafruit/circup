@@ -358,7 +358,7 @@ def get_modules(path):
     directory_mods = glob.glob(os.path.join(path, "*", ""))
     result = {}
     for sfm in single_file_mods:
-        with open(sfm) as source_file:
+        with open(sfm, encoding="utf-8") as source_file:
             source_code = source_file.read()
             metadata = extract_metadata(source_code)
             metadata["path"] = sfm
@@ -367,7 +367,7 @@ def get_modules(path):
         name = os.path.basename(dm)
         result[name] = {}
         for source in glob.glob(os.path.join(dm, "*.py")):
-            with open(source) as source_file:
+            with open(source, encoding="utf-8") as source_file:
                 source_code = source_file.read()
                 metadata = extract_metadata(source_code)
             if "__version__":
@@ -386,12 +386,12 @@ def ensure_latest_bundle():
     tag = get_latest_tag()
     old_tag = "0"
     if os.path.isfile(BUNDLE_DATA):
-        with open(BUNDLE_DATA) as data:
+        with open(BUNDLE_DATA, encoding="utf-8") as data:
             old_tag = json.load(data)["tag"]
     if tag > old_tag:
         logger.info("New version available ({}).".format(tag))
         get_bundle(tag)
-        with open(BUNDLE_DATA, "w") as data:
+        with open(BUNDLE_DATA, "w", encoding="utf-8") as data:
             json.dump({"tag": tag}, data)
     else:
         logger.info("Current library bundle up to date ({}).".format(tag))

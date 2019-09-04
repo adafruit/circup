@@ -22,7 +22,7 @@ with open(os.path.join(base_dir, "CHANGES.rst"), encoding="utf8") as f:
     changes = f.read()
 
 
-install_requires = ["PyGithub>=1.43.8", "semver>=2.8.1"]
+install_requires = ["PyGithub>=1.43.8", "semver>=2.8.1", "Click==7.0"]
 
 extras_require = {
     "tests": [

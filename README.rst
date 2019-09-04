@@ -23,7 +23,7 @@ Usage
 
 Example usage::
 
-    circup list --outdated
+    circup list
 
     Package     Version Latest
     ----------- ------- ------  

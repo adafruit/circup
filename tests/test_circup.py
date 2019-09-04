@@ -25,6 +25,7 @@ import os
 import circup
 import ctypes
 import pytest
+import json
 from unittest import mock
 
 
@@ -34,17 +35,21 @@ def test_Module_init():
     """
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
-    local_version = "1.2.3"
-    remote_version = "3.2.1"
+    device_version = "1.2.3"
+    bundle_version = "3.2.1"
+    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
     with mock.patch("circup.logger.info") as mock_logger:
-        m = circup.Module(path, repo, local_version, remote_version)
+        m = circup.Module(
+            path, repo, device_version, bundle_version, bundle_path
+        )
         mock_logger.assert_called_once_with(m)
         assert m.path == path
         assert m.file == "module.py"
         assert m.name == "module"
         assert m.repo == repo
-        assert m.local_version == local_version
-        assert m.remote_version == remote_version
+        assert m.device_version == device_version
+        assert m.bundle_version == bundle_version
+        assert m.bundle_path == bundle_path
 
 
 def test_Module_outofdate():
@@ -55,9 +60,11 @@ def test_Module_outofdate():
     """
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
-    m1 = circup.Module(path, repo, "1.2.3", "3.2.1")
-    m2 = circup.Module(path, repo, "1.2.3", "1.2.3")
-    m3 = circup.Module(path, repo, "3.2.1", "1.2.3")  # shouldn't happen!
+    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
+    m1 = circup.Module(path, repo, "1.2.3", "3.2.1", bundle_path)
+    m2 = circup.Module(path, repo, "1.2.3", "1.2.3", bundle_path)
+    # shouldn't happen!
+    m3 = circup.Module(path, repo, "3.2.1", "1.2.3", bundle_path)
     assert m1.outofdate is True
     assert m2.outofdate is False
     assert m3.outofdate is False
@@ -71,7 +78,10 @@ def test_Module_outofdate_bad_versions():
     """
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
-    m = circup.Module(path, repo, "1.2.3", "hello")
+    device_version = "hello"
+    bundle_version = "3.2.1"
+    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
+    m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
     with mock.patch("circup.logger.warning") as mock_logger:
         assert m.outofdate is True
         assert mock_logger.call_count == 2
@@ -84,26 +94,70 @@ def test_Module_row():
     """
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
-    m = circup.Module(path, repo, "1.2.3", "")
+    device_version = "1.2.3"
+    bundle_version = None
+    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
+    m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
     assert m.row == ("module", "1.2.3", "unknown")
+
+
+def test_Module_update_dir():
+    """
+    Ensure if the module is a directory, the expected actions take place to
+    update the module on the connected device.
+    """
+    path = os.path.join("foo", "bar", "baz", "module.py")
+    repo = "https://github.com/adafruit/SomeLibrary.git"
+    device_version = "1.2.3"
+    bundle_version = None
+    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
+    m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
+    with mock.patch("circup.shutil") as mock_shutil, mock.patch(
+        "circup.os.path.isdir", return_value=True
+    ):
+        m.update()
+        mock_shutil.rmtree.assert_called_once_with(m.path)
+        mock_shutil.copytree.assert_called_once_with(m.bundle_path, m.path)
+
+
+def test_Module_update_file():
+    """
+    Ensure if the module is a file, the expected actions take place to
+    update the module on the connected device.
+    """
+    path = os.path.join("foo", "bar", "baz", "module.py")
+    repo = "https://github.com/adafruit/SomeLibrary.git"
+    device_version = "1.2.3"
+    bundle_version = None
+    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
+    m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
+    with mock.patch("circup.shutil") as mock_shutil, mock.patch(
+        "circup.os.remove"
+    ) as mock_remove, mock.patch("circup.os.path.isdir", return_value=False):
+        m.update()
+        mock_remove.assert_called_once_with(m.path)
+        mock_shutil.copyfile.assert_called_once_with(m.bundle_path, m.path)
 
 
 def test_Module_repr():
     """
+    Ensure the repr(dict) is returned (helps when logging).
     """
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
-    local_version = "1.2.3"
-    remote_version = "3.2.1"
-    m = circup.Module(path, repo, local_version, remote_version)
+    device_version = "1.2.3"
+    bundle_version = "3.2.1"
+    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
+    m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
     assert repr(m) == repr(
         {
             "path": path,
             "file": "module.py",
             "name": "module",
             "repo": repo,
-            "local_version": local_version,
-            "remote_version": remote_version,
+            "device_version": device_version,
+            "bundle_version": bundle_version,
+            "bundle_path": bundle_path,
         }
     )
 
@@ -195,25 +249,24 @@ def test_find_device_unknown_os():
     assert ex.value.args[0] == 'OS "foo" not supported.'
 
 
-def test_get_repos_file():
+def test_get_latest_tag():
     """
-    Ensure the repository path and filename are handled in such a way to create
-    the expected and correct calls to the GitHub API.
+    Ensure the expected tag value is extracted from the returned URL (resulting
+    from a call to the expected endpoint).
     """
-    repository = "https://github.com/adafruit/SomeLibrary.git"
-    filename = "somelibrary.py"
-    mock_response = mock.MagicMock()
-    mock_response.text = "# Python content of the file\n"
-    url = (
-        "https://raw.githubusercontent.com/"
-        "adafruit/SomeLibrary/master/somelibrary.py"
+    response = mock.MagicMock()
+    response.url = (
+        "https://github.com/adafruit"
+        "/Adafruit_CircuitPython_Bundle/releases/tag/20190903"
     )
-    with mock.patch(
-        "circup.requests.get", return_value=mock_response
-    ) as mock_get:
-        result = circup.get_repos_file(repository, filename)
-        assert result == mock_response.text
-        mock_get.assert_called_once_with(url)
+    expected_url = (
+        "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
+        "/releases/latest"
+    )
+    with mock.patch("circup.requests.get", return_value=response) as mock_get:
+        result = circup.get_latest_tag()
+        assert result == "20190903"
+        mock_get.assert_called_once_with(expected_url)
 
 
 def test_extract_metadata():
@@ -235,77 +288,128 @@ def test_extract_metadata():
 
 def test_find_modules():
     """
-    Ensure the result of the glob.glob call is returned, and the call is made
-    with the expected path.
+    Ensure that the expected list of Module instances is returned given the
+    metadata dictionary fixtures for device and bundle modules.
     """
-    glob_result = ["module1.py", "module2.py"]
-    with mock.patch("circup.find_device", return_value="foo"), mock.patch(
-        "circup.glob.glob", return_value=glob_result
-    ) as mock_glob:
-        circup.find_modules()
-        mock_glob.assert_called_once_with(os.path.join("foo", "lib", "*.py"))
-
-
-def test_find_modules_no_device_connected():
-    """
-    Ensure an IOError is raised if there's no connected device which can be
-    checked.
-    """
-    with mock.patch("circup.find_device", return_value=None), pytest.raises(
-        IOError
-    ) as ex:
-        circup.find_modules()
-        assert ex.value.args[0] == "Could find a connected Adafruit device."
-
-
-def test_check_file_versions():
-    """
-    Ensure the expected calls are made for extracting both the local and
-    remote version information for the referenced single file module. This
-    should be returned as an instance of circup.Module.
-
-    The local_module.py and remote_module.py "fixture" files contain versions:
-    ``"1.2.3"`` and ``"2.3.4"`` respectively. The referenced GitHub repository
-    is: ``"https://github.com/adafruit/SomeLibrary.git"``
-    """
-    filepath = "tests/local_module.py"
-    with open("tests/remote_module.py") as remote_module:
-        remote_source = remote_module.read()
+    with open("tests/device.json") as f:
+        device_modules = json.load(f)
+    with open("tests/bundle.json") as f:
+        bundle_modules = json.load(f)
     with mock.patch(
-        "circup.get_repos_file", return_value=remote_source
-    ) as mock_grf:
-        result = circup.check_file_versions(filepath)
-        assert isinstance(result, circup.Module)
-        assert repr(result) == repr(
-            circup.Module(
-                filepath,
-                "https://github.com/adafruit/SomeLibrary.git",
-                "1.2.3",
-                "2.3.4",
-            )
-        )
-        mock_grf.assert_called_once_with(
-            "https://github.com/adafruit/SomeLibrary.git", "local_module.py"
-        )
+        "circup.get_device_versions", return_value=device_modules
+    ), mock.patch("circup.get_bundle_versions", return_value=bundle_modules):
+        result = circup.find_modules()
+    assert len(result) == 1
+    assert result[0].name == "adafruit_74hc595"
 
 
-def test_check_file_versions_unknown_version():
+def test_find_modules_goes_bang():
     """
-    If no version information is available from the local file, the resulting
-    circup.Module class has None set against the two potentail versions (local
-    and remote).
+    Ensure if there's a problem getting metadata an error message is displayed
+    and the utility exists with an error code of 1.
     """
-    filepath = "tests/local_module.py"
-    with mock.patch("circup.extract_metadata", return_value={}):
-        result = circup.check_file_versions(filepath)
-        assert result.local_version is None
-        assert result.remote_version is None
+    with mock.patch(
+        "circup.get_device_versions", side_effect=Exception("BANG!")
+    ), mock.patch("circup.click") as mock_click, mock.patch(
+        "circup.sys.exit"
+    ) as mock_exit:
+        circup.find_modules()
+        assert mock_click.echo.call_count == 1
+        mock_exit.assert_called_once_with(1)
 
 
-def test_check_module():
+def test_get_bundle_versions():
     """
-    TODO: Finish this.
+    Ensure get_modules is called with the path for the library bundle.
     """
-    with mock.patch("circup.check_file_versions") as mock_cfv:
-        circup.check_module("foo")
-        mock_cfv.assert_called_once_with("foo")
+    dirs = (("foo/bar/lib", "", ""),)
+    with mock.patch("circup.ensure_latest_bundle"), mock.patch(
+        "circup.os.walk", return_value=dirs
+    ) as mock_walk, mock.patch(
+        "circup.get_modules", return_value="ok"
+    ) as mock_gm:
+        assert circup.get_bundle_versions() == "ok"
+        mock_walk.assert_called_once_with(circup.BUNDLE_DIR)
+        mock_gm.assert_called_once_with("foo/bar/lib")
+
+
+def test_get_device_versions():
+    """
+    Ensure get_modules is called with the path for the attached device.
+    """
+    with mock.patch(
+        "circup.find_device", return_value="CIRCUITPYTHON"
+    ), mock.patch("circup.get_modules", return_value="ok") as mock_gm:
+        assert circup.get_device_versions() == "ok"
+        mock_gm.assert_called_once_with(os.path.join("CIRCUITPYTHON", "lib"))
+
+
+def test_get_device_versions_go_bang():
+    """
+    If it's not possible to find a connected device, ensure an IOError is
+    raised.
+    """
+    with mock.patch("circup.find_device", return_value=None):
+        with pytest.raises(IOError):
+            circup.get_device_versions()
+
+
+def test_get_modules():
+    """
+    Check the expected dictionary containing metadata is returned given the
+    (mocked) results of glob and open.
+    """
+    path = "foo"
+    mods = ["tests/local_module.py"]
+    with mock.patch("circup.glob.glob", return_value=mods):
+        result = circup.get_modules(path)
+        assert len(result) == 1  # dict key is reused.
+
+
+def test_ensure_latest_bundle_no_bundle_data():
+    """
+    If there's no BUNDLE_DATA file (containing previous current version of the
+    bundle) then default to update.
+    """
+    with mock.patch("circup.get_latest_tag", return_value="12345"), mock.patch(
+        "circup.os.path.isfile", return_value=False
+    ), mock.patch("circup.get_bundle") as mock_gb, mock.patch(
+        "circup.json"
+    ) as mock_json:
+        circup.ensure_latest_bundle()
+        mock_gb.assert_called_once_with("12345")
+        assert mock_json.dump.call_count == 1  # Current version saved to file.
+
+
+def test_ensure_latest_bundle_to_update():
+    """
+    If the version found in the BUNDLE_DATA is out of date, the cause an update
+    to the bundle.
+    """
+    with mock.patch("circup.get_latest_tag", return_value="54321"), mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ), mock.patch("circup.get_bundle") as mock_gb, mock.patch(
+        "circup.json"
+    ) as mock_json:
+        mock_json.load.return_value = {"tag": "12345"}
+        circup.ensure_latest_bundle()
+        mock_gb.assert_called_once_with("54321")
+        assert mock_json.dump.call_count == 1  # Current version saved to file.
+
+
+def test_ensure_latest_bundle_no_update():
+    """
+    If the version found in the BUNDLE_DATA is NOT out of date, just log the
+    fact and don't update.
+    """
+    with mock.patch("circup.get_latest_tag", return_value="12345"), mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ), mock.patch("circup.get_bundle") as mock_gb, mock.patch(
+        "circup.json"
+    ) as mock_json, mock.patch(
+        "circup.logger"
+    ) as mock_logger:
+        mock_json.load.return_value = {"tag": "12345"}
+        circup.ensure_latest_bundle()
+        assert mock_gb.call_count == 0
+        assert mock_logger.info.call_count == 2

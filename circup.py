@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 import logging
-import tempfile
+import appdirs
 import os
 import sys
 import ctypes
@@ -30,19 +30,49 @@ import glob
 import re
 import requests
 import click
+import shutil
+import json
+import zipfile
 from datetime import datetime
-from semver import compare, parse
+from semver import compare
 from subprocess import check_output
 
 
+# Useful constants.
+#: The unique USB vendor ID for Adafruit boards.
+VENDOR_ID = 9114
+#: The regex used to extract ``__version__`` and ``__repo__`` assignments.
+DUNDER_ASSIGN_RE = re.compile(r"""^__\w+__\s*=\s*['"].+['"]$""")
+#: Flag to indicate if the command is being run in verbose mode.
+VERBOSE = False
+#: The location of data files used by circup (following OS conventions).
+DATA_DIR = appdirs.user_data_dir(appname="circup", appauthor="adafruit")
+#: The path to the JSON file containing the metadata about the current bundle.
+BUNDLE_DATA = os.path.join(DATA_DIR, "circup.json")
+#: The path to the zip file containing the current library bundle.
+BUNDLE_ZIP = os.path.join(DATA_DIR, "adafruit-circuitpython-bundle-py.zip")
+#: The path to the directory into which the current bundle is unzipped.
+BUNDLE_DIR = os.path.join(DATA_DIR, "adafruit_circuitpython_bundle")
+#: The directory containing the utility's log file.
+LOG_DIR = appdirs.user_log_dir(appname="circup", appauthor="adafruit")
+#: The location of the log file for the utility.
+LOGFILE = os.path.join(LOG_DIR, "circup.log")
+
+
+# Ensure DATA_DIR / LOG_DIR related directories and files exist.
+if not os.path.exists(DATA_DIR):  # pragma: no cover
+    os.makedirs(DATA_DIR)
+if not os.path.exists(LOG_DIR):  # pragma: no cover
+    os.makedirs(LOG_DIR)
+
+
+# Setup logging.
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-logfile = os.path.join(tempfile.gettempdir(), "circup.log")
-logfile_handler = logging.FileHandler(logfile)
+logfile_handler = logging.FileHandler(LOGFILE)
 log_formatter = logging.Formatter("%(levelname)s: %(message)s")
 logfile_handler.setFormatter(log_formatter)
 logger.addHandler(logfile_handler)
-click.echo("Logging to {}\n".format(logfile))
 
 
 # IMPORTANT
@@ -58,33 +88,29 @@ __author__ = "Adafruit Industries"
 __email__ = "ntoll@ntoll.org"
 
 
-#: The unique USB vendor ID for Adafruit boards.
-VENDOR_ID = 9114
-#: The regex used to extract ``__version__`` and ``__repo__`` assignments.
-DUNDER_ASSIGN_RE = re.compile(r"""^__\w+__\s*=\s*['"].+['"]$""")
-#: Flag to indicate if the command is being run in verbose mode.
-VERBOSE = False
-
-
 class Module:
     """
-    Represents a CircuitPython module
+    Represents a CircuitPython module.
     """
 
-    def __init__(self, path, repo, local_version, remote_version):
+    def __init__(
+        self, path, repo, device_version, bundle_version, bundle_path
+    ):
         """
         :param str path: The path to the module on the connected CIRCUITPYTHON
         device.
         :param str repo: The URL of the Git repository for this module.
-        :param str local_version: The semver value for the local copy.
-        :param str remote_version: The semver value for the remote copy.
+        :param str device_version: The semver value for the version on device.
+        :param str bundle_version: The semver value for the version in bundle.
+        :param str bundle_path: The path to the bundle version of the module.
         """
         self.path = path
         self.file = os.path.basename(path)
         self.name = self.file[:-3]
         self.repo = repo
-        self.local_version = local_version
-        self.remote_version = remote_version
+        self.device_version = device_version
+        self.bundle_version = bundle_version
+        self.bundle_path = bundle_path
         logger.info(self)
 
     @property
@@ -92,9 +118,9 @@ class Module:
         """
         Returns a boolean to indicate if this module is out of date.
         """
-        if self.local_version and self.remote_version:
+        if self.device_version and self.bundle_version:
             try:
-                return compare(self.local_version, self.remote_version) < 0
+                return compare(self.device_version, self.bundle_version) < 0
             except ValueError as ex:
                 logger.warning(
                     "Module '{}' has incorrect semver value.".format(self.name)
@@ -108,9 +134,25 @@ class Module:
         Returns a tuple of items to display in a table row to show the module's
         name, local version and remote version.
         """
-        loc = self.local_version if self.local_version else "unknown"
-        rem = self.remote_version if self.remote_version else "unknown"
+        loc = self.device_version if self.device_version else "unknown"
+        rem = self.bundle_version if self.bundle_version else "unknown"
         return (self.name, loc, rem)
+
+    def update(self):
+        """
+        Delete the module on the device, then copy the module from the bundle
+        back onto the device.
+
+        The caller is expected to handle any exceptions raised.
+        """
+        if os.path.isdir(self.path):
+            # Delete and copy the directory.
+            shutil.rmtree(self.path)
+            shutil.copytree(self.bundle_path, self.path)
+        else:
+            # Delete and copy file.
+            os.remove(self.path)
+            shutil.copyfile(self.bundle_path, self.path)
 
     def __repr__(self):
         """
@@ -122,8 +164,9 @@ class Module:
                 "file": self.file,
                 "name": self.name,
                 "repo": self.repo,
-                "local_version": self.local_version,
-                "remote_version": self.remote_version,
+                "device_version": self.device_version,
+                "bundle_version": self.bundle_version,
+                "bundle_path": self.bundle_path,
             }
         )
 
@@ -199,25 +242,22 @@ def find_device():
     return device_dir
 
 
-def get_repos_file(repository, filename):
+def get_latest_tag():
     """
-    Given a GitHub repository and a file contained therein, either returns the
-    content of that file, or raises an exception.
+    Find the value of the latest tag for the project at the given repository.
 
-    :param str repository: The full path to the GitHub repository.
-    :param str filename: The name of the file within the GitHub repository.
-    :return: The content of the file.
+    :param: str repository: The full path to the GitHub repository.
+    :return: The most recent tag value for the project.
     """
-    # Extract the repository's path for the GitHub API.
-    owner, repos_name = repository.split("/")[-2:]
-    repos_path = "{}/{}".format(owner, repos_name.replace(".git", ""))
-    url = "https://raw.githubusercontent.com/{}/master/{}".format(
-        repos_path, filename
+    url = (
+        "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
+        "/releases/latest"
     )
-    logger.info("Requesting remote file: {}".format(url))
+    logger.info("Requesting tag information: {}".format(url))
     response = requests.get(url)
-    logger.info(response)
-    return response.text
+    tag = response.url.rsplit("/", 1)[-1]
+    logger.info("Tag: ".format(tag))
+    return tag
 
 
 def extract_metadata(code):
@@ -246,50 +286,149 @@ def extract_metadata(code):
 
 def find_modules():
     """
-    Returns a list of paths to ``.py`` modules in the ``lib`` directory on a
-    connected Adafruit device.
+    Extracts metadata from the connected device and available bundle and return
+    this as a list of Module instances representing the modules on the device.
 
-    :return: A list of filpaths to modules in the lib directory on the device.
+    :return: A list of Module instances describing the current state of the
+    modules on the connected device.
+    """
+    try:
+        device_modules = get_device_versions()
+        bundle_modules = get_bundle_versions()
+        result = []
+        for name, device_metadata in device_modules.items():
+            if name in bundle_modules:
+                bundle_metadata = bundle_modules[name]
+                path = device_metadata["path"]
+                repo = device_metadata.get("__repo__")
+                device_version = device_metadata.get("__version__")
+                bundle_version = bundle_metadata.get("__version__")
+                bundle_path = bundle_metadata["path"]
+                result.append(
+                    Module(
+                        path, repo, device_version, bundle_version, bundle_path
+                    )
+                )
+        return result
+    except Exception as ex:
+        # If it's not possible to get the device and bundle metadata, bail out
+        # with a friendly message and indication of what's gone wrong.
+        logger.error(ex)
+        click.echo("There was a problem. {}".format(ex))
+        sys.exit(1)
+
+
+def get_bundle_versions():
+    """
+    Returns a dictionary of metadata from modules in the latest known release
+    of the library bundle.
+
+    :return: A dictionary of metadata about the modules available in the
+    library bundle.
+    """
+    ensure_latest_bundle()
+    for path, subdirs, files in os.walk(BUNDLE_DIR):
+        if path.endswith("lib"):
+            break
+    return get_modules(path)
+
+
+def get_device_versions():
+    """
+    Returns a dictionary of metadata from modules on the connected device.
+
+    :return: A dictionary of metadata about the modules available on the
+    connected device.
     """
     device_path = find_device()
     if device_path is None:
         raise IOError("Could not find a connected Adafruit device.")
-    return glob.glob(os.path.join(device_path, "lib", "*.py"))
+    return get_modules(os.path.join(device_path, "lib"))
 
 
-def check_file_versions(filepath):
+def get_modules(path):
     """
-    Given a path to an Adafruit module file, extract the metadata and check
-    the latest version via GitHub. Return an instance of the Module class.
+    Get a dictionary containing metadata about all the Python modules found in
+    the referenced path.
 
-    :param str filepath: A path to an Adafruit module file.
-    :return: An instance of the Module class containing metadata.
+    :param str path: The directory in which to find modules.
+    :return: A dictionary containing metadata about the found modules.
     """
-    with open(filepath) as source_file:
-        source_code = source_file.read()
-    metadata = extract_metadata(source_code)
-    module_file = os.path.basename(filepath)
-    module_name = module_file[:-3]
-    logger.info("Checking versions for module '{}'.".format(module_name))
-    local_version = metadata.get("__version__", "")
-    try:
-        parse(local_version)
-    except ValueError:
-        local_version = None
-    repo = metadata.get("__repo__", "unknown")
-    remote_version = None
-    if local_version and repo:
-        remote_source = get_repos_file(repo, module_file)
-        remote_metadata = extract_metadata(remote_source)
-        remote_version = remote_metadata.get("__version__", "")
-    return Module(filepath, repo, local_version, remote_version)
+    single_file_mods = glob.glob(os.path.join(path, "*.py"))
+    directory_mods = glob.glob(os.path.join(path, "*", ""))
+    result = {}
+    for sfm in single_file_mods:
+        with open(sfm) as source_file:
+            source_code = source_file.read()
+            metadata = extract_metadata(source_code)
+            metadata["path"] = sfm
+            result[os.path.basename(sfm)] = metadata
+    for dm in directory_mods:
+        name = os.path.basename(dm)
+        result[name] = {}
+        for source in glob.glob(os.path.join(dm, "*.py")):
+            with open(source) as source_file:
+                source_code = source_file.read()
+                metadata = extract_metadata(source_code)
+            if "__version__":
+                metadata["path"] = dm
+                result[name] = metadata
+                break
+    return result
 
 
-def check_module(module):
+def ensure_latest_bundle():
     """
-    Shim. TODO: finish this.
+    Ensure that there's a copy of the latest library bundle available so circup
+    can check the metadata contained therein.
     """
-    return check_file_versions(module)
+    logger.info("Checking for library updates.")
+    tag = get_latest_tag()
+    old_tag = "0"
+    if os.path.isfile(BUNDLE_DATA):
+        with open(BUNDLE_DATA) as data:
+            old_tag = json.load(data)["tag"]
+    if tag > old_tag:
+        logger.info("New version available ({}).".format(tag))
+        get_bundle(tag)
+        with open(BUNDLE_DATA, "w") as data:
+            json.dump({"tag": tag}, data)
+    else:
+        logger.info("Current library bundle up to date ({}).".format(tag))
+
+
+def get_bundle(tag):  # pragma: no cover
+    """
+    Downloads and extracts the version of the bundle with the referenced tag.
+
+    :param str tag: The GIT tag to use to download the bundle.
+    :return: The location of the resulting zip file in a temporary location on
+    the local filesystem.
+    """
+    url = (
+        "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
+        "/releases/download"
+        "/{tag}/adafruit-circuitpython-bundle-py-{tag}.zip".format(tag=tag)
+    )
+    logger.info("Downloading bundle: {}".format(url))
+    r = requests.get(url, stream=True)
+    if r.status_code != requests.codes.ok:
+        logger.warning("Unable to connect to {}".format(url))
+        r.raise_for_status()
+    total_size = int(r.headers.get("Content-Length"))
+    click.echo("Downloading latest version information.\n")
+    with click.progressbar(
+        r.iter_content(1024), length=total_size
+    ) as bar, open(BUNDLE_ZIP, "wb") as f:
+        for chunk in bar:
+            f.write(chunk)
+            bar.update(len(chunk))
+    logger.info("Saved to {}".format(BUNDLE_ZIP))
+    if os.path.isdir(BUNDLE_DIR):
+        shutil.rmtree(BUNDLE_DIR)
+    with zipfile.ZipFile(BUNDLE_ZIP, "r") as zfile:
+        zfile.extractall(BUNDLE_DIR)
+    click.echo("\nOK\n")
 
 
 # ----------- CLI command definitions  ----------- #
@@ -322,6 +461,8 @@ def main(verbose):  # pragma: no cover
         verbose_handler.setLevel(logging.INFO)
         verbose_handler.setFormatter(log_formatter)
         logger.addHandler(verbose_handler)
+    else:
+        click.echo("Logging to {}\n".format(LOGFILE))
     logger.info("\n\n\nStarted {}".format(datetime.now()))
 
 
@@ -332,18 +473,10 @@ def freeze():  # pragma: no cover
     device.
     """
     logger.info("Freeze")
-    local_modules = find_modules()
-    for module in local_modules:
-        with open(module) as source_file:
-            source_code = source_file.read()
-            metadata = extract_metadata(source_code)
-            module_file = os.path.basename(module)
-            module_name = module_file[:-3]
-            output = "{}=={}".format(
-                module_name, metadata.get("__version__", "unknown")
-            )
-            click.echo(output)
-            logger.info(output)
+    for module in find_modules():
+        output = "{}=={}".format(module.name, module.device_version)
+        click.echo(output)
+        logger.info(output)
 
 
 @main.command()
@@ -352,26 +485,10 @@ def list():  # pragma: no cover
     Lists all out of date modules found on the connected CIRCUITPYTHON device.
     """
     logger.info("List")
-    local_modules = find_modules()
-    results = []
-    click.echo("Found {} modules to check...\n".format(len(local_modules)))
-    if VERBOSE:
-        # No CLI effects, just allow logs to be emitted.
-        for item in local_modules:
-            module = check_module(item)
-            if module.outofdate:
-                results.append(module)
-    else:
-        # Use a progress bar instead.
-        with click.progressbar(local_modules) as bar:
-            for item in bar:
-                module = check_module(item)
-                if module.outofdate:
-                    results.append(module)
-    # Nice tabular display.
+    # Grab out of date modules.
     data = [("Package", "Version", "Latest")]
-    for item in results:
-        data.append(item.row)
+    data += [m.row for m in find_modules() if m.outofdate]
+    # Nice tabular display.
     col_width = [0, 0, 0]
     for row in data:
         for i, word in enumerate(row):
@@ -389,7 +506,6 @@ def list():  # pragma: no cover
         if not VERBOSE:
             click.echo(output)
         logger.info(output)
-    click.echo("\n✨ 🍰 ✨")
 
 
 @main.command()
@@ -399,3 +515,20 @@ def update():  # pragma: no cover
     prompts the user to confirm updating such modules.
     """
     logger.info("Update")
+    # Grab out of date modules.
+    modules = [m for m in find_modules() if m.outofdate]
+    click.echo("\nFound {} module[s] needing update.".format(len(modules)))
+    if modules:
+        click.echo("Please indicate which modules you wish to update:\n")
+        for module in modules:
+            if click.confirm("Update '{}'?".format(module.name)):
+                try:
+                    module.update()
+                    click.echo("OK")
+                except Exception as ex:
+                    logger.error(ex)
+                    click.echo(
+                        "Something went wrong {} (check the logs)".format(
+                            str(ex)
+                        )
+                    )

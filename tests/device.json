@@ -1,0 +1,7 @@
+{
+  "adafruit_74hc595.py": {
+    "__version__": "1.0.2",
+    "__repo__": "https://github.com/adafruit/Adafruit_CircuitPython_74HC595.git",
+    "path": "/media/ntoll/CIRCUITPY/lib/adafruit_74hc595.py"
+  }
+}

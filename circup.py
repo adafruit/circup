@@ -148,7 +148,7 @@ class Module:
         name, local version and remote version.
 
         :return: A tuple containing the module's name, version on the connected
-        device and version in the latest bundle.
+                 device and version in the latest bundle.
         """
         loc = self.device_version if self.device_version else "unknown"
         rem = self.bundle_version if self.bundle_version else "unknown"
@@ -309,7 +309,7 @@ def find_modules():
     device.
 
     :return: A list of Module instances describing the current state of the
-    modules on the connected device.
+             modules on the connected device.
     """
     try:
         device_modules = get_device_versions()
@@ -343,7 +343,7 @@ def get_bundle_versions():
     of the library bundle.
 
     :return: A dictionary of metadata about the modules available in the
-    library bundle.
+             library bundle.
     """
     ensure_latest_bundle()
     for path, subdirs, files in os.walk(BUNDLE_DIR):
@@ -357,7 +357,7 @@ def get_device_versions():
     Returns a dictionary of metadata from modules on the connected device.
 
     :return: A dictionary of metadata about the modules available on the
-    connected device.
+             connected device.
     """
     device_path = find_device()
     if device_path is None:
@@ -428,7 +428,7 @@ def get_bundle(tag):
 
     :param str tag: The GIT tag to use to download the bundle.
     :return: The location of the resulting zip file in a temporary location on
-    the local filesystem.
+             the local filesystem.
     """
     url = (
         "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"

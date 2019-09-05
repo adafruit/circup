@@ -492,26 +492,29 @@ def list():  # pragma: no cover
     """
     logger.info("List")
     # Grab out of date modules.
-    data = [("Package", "Version", "Latest")]
+    data = [("Module", "Version", "Latest")]
     data += [m.row for m in find_modules() if m.outofdate]
-    # Nice tabular display.
-    col_width = [0, 0, 0]
-    for row in data:
-        for i, word in enumerate(row):
-            col_width[i] = max(len(word) + 2, col_width[i])
-    dashes = tuple(("-" * (width - 1) for width in col_width))
-    data.insert(1, dashes)
-    click.echo(
-        "\nThe following packages are out of date or probably need "
-        "an update.\n"
-    )
-    for row in data:
-        output = ""
-        for i in range(3):
-            output += row[i].ljust(col_width[i])
-        if not VERBOSE:
-            click.echo(output)
-        logger.info(output)
+    if data:
+        # Nice tabular display.
+        col_width = [0, 0, 0]
+        for row in data:
+            for i, word in enumerate(row):
+                col_width[i] = max(len(word) + 2, col_width[i])
+        dashes = tuple(("-" * (width - 1) for width in col_width))
+        data.insert(1, dashes)
+        click.echo(
+            "\nThe following modules are out of date or probably need "
+            "an update.\n"
+        )
+        for row in data:
+            output = ""
+            for i in range(3):
+                output += row[i].ljust(col_width[i])
+            if not VERBOSE:
+                click.echo(output)
+            logger.info(output)
+    else:
+        click.echo("All modules found on the device are up to date.")
 
 
 @main.command()
@@ -523,8 +526,8 @@ def update():  # pragma: no cover
     logger.info("Update")
     # Grab out of date modules.
     modules = [m for m in find_modules() if m.outofdate]
-    click.echo("\nFound {} module[s] needing update.".format(len(modules)))
     if modules:
+        click.echo("\nFound {} module[s] needing update.".format(len(modules)))
         click.echo("Please indicate which modules you wish to update:\n")
         for module in modules:
             if click.confirm("Update '{}'?".format(module.name)):
@@ -538,3 +541,5 @@ def update():  # pragma: no cover
                             str(ex)
                         )
                     )
+    else:
+        click.echo("None of the modules found on the device need an update.")

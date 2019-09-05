@@ -25,7 +25,7 @@ Example usage::
 
     circup list
 
-    Package     Version Latest
+    Module      Version Latest
     ----------- ------- ------  
     foo         1.0.1   1.1.0
     bar         19.3    19.4

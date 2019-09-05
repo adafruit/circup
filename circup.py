@@ -117,6 +117,8 @@ class Module:
     def outofdate(self):
         """
         Returns a boolean to indicate if this module is out of date.
+
+        :return: Truthy indication if the module is out of date.
         """
         if self.device_version and self.bundle_version:
             try:
@@ -133,6 +135,9 @@ class Module:
         """
         Returns a tuple of items to display in a table row to show the module's
         name, local version and remote version.
+
+        :return: A tuple containing the module's name, version on the connected
+        device and version in the latest bundle.
         """
         loc = self.device_version if self.device_version else "unknown"
         rem = self.bundle_version if self.bundle_version else "unknown"
@@ -157,6 +162,8 @@ class Module:
     def __repr__(self):
         """
         Helps with log files.
+
+        :return: A repr of a dictionary containing the module's metadata.
         """
         return repr(
             {
@@ -244,9 +251,9 @@ def find_device():
 
 def get_latest_tag():
     """
-    Find the value of the latest tag for the project at the given repository.
+    Find the value of the latest tag for the Adafruit CircuitPython library
+    bundle.
 
-    :param: str repository: The full path to the GitHub repository.
     :return: The most recent tag value for the project.
     """
     url = (
@@ -270,7 +277,7 @@ def extract_metadata(code):
         __version__ = "1.1.4"
         __repo__ = "https://github.com/adafruit/SomeLibrary.git"
 
-    :param str code: The source code containing the version details.
+    :param str code: The source code containing the metadata.
     :return: The dunder based metadata found in the code as a dictionary.
     """
     result = {}
@@ -286,8 +293,9 @@ def extract_metadata(code):
 
 def find_modules():
     """
-    Extracts metadata from the connected device and available bundle and return
-    this as a list of Module instances representing the modules on the device.
+    Extracts metadata from the connected device and available bundle and
+    returns this as a list of Module instances representing the modules on the
+    device.
 
     :return: A list of Module instances describing the current state of the
     modules on the connected device.
@@ -314,7 +322,7 @@ def find_modules():
         # If it's not possible to get the device and bundle metadata, bail out
         # with a friendly message and indication of what's gone wrong.
         logger.exception(ex)
-        click.echo("There was a problem. {}".format(ex))
+        click.echo("There was a problem, {} (check the logs)".format(ex))
         sys.exit(1)
 
 
@@ -403,7 +411,7 @@ def ensure_latest_bundle():
         logger.info("Current library bundle up to date ({}).".format(tag))
 
 
-def get_bundle(tag):  # pragma: no cover
+def get_bundle(tag):
     """
     Downloads and extracts the version of the bundle with the referenced tag.
 

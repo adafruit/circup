@@ -381,6 +381,28 @@ def test_ensure_latest_bundle_no_bundle_data():
         assert mock_json.dump.call_count == 1  # Current version saved to file.
 
 
+def test_ensure_latest_bundle_bad_bundle_data():
+    """
+    If there's a BUNDLE_DATA file (containing previous current version of the
+    bundle) but it has been corrupted (which has sometimes happened during
+    manual testing) then default to update.
+    """
+    with mock.patch("circup.get_latest_tag", return_value="12345"), mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ), mock.patch("circup.get_bundle") as mock_gb, mock.patch(
+        "circup.json.load",
+        side_effect=json.decoder.JSONDecodeError("BANG!", "doc", 1),
+    ), mock.patch(
+        "circup.json.dump"
+    ), mock.patch(
+        "circup.logger"
+    ) as mock_logger:
+        circup.ensure_latest_bundle()
+        mock_gb.assert_called_once_with("12345")
+        assert mock_logger.error.call_count == 1
+        assert mock_logger.exception.call_count == 1
+
+
 def test_ensure_latest_bundle_to_update():
     """
     If the version found in the BUNDLE_DATA is out of date, the cause an update
@@ -413,3 +435,71 @@ def test_ensure_latest_bundle_no_update():
         circup.ensure_latest_bundle()
         assert mock_gb.call_count == 0
         assert mock_logger.info.call_count == 2
+
+
+def test_get_bundle():
+    """
+    Ensure the expected calls are made to get the referenced bundle and the
+    result is unzipped to the expected location.
+    """
+    # All these mocks stop IO side effects and allow us to spy on the code to
+    # ensure the expected calls are made with the correct values. Warning! Here
+    # Be Dragons! (If in doubt, ask ntoll for details).
+    mock_progress = mock.MagicMock()
+    mock_progress().__enter__ = mock.MagicMock(return_value=["a", "b", "c"])
+    mock_progress().__exit__ = mock.MagicMock()
+    with mock.patch("circup.requests") as mock_requests, mock.patch(
+        "circup.click"
+    ) as mock_click, mock.patch(
+        "circup.open", mock.mock_open()
+    ) as mock_open, mock.patch(
+        "circup.os.path.isdir", return_value=True
+    ), mock.patch(
+        "circup.shutil"
+    ) as mock_shutil, mock.patch(
+        "circup.zipfile"
+    ) as mock_zipfile:
+        mock_click.progressbar = mock_progress
+        mock_requests.get().status_code = mock_requests.codes.ok
+        mock_requests.get.reset_mock()
+        tag = "12345"
+        circup.get_bundle(tag)
+        url = (
+            "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
+            "/releases/download"
+            "/{tag}/adafruit-circuitpython-bundle-py-{tag}.zip".format(tag=tag)
+        )
+        mock_requests.get.assert_called_once_with(url, stream=True)
+        mock_open.assert_called_once_with(circup.BUNDLE_ZIP, "wb")
+        mock_shutil.rmtree.assert_called_once_with(circup.BUNDLE_DIR)
+        mock_zipfile.ZipFile.assert_called_once_with(circup.BUNDLE_ZIP, "r")
+        mock_zipfile.ZipFile().__enter__().extractall.assert_called_once_with(
+            circup.BUNDLE_DIR
+        )
+
+
+def test_get_bundle_network_error():
+    """
+    Ensure that if there is a network related error when grabbing the bundle
+    then the error is logged and re-raised for the HTTP status code.
+    """
+    with mock.patch("circup.requests") as mock_requests, mock.patch(
+        "circup.logger"
+    ) as mock_logger:
+        # Force failure with != requests.codes.ok
+        mock_requests.get().status_code = mock_requests.codes.BANG
+        # Ensure raise_for_status actually raises an exception.
+        mock_requests.get().raise_for_status.return_value = Exception("Bang!")
+        mock_requests.get.reset_mock()
+        tag = "12345"
+        with pytest.raises(Exception) as ex:
+            circup.get_bundle(tag)
+            assert ex.value.args[0] == "Bang!"
+        url = (
+            "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
+            "/releases/download"
+            "/{tag}/adafruit-circuitpython-bundle-py-{tag}.zip".format(tag=tag)
+        )
+        mock_requests.get.assert_called_once_with(url, stream=True)
+        assert mock_logger.warning.call_count == 1
+        mock_requests.get().raise_for_status.assert_called_once_with()

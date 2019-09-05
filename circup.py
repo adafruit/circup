@@ -313,7 +313,7 @@ def find_modules():
     except Exception as ex:
         # If it's not possible to get the device and bundle metadata, bail out
         # with a friendly message and indication of what's gone wrong.
-        logger.error(ex)
+        logger.exception(ex)
         click.echo("There was a problem. {}".format(ex))
         sys.exit(1)
 
@@ -387,7 +387,13 @@ def ensure_latest_bundle():
     old_tag = "0"
     if os.path.isfile(BUNDLE_DATA):
         with open(BUNDLE_DATA, encoding="utf-8") as data:
-            old_tag = json.load(data)["tag"]
+            try:
+                old_tag = json.load(data)["tag"]
+            except json.decoder.JSONDecodeError as ex:
+                # Sometimes (why?) the JSON file becomes corrupt. In which case
+                # log it and carry on as if setting up for first time.
+                logger.error("Could not parse {}".format(BUNDLE_DATA))
+                logger.exception(ex)
     if tag > old_tag:
         logger.info("New version available ({}).".format(tag))
         get_bundle(tag)
@@ -526,9 +532,9 @@ def update():  # pragma: no cover
                     module.update()
                     click.echo("OK")
                 except Exception as ex:
-                    logger.error(ex)
+                    logger.exception(ex)
                     click.echo(
-                        "Something went wrong {} (check the logs)".format(
+                        "Something went wrong, {} (check the logs)".format(
                             str(ex)
                         )
                     )

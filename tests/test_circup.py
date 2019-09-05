@@ -29,16 +29,19 @@ import json
 from unittest import mock
 
 
-def test_Module_init():
+def test_Module_init_file_module():
     """
-    Ensure the Module instance is set up as expected and logged.
+    Ensure the Module instance is set up as expected and logged, is if for a
+    single file Python module.
     """
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "3.2.1"
     bundle_path = os.path.join("baz", "bar", "foo", "module.py")
-    with mock.patch("circup.logger.info") as mock_logger:
+    with mock.patch("circup.logger.info") as mock_logger, mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ):
         m = circup.Module(
             path, repo, device_version, bundle_version, bundle_path
         )
@@ -46,6 +49,32 @@ def test_Module_init():
         assert m.path == path
         assert m.file == "module.py"
         assert m.name == "module"
+        assert m.repo == repo
+        assert m.device_version == device_version
+        assert m.bundle_version == bundle_version
+        assert m.bundle_path == bundle_path
+
+
+def test_Module_init_directory_module():
+    """
+    Ensure the Module instance is set up as expected and logged, as if for a
+    directory based Python module.
+    """
+    path = os.path.join("foo", "bar", "modulename", "")
+    repo = "https://github.com/adafruit/SomeLibrary.git"
+    device_version = "1.2.3"
+    bundle_version = "3.2.1"
+    bundle_path = os.path.join("baz", "bar", "foo", "")
+    with mock.patch("circup.logger.info") as mock_logger, mock.patch(
+        "circup.os.path.isfile", return_value=False
+    ):
+        m = circup.Module(
+            path, repo, device_version, bundle_version, bundle_path
+        )
+        mock_logger.assert_called_once_with(m)
+        assert m.path == path
+        assert m.file is None
+        assert m.name == "modulename"
         assert m.repo == repo
         assert m.device_version == device_version
         assert m.bundle_version == bundle_version
@@ -97,7 +126,10 @@ def test_Module_row():
     device_version = "1.2.3"
     bundle_version = None
     bundle_path = os.path.join("baz", "bar", "foo", "module.py")
-    m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
+    with mock.patch("circup.os.path.isfile", return_value=True):
+        m = circup.Module(
+            path, repo, device_version, bundle_version, bundle_path
+        )
     assert m.row == ("module", "1.2.3", "unknown")
 
 
@@ -148,7 +180,10 @@ def test_Module_repr():
     device_version = "1.2.3"
     bundle_version = "3.2.1"
     bundle_path = os.path.join("baz", "bar", "foo", "module.py")
-    m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
+    with mock.patch("circup.os.path.isfile", return_value=True):
+        m = circup.Module(
+            path, repo, device_version, bundle_version, bundle_path
+        )
     assert repr(m) == repr(
         {
             "path": path,
@@ -297,7 +332,11 @@ def test_find_modules():
         bundle_modules = json.load(f)
     with mock.patch(
         "circup.get_device_versions", return_value=device_modules
-    ), mock.patch("circup.get_bundle_versions", return_value=bundle_modules):
+    ), mock.patch(
+        "circup.get_bundle_versions", return_value=bundle_modules
+    ), mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ):
         result = circup.find_modules()
     assert len(result) == 1
     assert result[0].name == "adafruit_74hc595"

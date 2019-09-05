@@ -97,6 +97,11 @@ class Module:
         self, path, repo, device_version, bundle_version, bundle_path
     ):
         """
+        The ``self.file`` and ``self.name`` attributes are constructed from
+        the ``path`` value. If the path is to a directory based module, the
+        resulting self.file value will be None, and the name will be the
+        basename of the directory path.
+
         :param str path: The path to the module on the connected CIRCUITPYTHON
         device.
         :param str repo: The URL of the Git repository for this module.
@@ -105,8 +110,14 @@ class Module:
         :param str bundle_path: The path to the bundle version of the module.
         """
         self.path = path
-        self.file = os.path.basename(path)
-        self.name = self.file[:-3]
+        if os.path.isfile(self.path):
+            # Single file module.
+            self.file = os.path.basename(path)
+            self.name = self.file[:-3]
+        else:
+            # Directory based module.
+            self.file = None
+            self.name = os.path.basename(os.path.dirname(self.path))
         self.repo = repo
         self.device_version = device_version
         self.bundle_version = bundle_version
@@ -322,7 +333,7 @@ def find_modules():
         # If it's not possible to get the device and bundle metadata, bail out
         # with a friendly message and indication of what's gone wrong.
         logger.exception(ex)
-        click.echo("There was a problem, {} (check the logs)".format(ex))
+        click.echo("There was a problem: {}".format(ex))
         sys.exit(1)
 
 
@@ -501,8 +512,9 @@ def list():  # pragma: no cover
     logger.info("List")
     # Grab out of date modules.
     data = [("Module", "Version", "Latest")]
-    data += [m.row for m in find_modules() if m.outofdate]
-    if data:
+    modules = [m.row for m in find_modules() if m.outofdate]
+    if modules:
+        data += modules
         # Nice tabular display.
         col_width = [0, 0, 0]
         for row in data:

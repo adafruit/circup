@@ -76,8 +76,6 @@ To show version information for all the modules currently on a connected
 CIRCUITPYTHON device::
 
     $ circup freeze
-    Logging to /home/ntoll/.cache/circup/log/circup.log
-
     adafruit_binascii==v1.0
     adafruit_bme280==2.3.1
     adafruit_ble==1.0.2
@@ -85,8 +83,6 @@ CIRCUITPYTHON device::
 To list all the modules that require an update::
 
     $ circup list
-    Logging to /home/ntoll/.cache/circup/log/circup.log
-
     The following modules are out of date or probably need an update.
 
     Module             Version  Latest   
@@ -97,8 +93,6 @@ To list all the modules that require an update::
 To interactively update the out-of-date modules::
 
     $ circup update
-    Logging to /home/ntoll/.cache/circup/log/circup.log
-
     Found 3 module[s] needing update.
     Please indicate which modules you wish to update:
 
@@ -110,10 +104,9 @@ To interactively update the out-of-date modules::
 Use the ``--verbose`` flag to see the logs as the command is working::
 
     $ circup --verbose freeze
+    Logging to /home/ntoll/.cache/circup/log/circup.log
 
-
-
-    Started 2019-09-05 13:13:41.031822
+    INFO: Started 2019-09-05 13:13:41.031822
     INFO: Freeze
     INFO: Found device: /media/ntoll/CIRCUITPY
     ... etc ...
@@ -129,7 +122,7 @@ That's it!
 .. note::
 
     If you find a bug, or you want to suggest an enhancement or new feature
-    feel free to submit a bug report or pull request here:
+    feel free to create an issue or submit a pull request here:
 
     https://github.com/adafruit/circup
 

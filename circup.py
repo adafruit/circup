@@ -383,7 +383,7 @@ def get_modules(path):
             metadata["path"] = sfm
             result[os.path.basename(sfm)] = metadata
     for dm in directory_mods:
-        name = os.path.basename(dm)
+        name = os.path.basename(os.path.dirname(dm))
         result[name] = {}
         for source in glob.glob(os.path.join(dm, "*.py")):
             with open(source, encoding="utf-8") as source_file:
@@ -567,3 +567,22 @@ def update():  # pragma: no cover
                     )
     else:
         click.echo("None of the modules found on the device need an update.")
+
+
+@main.command()
+def show():  # pragma: no cover
+    """
+    Show a list of available modules in the bundle. These are modules which
+    *could* be installed on the device.
+    """
+    available_modules = get_bundle_versions()
+    click.echo(", ".join([m.replace(".py", "") for m in available_modules]))
+
+@main.command()
+@click.argument('name')
+def install(name):  # pragma: no cover
+    """
+    Install a named module onto the device. This is a very naive / simple
+    PoC.
+    """
+    print("Hello, " + name)

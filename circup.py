@@ -579,13 +579,45 @@ def show():  # pragma: no cover
     *could* be installed on the device.
     """
     available_modules = get_bundle_versions()
-    click.echo(", ".join([m.replace(".py", "") for m in available_modules]))
+    module_names = sorted([m.replace(".py", "") for m in available_modules])
+    click.echo(", ".join(module_names))
+    click.echo("{} packages.".format(len(module_names)))
+
 
 @main.command()
-@click.argument('name')
+@click.argument("name")
 def install(name):  # pragma: no cover
     """
     Install a named module onto the device. This is a very naive / simple
-    PoC.
+    hacky proof of concept.
+
+    TODO: Work out how to specify / handle dependencies (if at all), ensure
+    there's enough space on the device, work out the version of CircuitPython
+    on the device in order to copy the appropriate .mpy versions too. ;-)
     """
-    print("Hello, " + name)
+    available_modules = get_bundle_versions()
+    # Normalize user input.
+    name = name.lower()
+    mod_names = {}
+    for module, metadata in available_modules.items():
+        mod_names[module.replace(".py", "").lower()] = metadata
+    if name in mod_names:
+        device_path = find_device()
+        if device_path is None:
+            raise IOError("Could not find a connected Adafruit device.")
+        library_path = os.path.join(device_path, "lib")
+        metadata = mod_names[name]
+        source_path = metadata["path"]
+        if os.path.isdir(source_path):
+            target = os.path.basename(os.path.dirname(source_path))
+            target_path = os.path.join(library_path, target)
+            # Copy the directory.
+            shutil.copytree(source_path, target_path)
+        else:
+            target = os.path.basename(source_path)
+            target_path = os.path.join(library_path, target)
+            # Copy file.
+            shutil.copyfile(source_path, target_path)
+        print("OK")
+    else:
+        click.echo("Unknown module named, '{}'.".format(name))

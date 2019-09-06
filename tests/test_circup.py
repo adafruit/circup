@@ -428,7 +428,9 @@ def test_ensure_latest_bundle_bad_bundle_data():
     """
     with mock.patch("circup.get_latest_tag", return_value="12345"), mock.patch(
         "circup.os.path.isfile", return_value=True
-    ), mock.patch("circup.get_bundle") as mock_gb, mock.patch(
+    ), mock.patch("circup.open"), mock.patch(
+        "circup.get_bundle"
+    ) as mock_gb, mock.patch(
         "circup.json.load",
         side_effect=json.decoder.JSONDecodeError("BANG!", "doc", 1),
     ), mock.patch(
@@ -449,7 +451,9 @@ def test_ensure_latest_bundle_to_update():
     """
     with mock.patch("circup.get_latest_tag", return_value="54321"), mock.patch(
         "circup.os.path.isfile", return_value=True
-    ), mock.patch("circup.get_bundle") as mock_gb, mock.patch(
+    ), mock.patch("circup.open"), mock.patch(
+        "circup.get_bundle"
+    ) as mock_gb, mock.patch(
         "circup.json"
     ) as mock_json:
         mock_json.load.return_value = {"tag": "12345"}
@@ -465,7 +469,9 @@ def test_ensure_latest_bundle_no_update():
     """
     with mock.patch("circup.get_latest_tag", return_value="12345"), mock.patch(
         "circup.os.path.isfile", return_value=True
-    ), mock.patch("circup.get_bundle") as mock_gb, mock.patch(
+    ), mock.patch("circup.open"), mock.patch(
+        "circup.get_bundle"
+    ) as mock_gb, mock.patch(
         "circup.json"
     ) as mock_json, mock.patch(
         "circup.logger"

@@ -498,10 +498,14 @@ def freeze():  # pragma: no cover
     device.
     """
     logger.info("Freeze")
-    for module in find_modules():
-        output = "{}=={}".format(module.name, module.device_version)
-        click.echo(output)
-        logger.info(output)
+    modules = find_modules()
+    if modules:
+        for module in modules:
+            output = "{}=={}".format(module.name, module.device_version)
+            click.echo(output)
+            logger.info(output)
+    else:
+        click.echo("No modules found on the device.")
 
 
 @main.command()

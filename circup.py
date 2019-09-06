@@ -383,16 +383,19 @@ def get_modules(path):
             metadata["path"] = sfm
             result[os.path.basename(sfm)] = metadata
     for dm in directory_mods:
-        name = os.path.basename(dm)
-        result[name] = {}
+        name = os.path.basename(os.path.dirname(dm))
+        metadata = {}
         for source in glob.glob(os.path.join(dm, "*.py")):
             with open(source, encoding="utf-8") as source_file:
                 source_code = source_file.read()
                 metadata = extract_metadata(source_code)
-            if "__version__":
+            if "__version__" in metadata:
                 metadata["path"] = dm
                 result[name] = metadata
                 break
+        else:
+            # No version metadata found.
+            result[name] = {"path": dm}
     return result
 
 

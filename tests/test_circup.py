@@ -393,16 +393,70 @@ def test_get_device_versions_go_bang():
             circup.get_device_versions()
 
 
-def test_get_modules():
+def test_get_modules_that_are_files():
     """
     Check the expected dictionary containing metadata is returned given the
-    (mocked) results of glob and open.
+    (mocked) results of glob and open on file based Python modules.
     """
-    path = "foo"
-    mods = ["tests/local_module.py"]
-    with mock.patch("circup.glob.glob", return_value=mods):
+    path = "tests"  # mocked away in function.
+    mods = [os.path.join("tests", "local_module.py")]
+    with mock.patch("circup.glob.glob", side_effect=[mods, []]):
         result = circup.get_modules(path)
-        assert len(result) == 1  # dict key is reused.
+        assert len(result) == 1
+        assert "local_module.py" in result
+        assert result["local_module.py"]["path"] == os.path.join(
+            "tests", "local_module.py"
+        )
+        assert (
+            result["local_module.py"]["__version__"] == "1.2.3"
+        )  # from fixture.
+        repo = "https://github.com/adafruit/SomeLibrary.git"  # from fixture.
+        assert result["local_module.py"]["__repo__"] == repo
+
+
+def test_get_modules_that_are_directories():
+    """
+    Check the expected dictionary containing metadata is returned given the
+    (mocked) results of glob and open, on directory based Python modules.
+    """
+    path = "tests"  # mocked away in function.
+    mods = [os.path.join("tests", "dir_module", "")]
+    mod_files = [
+        "tests/dir_module/my_module.py",
+        "tests/dir_module/__init__.py",
+    ]
+    with mock.patch("circup.glob.glob", side_effect=[[], mods, mod_files]):
+        result = circup.get_modules(path)
+        assert len(result) == 1
+        assert "dir_module" in result
+        assert result["dir_module"]["path"] == os.path.join(
+            "tests", "dir_module", ""
+        )
+        assert result["dir_module"]["__version__"] == "3.2.1"  # from fixture.
+        repo = "https://github.com/adafruit/SomeModule.git"  # from fixture.
+        assert result["dir_module"]["__repo__"] == repo
+
+
+def test_get_modules_that_are_directories_with_no_metadata():
+    """
+    Check the expected dictionary containing just the path is returned given
+    the (mocked) results of glob and open, on directory based Python modules.
+    """
+    path = "tests"  # mocked away in function.
+    mods = [os.path.join("tests", "bad_module", "")]
+    mod_files = [
+        "tests/bad_module/my_module.py",
+        "tests/bad_module/__init__.py",
+    ]
+    with mock.patch("circup.glob.glob", side_effect=[[], mods, mod_files]):
+        result = circup.get_modules(path)
+        assert len(result) == 1
+        assert "bad_module" in result
+        assert result["bad_module"]["path"] == os.path.join(
+            "tests", "bad_module", ""
+        )
+        assert "__version__" not in result["bad_module"]
+        assert "__repo__" not in result["bad_module"]
 
 
 def test_ensure_latest_bundle_no_bundle_data():

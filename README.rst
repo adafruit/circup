@@ -21,7 +21,7 @@ If you have no idea what a virtualenv is, try the following command,
     your path contains the directory into which the script will be installed.
     To discover this path,
 
-    * On unix-like systems, type ``python3 -m site --user-base`` and append
+    * On Unix-like systems, type ``python3 -m site --user-base`` and append
       ``bin`` to the resulting path.
     * On Windows, type the same command, but append ``Scripts`` to the
       resulting path.
@@ -133,6 +133,13 @@ That's it!
 
 Developer Setup
 ---------------
+
+.. note::
+
+    Please try to use Python 3.6+ while developing CircUp. This is so we can
+    use the
+    `Black code formatter <https://black.readthedocs.io/en/stable/index.html>`_
+    (which only works with Python 3.6+).
 
 Clone the repository then make a virtualenv. From the root of the project,
 install the requirements::

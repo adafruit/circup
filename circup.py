@@ -273,8 +273,9 @@ def get_latest_tag():
     )
     logger.info("Requesting tag information: {}".format(url))
     response = requests.get(url)
+    logger.info("Response url: {}".format(response.url))
     tag = response.url.rsplit("/", 1)[-1]
-    logger.info("Tag: ".format(tag))
+    logger.info("Tag: '{}'".format(tag))
     return tag
 
 
@@ -298,7 +299,8 @@ def extract_metadata(code):
             exec(line, result)
     if "__builtins__" in result:
         del result["__builtins__"]  # Side effect of using exec, not needed.
-    logger.info("Extracted metadata: {}".format(result))
+    if result:
+        logger.info("Extracted metadata: {}".format(result))
     return result
 
 
@@ -489,9 +491,8 @@ def main(verbose):  # pragma: no cover
         verbose_handler.setLevel(logging.INFO)
         verbose_handler.setFormatter(log_formatter)
         logger.addHandler(verbose_handler)
-    else:
         click.echo("Logging to {}\n".format(LOGFILE))
-    logger.info("\n\n\nStarted {}".format(datetime.now()))
+    logger.info("### Started {}".format(datetime.now()))
 
 
 @main.command()
@@ -530,7 +531,7 @@ def list():  # pragma: no cover
         dashes = tuple(("-" * (width - 1) for width in col_width))
         data.insert(1, dashes)
         click.echo(
-            "\nThe following modules are out of date or probably need "
+            "The following modules are out of date or probably need "
             "an update.\n"
         )
         for row in data:
@@ -554,7 +555,7 @@ def update():  # pragma: no cover
     # Grab out of date modules.
     modules = [m for m in find_modules() if m.outofdate]
     if modules:
-        click.echo("\nFound {} module[s] needing update.".format(len(modules)))
+        click.echo("Found {} module[s] needing update.".format(len(modules)))
         click.echo("Please indicate which modules you wish to update:\n")
         for module in modules:
             if click.confirm("Update '{}'?".format(module.name)):

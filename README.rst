@@ -170,6 +170,13 @@ with development. Typing "make" on its own will list the options thus::
     make publish-live - publish the project to PyPI production.
     make docs - run sphinx to create project documentation.
 
+.. note::
+
+    On Windows there is a ``make.cmd`` file that call ``make.py``: a script
+    that works in a similar way to the ``make`` command on Unix-like operating
+    systems. Typing ``make`` will display help for the various commands it
+    provides that are equivalent of those in the Unix Makefile.
+
 How?
 ####
 

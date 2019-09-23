@@ -354,6 +354,23 @@ def get_bundle_versions():
     return get_modules(path)
 
 
+def get_circuitpython_version(device_path):
+    """
+    Returns the version number of CircuitPython running on the board connected
+    via ``device_path``. This is obtained from the ``boot_out.txt`` file on the
+    device, whose content will start with something like this::
+
+        Adafruit CircuitPython 4.1.0 on 2019-08-02;
+
+    :param str device_path: The path to the connected board.
+    :return: The version string for CircuitPython running on the connected
+             board.
+    """
+    with open(os.path.join(device_path, "boot_out.txt")) as boot:
+        circuit_python, board = boot.read().split(";")
+    return circuit_python.split(" ")[-3]
+
+
 def get_device_versions():
     """
     Returns a dictionary of metadata from modules on the connected device.
@@ -362,8 +379,6 @@ def get_device_versions():
              connected device.
     """
     device_path = find_device()
-    if device_path is None:
-        raise IOError("Could not find a connected Adafruit device.")
     return get_modules(os.path.join(device_path, "lib"))
 
 
@@ -501,6 +516,30 @@ def main(verbose):  # pragma: no cover
         logger.addHandler(verbose_handler)
         click.echo("Logging to {}\n".format(LOGFILE))
     logger.info("### Started {}".format(datetime.now()))
+    device_path = find_device()
+    if device_path is None:
+        raise IOError("Could not find a connected Adafruit device.")
+    current_version = get_circuitpython_version(device_path)
+    click.echo(
+        "Found device at {}, running CircuitPython {}.".format(
+            device_path, current_version
+        )
+    )
+    cp_release = requests.get(
+        "https://github.com/adafruit/circuitpython/releases/latest", timeout=2
+    )
+    latest_version = cp_release.url.split("/")[-1]
+    try:
+        if compare(current_version, latest_version) < 0:
+            click.secho(
+                "A newer version of CircuitPython ({}) is available.".format(
+                    latest_version
+                ),
+                fg="green",
+            )
+    except ValueError as ex:
+        logger.warning("CircuitPython has incorrect semver value.")
+        logger.warning(ex)
 
 
 @main.command()

@@ -372,6 +372,24 @@ def test_get_bundle_versions():
         mock_gm.assert_called_once_with("foo/bar/lib")
 
 
+def test_get_circuitpython_version():
+    """
+    Given valid content of a boot_out.txt file on a connected device, return
+    the version number of CircuitPython running on the board.
+    """
+    data = (
+        "Adafruit CircuitPython 4.1.0 on 2019-08-02; "
+        "Adafruit CircuitPlayground Express with samd21g18"
+    )
+    mock_open = mock.mock_open(read_data=data)
+    device_path = "device"
+    with mock.patch("builtins.open", mock_open):
+        assert circup.get_circuitpython_version(device_path) == "4.1.0"
+        mock_open.assert_called_once_with(
+            os.path.join(device_path, "boot_out.txt")
+        )
+
+
 def test_get_device_versions():
     """
     Ensure get_modules is called with the path for the attached device.
@@ -381,16 +399,6 @@ def test_get_device_versions():
     ), mock.patch("circup.get_modules", return_value="ok") as mock_gm:
         assert circup.get_device_versions() == "ok"
         mock_gm.assert_called_once_with(os.path.join("CIRCUITPYTHON", "lib"))
-
-
-def test_get_device_versions_go_bang():
-    """
-    If it's not possible to find a connected device, ensure an IOError is
-    raised.
-    """
-    with mock.patch("circup.find_device", return_value=None):
-        with pytest.raises(IOError):
-            circup.get_device_versions()
 
 
 def test_get_modules_that_are_files():

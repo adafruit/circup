@@ -399,10 +399,13 @@ def test_get_modules_that_are_files():
     (mocked) results of glob and open on file based Python modules.
     """
     path = "tests"  # mocked away in function.
-    mods = [os.path.join("tests", "local_module.py")]
+    mods = [
+        os.path.join("tests", "local_module.py"),
+        os.path.join("tests", ".hidden_module.py"),
+    ]
     with mock.patch("circup.glob.glob", side_effect=[mods, []]):
         result = circup.get_modules(path)
-        assert len(result) == 1
+        assert len(result) == 1  # Hidden files are ignored.
         assert "local_module.py" in result
         assert result["local_module.py"]["path"] == os.path.join(
             "tests", "local_module.py"
@@ -420,7 +423,10 @@ def test_get_modules_that_are_directories():
     (mocked) results of glob and open, on directory based Python modules.
     """
     path = "tests"  # mocked away in function.
-    mods = [os.path.join("tests", "dir_module", "")]
+    mods = [
+        os.path.join("tests", "dir_module", ""),
+        os.path.join("tests", ".hidden_dir", ""),
+    ]
     mod_files = [
         "tests/dir_module/my_module.py",
         "tests/dir_module/__init__.py",

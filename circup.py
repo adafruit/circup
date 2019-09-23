@@ -375,8 +375,16 @@ def get_modules(path):
     :param str path: The directory in which to find modules.
     :return: A dictionary containing metadata about the found modules.
     """
-    single_file_mods = glob.glob(os.path.join(path, "*.py"))
-    directory_mods = glob.glob(os.path.join(path, "*", ""))
+    single_file_mods = [
+        f
+        for f in glob.glob(os.path.join(path, "*.py"))
+        if not os.path.basename(f).startswith(".")
+    ]
+    directory_mods = [
+        d
+        for d in glob.glob(os.path.join(path, "*", ""))
+        if not os.path.basename(os.path.normpath(d)).startswith(".")
+    ]
     result = {}
     for sfm in single_file_mods:
         with open(sfm, encoding="utf-8") as source_file:

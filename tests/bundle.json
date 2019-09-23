@@ -2,11 +2,13 @@
   "adafruit_74hc595.py": {
     "__version__": "1.0.2",
     "__repo__": "https://github.com/adafruit/Adafruit_CircuitPython_74HC595.git",
-    "path": "/home/ntoll/.local/share/circup/adafruit_circuitpython_bundle/adafruit-circuitpython-bundle-py-20190903/lib/adafruit_74hc595.py"
+    "path": "/home/ntoll/.local/share/circup/adafruit_circuitpython_bundle/adafruit-circuitpython-bundle-py-20190903/lib/adafruit_74hc595.py",
+    "mpy": false
   },
   "adafruit_lsm303.py": {
     "__version__": "1.2.5",
     "__repo__": "https://github.com/adafruit/Adafruit_CircuitPython_LSM303.git",
-    "path": "/home/ntoll/.local/share/circup/adafruit_circuitpython_bundle/adafruit-circuitpython-bundle-py-20190903/lib/adafruit_lsm303.py"
+    "path": "/home/ntoll/.local/share/circup/adafruit_circuitpython_bundle/adafruit-circuitpython-bundle-py-20190903/lib/adafruit_lsm303.py",
+    "mpy": false
   }
 }

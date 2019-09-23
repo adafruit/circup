@@ -596,7 +596,8 @@ def main(verbose):  # pragma: no cover
     logger.info("### Started {}".format(datetime.now()))
     device_path = find_device()
     if device_path is None:
-        raise IOError("Could not find a connected Adafruit device.")
+        click.secho("Could not find a connected Adafruit device.", fg="red")
+        sys.exit(1)
     global CPY_VERSION
     CPY_VERSION = get_circuitpython_version(device_path)
     click.echo(

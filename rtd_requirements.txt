@@ -7,7 +7,6 @@ black==19.3b0
 bleach==3.1.0
 certifi==2019.6.16
 chardet==3.0.4
--e git+git@github.com:ntoll/circup.git@f90446fa89eb38884c51be23cd21eb476c0170ee#egg=circup
 Click==7.0
 coverage==4.5.4
 docutils==0.15.2

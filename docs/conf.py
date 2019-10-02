@@ -15,7 +15,8 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 autodoc_mock_imports = ["digitalio", "busio", "logging", "os", "sys",
-                        "ctypes", "glob", "re", "shutil", "json", "zipfile"]
+                        "ctypes", "glob", "re", "shutil", "json", "zipfile", "appdirs", "datetime", "subprocess","requests", "semver", "click", "appdirs"]
+
 # -- Project information -----------------------------------------------------
 
 project = 'CircUp'

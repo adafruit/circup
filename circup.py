@@ -34,10 +34,10 @@ from datetime import datetime
 from subprocess import check_output
 import requests
 from semver import compare
-import appdirs
 import click
+import appdirs
 
-# pylint: disable=unused-variable,logging-format-interpolation
+# pylint: disable=unused-variable,logging-format-interpolation,bad-continuation
 # Useful constants.
 #: The unique USB vendor ID for Adafruit boards.
 VENDOR_ID = 9114
@@ -548,7 +548,7 @@ def get_bundle(tag):
         total_size = int(r.headers.get("Content-Length"))
         temp_zip = BUNDLE_ZIP.format(platform)
         with click.progressbar(
-                r.iter_content(1024), length=total_size
+            r.iter_content(1024), length=total_size
         ) as prog_bar, open(temp_zip, "wb") as f:
             for chunk in prog_bar:
                 f.write(chunk)

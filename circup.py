@@ -673,7 +673,10 @@ def list():  # pragma: no cover
 
 
 @main.command(
-    short_help="Update modules on the device. Use --all to avoid confirmation."
+    short_help=(
+        "Update modules on the device. "
+        "Use --all to automatically update all modules."
+    )
 )
 @click.option("--all", is_flag=True)
 def update(all):  # pragma: no cover

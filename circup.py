@@ -672,8 +672,14 @@ def list():  # pragma: no cover
         click.echo("All modules found on the device are up to date.")
 
 
-@main.command()
-def update():  # pragma: no cover
+@main.command(
+    short_help=(
+        "Update modules on the device. "
+        "Use --all to automatically update all modules."
+    )
+)
+@click.option("--all", is_flag=True)
+def update(all):  # pragma: no cover
     """
     Checks for out-of-date modules on the connected CIRCUITPYTHON device, and
     prompts the user to confirm updating such modules.
@@ -683,12 +689,16 @@ def update():  # pragma: no cover
     modules = [m for m in find_modules() if m.outofdate]
     if modules:
         click.echo("Found {} module[s] needing update.".format(len(modules)))
-        click.echo("Please indicate which modules you wish to update:\n")
+        if not all:
+            click.echo("Please indicate which modules you wish to update:\n")
         for module in modules:
-            if click.confirm("Update '{}'?".format(module.name)):
+            update_flag = all
+            if not update_flag:
+                update_flag = click.confirm("Update '{}'?".format(module.name))
+            if update_flag:
                 try:
                     module.update()
-                    click.echo("OK")
+                    click.echo("Updated {}".format(module.name))
                 except Exception as ex:
                     logger.exception(ex)
                     click.echo(

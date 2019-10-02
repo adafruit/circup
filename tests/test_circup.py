@@ -38,13 +38,12 @@ def test_Module_init_file_module():
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "3.2.1"
-    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
     with mock.patch("circup.logger.info") as mock_logger, mock.patch(
         "circup.os.path.isfile", return_value=True
-    ):
-        m = circup.Module(
-            path, repo, device_version, bundle_version, bundle_path
-        )
+    ), mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
+        "circup.os.walk", return_value=[["lib", "", ""]]
+    ) as mock_walk:
+        m = circup.Module(path, repo, device_version, bundle_version, False)
         mock_logger.assert_called_once_with(m)
         assert m.path == path
         assert m.file == "module.py"
@@ -52,7 +51,9 @@ def test_Module_init_file_module():
         assert m.repo == repo
         assert m.device_version == device_version
         assert m.bundle_version == bundle_version
-        assert m.bundle_path == bundle_path
+        assert m.bundle_path == os.path.join("lib", m.file)
+        assert m.mpy is False
+        mock_walk.assert_called_once_with(circup.BUNDLE_DIR.format("py"))
 
 
 def test_Module_init_directory_module():
@@ -64,13 +65,13 @@ def test_Module_init_directory_module():
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "3.2.1"
-    bundle_path = os.path.join("baz", "bar", "foo", "")
+    mpy = True
     with mock.patch("circup.logger.info") as mock_logger, mock.patch(
         "circup.os.path.isfile", return_value=False
-    ):
-        m = circup.Module(
-            path, repo, device_version, bundle_version, bundle_path
-        )
+    ), mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
+        "circup.os.walk", return_value=[["lib", "", ""]]
+    ) as mock_walk:
+        m = circup.Module(path, repo, device_version, bundle_version, mpy)
         mock_logger.assert_called_once_with(m)
         assert m.path == path
         assert m.file is None
@@ -78,7 +79,9 @@ def test_Module_init_directory_module():
         assert m.repo == repo
         assert m.device_version == device_version
         assert m.bundle_version == bundle_version
-        assert m.bundle_path == bundle_path
+        assert m.bundle_path == os.path.join("lib", m.name)
+        assert m.mpy is True
+        mock_walk.assert_called_once_with(circup.BUNDLE_DIR.format("4mpy"))
 
 
 def test_Module_outofdate():
@@ -179,11 +182,10 @@ def test_Module_repr():
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "3.2.1"
-    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
-    with mock.patch("circup.os.path.isfile", return_value=True):
-        m = circup.Module(
-            path, repo, device_version, bundle_version, bundle_path
-        )
+    with mock.patch("circup.os.path.isfile", return_value=True), mock.patch(
+        "circup.CPY_VERSION", "4.1.2"
+    ), mock.patch("circup.os.walk", return_value=[["lib", "", ""]]):
+        m = circup.Module(path, repo, device_version, bundle_version, False)
     assert repr(m) == repr(
         {
             "path": path,
@@ -192,7 +194,8 @@ def test_Module_repr():
             "repo": repo,
             "device_version": device_version,
             "bundle_version": bundle_version,
-            "bundle_path": bundle_path,
+            "bundle_path": os.path.join("lib", m.file),
+            "mpy": False,
         }
     )
 
@@ -304,7 +307,7 @@ def test_get_latest_tag():
         mock_get.assert_called_once_with(expected_url)
 
 
-def test_extract_metadata():
+def test_extract_metadata_python():
     """
     Ensure the dunder objects assigned in code are extracted into a Python
     dictionary representing such metadata.
@@ -315,10 +318,26 @@ def test_extract_metadata():
         '__repo__ = "https://github.com/adafruit/SomeLibrary.git"\n'
         'print("Hello, world!")\n'
     )
-    result = circup.extract_metadata(code)
-    assert len(result) == 2
+    path = "foo.py"
+    with mock.patch(
+        "builtins.open", mock.mock_open(read_data=code)
+    ) as mock_open:
+        result = circup.extract_metadata(path)
+        mock_open.assert_called_once_with(path, encoding="utf-8")
+    assert len(result) == 3
     assert result["__version__"] == "1.1.4"
     assert result["__repo__"] == "https://github.com/adafruit/SomeLibrary.git"
+    assert result["mpy"] is False
+
+
+def test_extract_metadata_byte_code():
+    """
+    Ensure the __version__ is correctly extracted from the bytecode ".mpy"
+    file. Version in test_module is 0.9.2
+    """
+    result = circup.extract_metadata("tests/test_module.mpy")
+    assert result["__version__"] == "0.9.2"
+    assert result["mpy"] is True
 
 
 def test_find_modules():
@@ -368,8 +387,26 @@ def test_get_bundle_versions():
         "circup.get_modules", return_value="ok"
     ) as mock_gm:
         assert circup.get_bundle_versions() == "ok"
-        mock_walk.assert_called_once_with(circup.BUNDLE_DIR)
+        mock_walk.assert_called_once_with(circup.BUNDLE_DIR.format("py"))
         mock_gm.assert_called_once_with("foo/bar/lib")
+
+
+def test_get_circuitpython_version():
+    """
+    Given valid content of a boot_out.txt file on a connected device, return
+    the version number of CircuitPython running on the board.
+    """
+    data = (
+        "Adafruit CircuitPython 4.1.0 on 2019-08-02; "
+        "Adafruit CircuitPlayground Express with samd21g18"
+    )
+    mock_open = mock.mock_open(read_data=data)
+    device_path = "device"
+    with mock.patch("builtins.open", mock_open):
+        assert circup.get_circuitpython_version(device_path) == "4.1.0"
+        mock_open.assert_called_once_with(
+            os.path.join(device_path, "boot_out.txt")
+        )
 
 
 def test_get_device_versions():
@@ -383,14 +420,12 @@ def test_get_device_versions():
         mock_gm.assert_called_once_with(os.path.join("CIRCUITPYTHON", "lib"))
 
 
-def test_get_device_versions_go_bang():
+def test_get_modules_empty_path():
     """
-    If it's not possible to find a connected device, ensure an IOError is
-    raised.
+    Sometimes a path to a device or bundle may be empty. Ensure, if this is the
+    case, an empty dictionary is returned.
     """
-    with mock.patch("circup.find_device", return_value=None):
-        with pytest.raises(IOError):
-            circup.get_device_versions()
+    assert circup.get_modules("") == {}
 
 
 def test_get_modules_that_are_files():
@@ -399,19 +434,22 @@ def test_get_modules_that_are_files():
     (mocked) results of glob and open on file based Python modules.
     """
     path = "tests"  # mocked away in function.
-    mods = [os.path.join("tests", "local_module.py")]
-    with mock.patch("circup.glob.glob", side_effect=[mods, []]):
+    mods = [
+        os.path.join("tests", "local_module.py"),
+        os.path.join("tests", ".hidden_module.py"),
+    ]
+    with mock.patch("circup.glob.glob", side_effect=[mods, [], []]):
         result = circup.get_modules(path)
-        assert len(result) == 1
-        assert "local_module.py" in result
-        assert result["local_module.py"]["path"] == os.path.join(
+        assert len(result) == 1  # Hidden files are ignored.
+        assert "local_module" in result
+        assert result["local_module"]["path"] == os.path.join(
             "tests", "local_module.py"
         )
         assert (
-            result["local_module.py"]["__version__"] == "1.2.3"
+            result["local_module"]["__version__"] == "1.2.3"
         )  # from fixture.
         repo = "https://github.com/adafruit/SomeLibrary.git"  # from fixture.
-        assert result["local_module.py"]["__repo__"] == repo
+        assert result["local_module"]["__repo__"] == repo
 
 
 def test_get_modules_that_are_directories():
@@ -420,12 +458,17 @@ def test_get_modules_that_are_directories():
     (mocked) results of glob and open, on directory based Python modules.
     """
     path = "tests"  # mocked away in function.
-    mods = [os.path.join("tests", "dir_module", "")]
+    mods = [
+        os.path.join("tests", "dir_module", ""),
+        os.path.join("tests", ".hidden_dir", ""),
+    ]
     mod_files = [
         "tests/dir_module/my_module.py",
         "tests/dir_module/__init__.py",
     ]
-    with mock.patch("circup.glob.glob", side_effect=[[], mods, mod_files]):
+    with mock.patch(
+        "circup.glob.glob", side_effect=[[], [], mods, mod_files, []]
+    ):
         result = circup.get_modules(path)
         assert len(result) == 1
         assert "dir_module" in result
@@ -448,7 +491,9 @@ def test_get_modules_that_are_directories_with_no_metadata():
         "tests/bad_module/my_module.py",
         "tests/bad_module/__init__.py",
     ]
-    with mock.patch("circup.glob.glob", side_effect=[[], mods, mod_files]):
+    with mock.patch(
+        "circup.glob.glob", side_effect=[[], [], mods, mod_files, []]
+    ):
         result = circup.get_modules(path)
         assert len(result) == 1
         assert "bad_module" in result
@@ -563,18 +608,11 @@ def test_get_bundle():
         mock_requests.get.reset_mock()
         tag = "12345"
         circup.get_bundle(tag)
-        url = (
-            "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
-            "/releases/download"
-            "/{tag}/adafruit-circuitpython-bundle-py-{tag}.zip".format(tag=tag)
-        )
-        mock_requests.get.assert_called_once_with(url, stream=True)
-        mock_open.assert_called_once_with(circup.BUNDLE_ZIP, "wb")
-        mock_shutil.rmtree.assert_called_once_with(circup.BUNDLE_DIR)
-        mock_zipfile.ZipFile.assert_called_once_with(circup.BUNDLE_ZIP, "r")
-        mock_zipfile.ZipFile().__enter__().extractall.assert_called_once_with(
-            circup.BUNDLE_DIR
-        )
+        assert mock_requests.get.call_count == 3
+        assert mock_open.call_count == 3
+        assert mock_shutil.rmtree.call_count == 3
+        assert mock_zipfile.ZipFile.call_count == 3
+        assert mock_zipfile.ZipFile().__enter__().extractall.call_count == 3
 
 
 def test_get_bundle_network_error():

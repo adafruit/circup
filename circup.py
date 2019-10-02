@@ -300,7 +300,7 @@ def get_latest_tag():
 def extract_metadata(path):
     """
     Given an file path, return a dictionary containing metadata extracted from
-    dunder attributes found therein. Works with both \*.py and \*.mpy files.
+    dunder attributes found therein. Works with both `*.py` and `*.mpy` files.
 
     For Python source files, such metadata assignments should be simple and
     single-line. For example::
@@ -308,7 +308,7 @@ def extract_metadata(path):
         __version__ = "1.1.4"
         __repo__ = "https://github.com/adafruit/SomeLibrary.git"
 
-    For byte compiled \*.mpy files, a brute force / backtrack approach is used
+    For byte compiled `*.mpy` files, a brute force / backtrack approach is used
     to find the __version__ number in the file -- see comments in the
     code for the implementation details.
 

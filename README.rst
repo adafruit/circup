@@ -1,6 +1,18 @@
 CircUp
 ======
 
+.. image:: https://readthedocs.org/projects/circup/badge/?version=latest
+    :target: https://circup.readthedocs.io/
+    :alt: Documentation Status
+
+.. image:: https://img.shields.io/discord/327254708534116352.svg
+    :target: https://discord.gg/nBQh6qu
+    :alt: Discord
+
+.. image:: https://travis-ci.com/adafruit/circup.svg?branch=master
+    :target: https://travis-ci.com/adafruit/circup
+    :alt: Build Status
+
 A tool to manage and update libraries (modules) on a CircuitPython device.
 
 .. contents::

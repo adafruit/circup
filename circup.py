@@ -22,22 +22,22 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 import logging
-import appdirs
 import os
 import sys
 import ctypes
 import glob
 import re
-import requests
-import click
 import shutil
 import json
 import zipfile
 from datetime import datetime
-from semver import compare
 from subprocess import check_output
+import requests
+from semver import compare
+import appdirs
+import click
 
-
+# pylint: disable=unused-variable,logging-format-interpolation
 # Useful constants.
 #: The unique USB vendor ID for Adafruit boards.
 VENDOR_ID = 9114
@@ -69,13 +69,13 @@ if not os.path.exists(LOG_DIR):  # pragma: no cover
 
 
 # Setup logging.
+#pylint: disable=invalid-name
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logfile_handler = logging.FileHandler(LOGFILE)
 log_formatter = logging.Formatter("%(levelname)s: %(message)s")
 logfile_handler.setFormatter(log_formatter)
 logger.addHandler(logfile_handler)
-
 
 # IMPORTANT
 # ---------
@@ -95,7 +95,7 @@ class Module:
     Represents a CircuitPython module.
     """
 
-    def __init__(self, path, repo, device_version, bundle_version, mpy):
+    def __init__(self, path, repo, device_version, bundle_version, mpy): # pylint: disable=too-many-arguments
         """
         The ``self.file`` and ``self.name`` attributes are constructed from
         the ``path`` value. If the path is to a directory based module, the
@@ -131,10 +131,10 @@ class Module:
         else:
             # Regular Python
             bundle_platform = "py"
-        for path, subdirs, files in os.walk(
-            BUNDLE_DIR.format(bundle_platform)
+        for dir_path, subdirs, files in os.walk(
+                BUNDLE_DIR.format(bundle_platform)
         ):
-            if os.path.basename(path) == "lib":
+            if os.path.basename(dir_path) == "lib":
                 if self.file:
                     self.bundle_path = os.path.join(path, self.file)
                 else:
@@ -227,7 +227,7 @@ def find_device():
                     if volume.endswith(b"CIRCUITPY"):
                         device_dir = volume.decode("utf-8")
             except FileNotFoundError:
-                next
+                next # pylint: disable=pointless-statement
     elif os.name == "nt":
         # Windows
 
@@ -263,8 +263,8 @@ def find_device():
             for disk in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
                 path = "{}:\\".format(disk)
                 if (
-                    os.path.exists(path)
-                    and get_volume_name(path) == "CIRCUITPY"
+                        os.path.exists(path)
+                        and get_volume_name(path) == "CIRCUITPY"
                 ):
                     device_dir = path
                     # Report only the FIRST device found.
@@ -300,7 +300,7 @@ def get_latest_tag():
 def extract_metadata(path):
     """
     Given an file path, return a dictionary containing metadata extracted from
-    dunder attributes found therein. Works with both *.py and *.mpy files.
+    dunder attributes found therein. Works with both \*.py and \*.mpy files.
 
     For Python source files, such metadata assignments should be simple and
     single-line. For example::
@@ -308,7 +308,7 @@ def extract_metadata(path):
         __version__ = "1.1.4"
         __repo__ = "https://github.com/adafruit/SomeLibrary.git"
 
-    For byte compiled *.mpy files, a brute force / backtrack approach is used
+    For byte compiled \*.mpy files, a brute force / backtrack approach is used
     to find the __version__ number in the file -- see comments in the
     code for the implementation details.
 
@@ -316,14 +316,14 @@ def extract_metadata(path):
     :return: The dunder based metadata found in the file, as a dictionary.
     """
     result = {}
-    if path.endswith(".py"):
+    if path.endswith(".py"): #pylint: disable=no-else-return
         result["mpy"] = False
         with open(path, encoding="utf-8") as source_file:
             content = source_file.read()
         lines = content.split("\n")
         for line in lines:
             if DUNDER_ASSIGN_RE.search(line):
-                exec(line, result)
+                exec(line, result) #pylint: disable=exec-used
         if "__builtins__" in result:
             del result[
                 "__builtins__"
@@ -383,7 +383,7 @@ def find_modules():
                     Module(path, repo, device_version, bundle_version, mpy)
                 )
         return result
-    except Exception as ex:
+    except Exception as ex: #pylint: disable=broad-except
         # If it's not possible to get the device and bundle metadata, bail out
         # with a friendly message and indication of what's gone wrong.
         logger.exception(ex)
@@ -456,7 +456,7 @@ def get_modules(path):
     ]
     single_file_mods = single_file_py_mods + single_file_mpy_mods
     for sfm in [
-        f for f in single_file_mods if not os.path.basename(f).startswith(".")
+            f for f in single_file_mods if not os.path.basename(f).startswith(".")
     ]:
         metadata = extract_metadata(sfm)
         metadata["path"] = sfm
@@ -470,7 +470,7 @@ def get_modules(path):
         mpy_files = glob.glob(os.path.join(dm, "*.mpy"))
         all_files = py_files + mpy_files
         for source in [
-            f for f in all_files if not os.path.basename(f).startswith(".")
+                f for f in all_files if not os.path.basename(f).startswith(".")
         ]:
             metadata = extract_metadata(source)
             if "__version__" in metadata:
@@ -542,17 +542,17 @@ def get_bundle(tag):
     for platform, url in urls.items():
         logger.info("Downloading bundle: {}".format(url))
         r = requests.get(url, stream=True)
-        if r.status_code != requests.codes.ok:
+        if r.status_code != requests.codes.ok: #pylint: disable=no-member
             logger.warning("Unable to connect to {}".format(url))
             r.raise_for_status()
         total_size = int(r.headers.get("Content-Length"))
         temp_zip = BUNDLE_ZIP.format(platform)
         with click.progressbar(
-            r.iter_content(1024), length=total_size
-        ) as bar, open(temp_zip, "wb") as f:
-            for chunk in bar:
+                r.iter_content(1024), length=total_size
+        ) as prog_bar, open(temp_zip, "wb") as f:
+            for chunk in prog_bar:
                 f.write(chunk)
-                bar.update(len(chunk))
+                prog_bar.update(len(chunk))
         logger.info("Saved to {}".format(temp_zip))
         temp_dir = BUNDLE_DIR.format(platform)
         if os.path.isdir(temp_dir):
@@ -586,7 +586,7 @@ def main(verbose):  # pragma: no cover
     """
     if verbose:
         # Configure additional logging to stdout.
-        global VERBOSE
+        global VERBOSE #pylint: disable=global-statement
         VERBOSE = True
         verbose_handler = logging.StreamHandler(sys.stdout)
         verbose_handler.setLevel(logging.INFO)
@@ -598,7 +598,7 @@ def main(verbose):  # pragma: no cover
     if device_path is None:
         click.secho("Could not find a connected Adafruit device.", fg="red")
         sys.exit(1)
-    global CPY_VERSION
+    global CPY_VERSION #pylint: disable=global-statement
     CPY_VERSION = get_circuitpython_version(device_path)
     click.echo(
         "Found device at {}, running CircuitPython {}.".format(
@@ -640,7 +640,7 @@ def freeze():  # pragma: no cover
 
 
 @main.command()
-def list():  # pragma: no cover
+def list():  # pragma: no cover pylint: disable=redefined-builtin
     """
     Lists all out of date modules found on the connected CIRCUITPYTHON device.
     """
@@ -689,7 +689,7 @@ def update():  # pragma: no cover
                 try:
                     module.update()
                     click.echo("OK")
-                except Exception as ex:
+                except Exception as ex: #pylint: disable=broad-except
                     logger.exception(ex)
                     click.echo(
                         "Something went wrong, {} (check the logs)".format(

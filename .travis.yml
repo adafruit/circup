@@ -1,0 +1,38 @@
+# This is a common .travis.yml for generating library release zip files for
+# CircuitPython library releases using circuitpython-build-tools.
+# See https://github.com/adafruit/circuitpython-build-tools for detailed setup
+# instructions.
+
+dist: xenial
+language: python
+python:
+  - "3.6"
+
+cache:
+  pip: true
+
+env:
+  - DEPLOY_PYPI="true"
+
+deploy:
+  - provider: releases
+    api_key: "$GITHUB_TOKEN"
+    file_glob: true
+    file: "$TRAVIS_BUILD_DIR/bundles/*"
+    skip_cleanup: true
+    overwrite: true
+    on:
+      tags: true
+  - provider: pypi
+    user: adafruit-travis
+    password:
+      secure: b1GKsTNzHzDPf7mwl4euv8YkTrBXoURbfu2zpCJdGzDdKnl0iQMzZQkzwobB+6PXt2uTEEy47460rmVifzsXCyiQ+UtVW6SulL5h4ju3tWExJqB/k0Fp4EHakONdg1bKiIbNX2KNPGz3FK/EyuyhNGLgw2BVOfWUnpFVrlPGAtXR5u6pFMIRM4oN80yFJhPrNYCv2MEzLFllwTnl7GlPp/A1UXnJbouofiVr9Y7MbVmGw+CiprBNXUQVycj49MwGdX2aiQdmVwE25ODAI5AgH2TKTgHNNmlpR9fDcqo1HNqqXubsnT8XwChK5TvogQ32kM7aPK5Tt6+JnZ7eM4LH3gIotOnxbQ0LyhXwhZequqd/dcpoHv+3C/Ok32wEehEQ2EWyXllOykFOZEdzebNSTHBiXZwmE1eIumhncqk4BwzKxUFmKZwv9/N0tgG0UZAVa34DLqSYVjOIKkAqYLyrQOouT8F8uwaP55x4jJt560K86iVaLZbLE2GRCTT3vInfoH/9LauAAGqqsDHsv1bxHrwNaruT18x668sNEVgY+varPusR0Ppn837o/u9FCpFBLxP7o3aGyeKQGShsxDCOBNTha4U1IzJDf/fOG9nluwWOXcTmtOyiRQpZ+RAIqcuAKwxW3Gwl83C3VzT8joMJwlUHebaXySbi/qRCr1KG/5M=
+    on:
+      tags: true
+      condition: $DEPLOY_PYPI = "true"
+
+install:
+  - pip install -e ".[dev]"
+
+script:
+  - make check

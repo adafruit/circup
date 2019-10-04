@@ -29,10 +29,12 @@ clean:
 	find . | grep -E "(__pycache__)" | xargs rm -rf
 
 pyflakes:
-	find . \( -name _build -o -name var -o -path ./docs \) -type d -prune -o -name '*.py' -print0 | $(XARGS) pyflakes
+        # search the current directory tree for .py files, skipping docs and  _build, var directories, feeding them to pyflakes
+	find . \( -name _build -o -name var -o -path ./docs -o -name .env \) -type d -prune -o -name '*.py' -print0 | $(XARGS) pyflakes
 
 pycodestyle:
-	find . \( -name _build -o -name var \) -type d -prune -o -name '*.py' -print0 | $(XARGS) -n 1 pycodestyle --repeat --exclude=docs/*,.vscode/* --ignore=E731,E402,W504,W503
+        # search the current directory tree for .py files, skipping _build and var directories, feeding them to pycodestyle
+	find . \( -name _build -o -name var -o -name .env \) -type d -prune -o -name '*.py' -print0 | $(XARGS) -n 1 pycodestyle --repeat --exclude=docs/*,.vscode/* --ignore=E731,E402,W504,W503
 
 test: clean
 	pytest --random-order

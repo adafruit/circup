@@ -1,6 +1,22 @@
 Release History
 ===============
 
+
+0.0.3
+-----
+
+Automated Release Deployment Bug Fix
+
+* Fix missing PyPI egg dependency
+
+0.0.2
+-----
+
+Initial PyPI Release Automation w/ TravisCI
+
+* Add Continuous Integration with TravisCI
+* Deploy ``circup`` releases to PyPI automatically with TravisCI
+
 0.0.1
 -----
 

@@ -708,7 +708,7 @@ def show():  # pragma: no cover
     """
     available_modules = get_bundle_versions()
     module_names = sorted([m.replace(".py", "") for m in available_modules])
-    click.echo(", ".join(module_names))
+    click.echo("\n".join(module_names))
     click.echo("{} packages.".format(len(module_names)))
 
 

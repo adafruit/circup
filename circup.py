@@ -83,7 +83,7 @@ logger.addHandler(logfile_handler)
 # somewhat naively by setup.py.
 __title__ = "circup"
 __description__ = "A tool to manage/update libraries on CircuitPython devices."
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 __license__ = "MIT"
 __url__ = "https://github.com/adafruit/circup"
 __author__ = "Adafruit Industries"

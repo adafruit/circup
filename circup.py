@@ -724,7 +724,8 @@ def show():  # pragma: no cover
 
 @main.command()
 @click.argument("name")
-def install(name):  # pragma: no cover
+@click.option("--py", is_flag=True)
+def install(name, py):  # pragma: no cover
     """
     Install a named module onto the device. This is a very naive / simple
     hacky proof of concept.
@@ -745,17 +746,45 @@ def install(name):  # pragma: no cover
             raise IOError("Could not find a connected Adafruit device.")
         library_path = os.path.join(device_path, "lib")
         metadata = mod_names[name]
-        source_path = metadata["path"]
-        if os.path.isdir(source_path):
-            target = os.path.basename(os.path.dirname(source_path))
-            target_path = os.path.join(library_path, target)
-            # Copy the directory.
-            shutil.copytree(source_path, target_path)
+        if py:
+            # Use Python source for module.
+            source_path = metadata["path"]  # Path to Python source version.
+            if os.path.isdir(source_path):
+                target = os.path.basename(os.path.dirname(source_path))
+                target_path = os.path.join(library_path, target)
+                # Copy the directory.
+                shutil.copytree(source_path, target_path)
+            else:
+                target = os.path.basename(source_path)
+                target_path = os.path.join(library_path, target)
+                # Copy file.
+                shutil.copyfile(source_path, target_path)
         else:
-            target = os.path.basename(source_path)
-            target_path = os.path.join(library_path, target)
-            # Copy file.
-            shutil.copyfile(source_path, target_path)
-        print("OK")
+            # Use pre-compiled mpy modules.
+            module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
+            if not module_name:
+                # Must be a directory based module.
+                module_name = os.path.basename(os.path.dirname(metadata["path"]))
+            major_version = CPY_VERSION.split(".")[0]
+            bundle_platform = "{}mpy".format(major_version)
+            bundle_path = ""
+            for path, subdirs, files in os.walk(
+                BUNDLE_DIR.format(bundle_platform)
+            ):
+                if os.path.basename(path) == "lib":
+                    bundle_path = os.path.join(path, module_name)
+            if bundle_path:
+                if os.path.isdir(bundle_path):
+                    target_path = os.path.join(library_path, module_name)
+                    # Copy the directory.
+                    shutil.copytree(bundle_path, target_path)
+                else:
+                    target = os.path.basename(bundle_path)
+                    target_path = os.path.join(library_path, target)
+                    # Copy file.
+                    shutil.copyfile(bundle_path, target_path)
+            else:
+                raise IOError("Cannot find compiled version of module.")
+        click.echo("Installed '{}'.".format(name))
     else:
         click.echo("Unknown module named, '{}'.".format(name))

@@ -26,6 +26,7 @@ import circup
 import ctypes
 import pytest
 import json
+import requests
 from unittest import mock
 
 
@@ -545,8 +546,8 @@ def test_ensure_latest_bundle_bad_bundle_data():
 
 def test_ensure_latest_bundle_to_update():
     """
-    If the version found in the BUNDLE_DATA is out of date, the cause an update
-    to the bundle.
+    If the version found in the BUNDLE_DATA is out of date, then cause an
+    update to the bundle.
     """
     with mock.patch("circup.get_latest_tag", return_value="54321"), mock.patch(
         "circup.os.path.isfile", return_value=True
@@ -559,6 +560,30 @@ def test_ensure_latest_bundle_to_update():
         circup.ensure_latest_bundle()
         mock_gb.assert_called_once_with("54321")
         assert mock_json.dump.call_count == 1  # Current version saved to file.
+
+
+def test_ensure_latest_bundle_to_update_http_error():
+    """
+    If an HTTP error happens during a bundle update, print a friendly
+    error message and exit 1.
+    """
+    with mock.patch("circup.get_latest_tag", return_value="54321"), mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ), mock.patch("circup.open"), mock.patch(
+        "circup.get_bundle", side_effect=requests.exceptions.HTTPError("404")
+    ) as mock_gb, mock.patch(
+        "circup.json"
+    ) as mock_json, mock.patch(
+        "circup.click.secho"
+    ) as mock_click, mock.patch(
+        "circup.sys.exit"
+    ) as mock_exit:
+        mock_json.load.return_value = {"tag": "12345"}
+        circup.ensure_latest_bundle()
+        mock_gb.assert_called_once_with("54321")
+        assert mock_json.dump.call_count == 0  # not saved.
+        mock_click.call_count == 1  # friendly message.
+        mock_exit.assert_called_once_with(1)  # exit 1.
 
 
 def test_ensure_latest_bundle_no_update():

@@ -502,9 +502,21 @@ def ensure_latest_bundle():
                 logger.exception(ex)
     if tag > old_tag:
         logger.info("New version available ({}).".format(tag))
-        get_bundle(tag)
-        with open(BUNDLE_DATA, "w", encoding="utf-8") as data:
-            json.dump({"tag": tag}, data)
+        try:
+            get_bundle(tag)
+            with open(BUNDLE_DATA, "w", encoding="utf-8") as data:
+                json.dump({"tag": tag}, data)
+        except requests.exceptions.HTTPError as ex:
+            # See #20 for reason this this
+            click.secho(
+                (
+                    "There was a problem downloading the bundle. "
+                    "Please try again in a moment."
+                ),
+                fg="red",
+            )
+            logger.exception(ex)
+            sys.exit(1)
     else:
         logger.info("Current library bundle up to date ({}).".format(tag))
 
@@ -761,10 +773,14 @@ def install(name, py):  # pragma: no cover
                 shutil.copyfile(source_path, target_path)
         else:
             # Use pre-compiled mpy modules.
-            module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
+            module_name = os.path.basename(metadata["path"]).replace(
+                ".py", ".mpy"
+            )
             if not module_name:
                 # Must be a directory based module.
-                module_name = os.path.basename(os.path.dirname(metadata["path"]))
+                module_name = os.path.basename(
+                    os.path.dirname(metadata["path"])
+                )
             major_version = CPY_VERSION.split(".")[0]
             bundle_platform = "{}mpy".format(major_version)
             bundle_path = ""

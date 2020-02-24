@@ -1,6 +1,12 @@
 Release History
 ===============
 
+0.0.6
+-----
+
+This release includes a security fix
+
+
 0.0.5
 -----
 

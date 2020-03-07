@@ -45,6 +45,8 @@ VENDOR_ID = 9114
 DUNDER_ASSIGN_RE = re.compile(r"""^__\w+__\s*=\s*['"].+['"]$""")
 #: Flag to indicate if the command is being run in verbose mode.
 VERBOSE = False
+#: Flag to indicate JSON output
+JSON_OUT = False
 #: The location of data files used by circup (following OS conventions).
 DATA_DIR = appdirs.user_data_dir(appname="circup", appauthor="adafruit")
 #: The path to the JSON file containing the metadata about the current bundle.
@@ -587,15 +589,21 @@ def get_bundle(tag):
 @click.option(
     "--verbose", is_flag=True, help="Comprehensive logging is sent to stdout."
 )
+@click.option(
+    "-j", "--jsonout", "--json", is_flag=True, help="Output in json"
+)
 @click.version_option(
     version=__version__,
     prog_name="CircUp",
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )
-def main(verbose):  # pragma: no cover
+def main(verbose, jsonout):  # pragma: no cover
     """
     A tool to manage and update libraries on a CircuitPython device.
     """
+    if jsonout:
+        global JSON_OUT
+        JSON_OUT = True
     if verbose:
         # Configure additional logging to stdout.
         global VERBOSE
@@ -642,7 +650,11 @@ def freeze():  # pragma: no cover
     """
     logger.info("Freeze")
     modules = find_modules()
-    if modules:
+    if JSON_OUT:
+        modules = [ (m.row[0], m.row[2]) for m in modules]
+        click.echo(json.encoder.JSONEncoder().encode(modules))
+        sys.exit(0)
+    elif modules:
         for module in modules:
             output = "{}=={}".format(module.name, module.device_version)
             click.echo(output)
@@ -660,7 +672,10 @@ def list():  # pragma: no cover
     # Grab out of date modules.
     data = [("Module", "Version", "Latest")]
     modules = [m.row for m in find_modules() if m.outofdate]
-    if modules:
+    if JSON_OUT:
+        click.echo(json.encoder.JSONEncoder().encode(modules))
+        sys.exit(0)
+    elif modules:
         data += modules
         # Nice tabular display.
         col_width = [0, 0, 0]
@@ -729,9 +744,14 @@ def show():  # pragma: no cover
     *could* be installed on the device.
     """
     available_modules = get_bundle_versions()
-    module_names = sorted([m.replace(".py", "") for m in available_modules])
-    click.echo("\n".join(module_names))
-    click.echo("{} packages.".format(len(module_names)))
+    if JSON_OUT:
+        module_data = [(k, v.get("__version__")) for k,v in available_modules.items()]
+        click.echo(json.encoder.JSONEncoder().encode(module_data))
+        sys.exit(0)
+    else:
+        module_names = sorted([m.replace(".py", "") for m in available_modules])
+        click.echo("\n".join(module_names))
+        click.echo("{} packages.".format(len(module_names)))
 
 
 @main.command()

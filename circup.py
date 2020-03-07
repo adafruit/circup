@@ -807,5 +807,5 @@ def install(name, py):  # pragma: no cover
 
 
 # Allows execution via `python -m circup ...`
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

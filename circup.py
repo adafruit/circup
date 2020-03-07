@@ -805,6 +805,7 @@ def install(name, py):  # pragma: no cover
     else:
         click.echo("Unknown module named, '{}'.".format(name))
 
+
 # Allows execution via `python -m circup ...`
 if __name__ == "__main__":
     main()

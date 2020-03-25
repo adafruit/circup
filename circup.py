@@ -635,18 +635,28 @@ def main(verbose):  # pragma: no cover
 
 
 @main.command()
-def freeze():  # pragma: no cover
+@click.option("-r", "--requirement", is_flag=True)
+def freeze(requirement):  # pragma: no cover
     """
     Output details of all the modules found on the connected CIRCUITPYTHON
-    device.
+    device. Option -r saves output to requirements.txt file
     """
     logger.info("Freeze")
     modules = find_modules()
     if modules:
+        output = []
         for module in modules:
-            output = "{}=={}".format(module.name, module.device_version)
-            click.echo(output)
-            logger.info(output)
+            output.append("{}=={}".format(module.name, module.device_version))
+        for module in output:
+            click.echo(module)
+            logger.info(module)
+        if requirement:
+            cwd = os.path.abspath(os.getcwd())
+            for i, module in enumerate(output):
+                output[i] += "\r\n"
+            with open(cwd + "/" + "requirements.txt", "w") as file:
+                file.truncate(0)
+                file.writelines(output)
     else:
         click.echo("No modules found on the device.")
 

@@ -806,6 +806,42 @@ def install(name, py):  # pragma: no cover
         click.echo("Unknown module named, '{}'.".format(name))
 
 
+@main.command()
+@click.argument("module", nargs=-1)
+def uninstall(module):  # pragma: no cover
+    """
+    Uninstall a named module(s) from the connected device. Multiple modules
+    can be uninstalled at once by providing more than one module name, each
+    separated by a space.
+    """
+    for name in module:
+        device_modules = get_device_versions()
+        name = name.lower()
+        mod_names = {}
+        for module, metadata in device_modules.items():
+            mod_names[module.replace(".py", "").lower()] = metadata
+        if name in mod_names:
+            device_path = find_device()
+            if device_path is None:
+                raise IOError("Could not find a connected Adafruit device.")
+            library_path = os.path.join(device_path, "lib")
+            metadata = mod_names[name]
+            module_path = metadata["path"]
+            if os.path.isdir(module_path):
+                target = os.path.basename(os.path.dirname(module_path))
+                target_path = os.path.join(library_path, target)
+                # Remove the directory.
+                shutil.rmtree(target_path)
+            else:
+                target = os.path.basename(module_path)
+                target_path = os.path.join(library_path, target)
+                # Remove file
+                os.remove(target_path)
+            click.echo("Uninstalled '{}'.".format(name))
+        else:
+            click.echo("Module '{}' not found on device.".format(name))
+
+
 # Allows execution via `python -m circup ...`
 if __name__ == "__main__":  # pragma: no cover
     main()

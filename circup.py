@@ -653,8 +653,10 @@ def freeze(requirement):  # pragma: no cover
         if requirement:
             cwd = os.path.abspath(os.getcwd())
             for i, module in enumerate(output):
-                output[i] += "\r\n"
-            with open(cwd + "/" + "requirements.txt", "w") as file:
+                output[i] += "\n"
+            with open(
+                cwd + "/" + "requirements.txt", "w", newline="\n"
+            ) as file:
                 file.truncate(0)
                 file.writelines(output)
     else:
@@ -744,30 +746,35 @@ def show():  # pragma: no cover
     click.echo("{} packages.".format(len(module_names)))
 
 
-@main.command()
-@click.argument("name")
-@click.option("--py", is_flag=True)
-def install(name, py):  # pragma: no cover
+def install_module(name, py, mod_names):
     """
-    Install a named module onto the device. This is a very naive / simple
-    hacky proof of concept.
+    Finds a connected device and installs a given module name if it
+    is available in the current module bundle and is not already
+    installed on the device.
 
-    TODO: Work out how to specify / handle dependencies (if at all), ensure
-    there's enough space on the device, work out the version of CircuitPython
-    on the device in order to copy the appropriate .mpy versions too. ;-)
+    Arguments are: name of the module to install, py is a boolean to
+    specify if the module should be installed from source or from a
+    pre-compiled module, and mod_names requires a dictionary of metadata
+    from modules that can be generated with get_bundle_versions(). See
+    the Install command function for an example.
+
+    TODO: There is currently no check for the version
     """
-    available_modules = get_bundle_versions()
-    # Normalize user input.
-    name = name.lower()
-    mod_names = {}
-    for module, metadata in available_modules.items():
-        mod_names[module.replace(".py", "").lower()] = metadata
-    if name in mod_names:
+    if not name:
+        click.echo("No module name provided.")
+    elif name in mod_names:
         device_path = find_device()
         if device_path is None:
             raise IOError("Could not find a connected Adafruit device.")
         library_path = os.path.join(device_path, "lib")
         metadata = mod_names[name]
+        # Grab device modules to check if module already installed
+        device_modules = []
+        for module in find_modules():
+            device_modules.append(module.name)
+        if name in device_modules:
+            click.echo("'{}' is already installed.".format(name))
+            return
         if py:
             # Use Python source for module.
             source_path = metadata["path"]  # Path to Python source version.
@@ -814,6 +821,37 @@ def install(name, py):  # pragma: no cover
         click.echo("Installed '{}'.".format(name))
     else:
         click.echo("Unknown module named, '{}'.".format(name))
+
+
+@main.command()
+@click.argument("name", required=False)
+@click.option("--py", is_flag=True)
+@click.option("-r", "--requirement")
+def install(name, py, requirement):  # pragma: no cover
+    """
+    Install a named module onto the device. This is a very naive / simple
+    hacky proof of concept. Option -r allows specifying a text file to
+    install all modules listed in the text file.
+
+    TODO: Work out how to specify / handle dependencies (if at all), ensure
+    there's enough space on the device, work out the version of CircuitPython
+    on the device in order to copy the appropriate .mpy versions too. ;-)
+    """
+    available_modules = get_bundle_versions()
+    # Normalize user input.
+    name = name.lower() if name else ""
+    mod_names = {}
+    for module, metadata in available_modules.items():
+        mod_names[module.replace(".py", "").lower()] = metadata
+    if requirement:
+        cwd = os.path.abspath(os.getcwd())
+        with open(cwd + "/" + requirement, "r") as file:
+            for line in file.readlines():
+                line = line.strip("\n")
+                module = line.split("==")[0] if "==" in line else line
+                install_module(module, py, mod_names)
+    else:
+        install_module(name, py, mod_names)
 
 
 @main.command()

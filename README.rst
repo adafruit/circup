@@ -67,10 +67,14 @@ To get help, just type the command::
       --help     Show this message and exit.
 
     Commands:
-      freeze  Output details of all the modules found on the connected...
-      list    Lists all out of date modules found on the connected
-              CIRCUITPYTHON...
-      update  Checks for out-of-date modules on the connected CIRCUITPYTHON...
+      freeze     Output details of all the modules found on the connected...
+      install    Install a named module onto the device.
+      list       Lists all out of date modules found on the connected...
+      show       Show a list of available modules in the bundle.
+      uninstall  Uninstall a named module(s) from the connected device.
+      update     Update modules on the device. Use --all to automatically update
+                 all modules.
+
 
 To show version information for all the modules currently on a connected
 CIRCUITPYTHON device::

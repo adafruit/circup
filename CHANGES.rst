@@ -1,6 +1,14 @@
 Release History
 ===============
 
+0.0.7
+-----
+
+Two new features contributed from the community:
+
+* Run circup via ``python -m circup``. Thank you to Joe DeVivo for this contribution.
+* Add an uninstall command. Thank you to Steven Abadie for this new feature.
+
 0.0.6
 -----
 

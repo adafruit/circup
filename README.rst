@@ -105,6 +105,11 @@ To interactively update the out-of-date modules::
     Update 'adafruit_ble'? [y/N]: Y
     OK
 
+Uninstall a module like this::
+
+    $ circup uninstall adafruit_thermal_printer
+    Uninstalled 'adafruit_thermal_printer'.
+
 Use the ``--verbose`` flag to see the logs as the command is working::
 
     $ circup --verbose freeze

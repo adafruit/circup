@@ -62,9 +62,11 @@ To get help, just type the command::
       A tool to manage and update libraries on a CircuitPython device.
 
     Options:
-      --verbose  Comprehensive logging is sent to stdout.
-      --version  Show the version and exit.
-      --help     Show this message and exit.
+      --verbose         Comprehensive logging is sent to stdout.
+      --version         Show the version and exit.
+      --help            Show this message and exit.
+      -r --requirement  Supports requirements.txt tracking of library
+                        requirements with freeze and install commands.
 
     Commands:
       freeze     Output details of all the modules found on the connected...
@@ -83,6 +85,10 @@ CIRCUITPYTHON device::
     adafruit_binascii==v1.0
     adafruit_bme280==2.3.1
     adafruit_ble==1.0.2
+
+With :code:`$ circup freeze -r`, Circup will save, in the current working directory,
+a requirements.txt file with a list of all modules currently installed on the
+connected device.
 
 To list all the modules that require an update::
 
@@ -104,6 +110,21 @@ To interactively update the out-of-date modules::
     OK
     Update 'adafruit_ble'? [y/N]: Y
     OK
+
+Install a module onto the connected device with::
+
+    $ circup install adafruit_thermal_printer
+    Installed 'adafruit_thermal_printer'.
+
+You can also install a list of modules from a requirements.txt file in
+the current working directory with::
+
+    $ circup install -r requirements.txt
+    Installed 'adafruit_bmp280'.
+    Installed 'adafruit_lis3mdl'.
+    Installed 'adafruit_lsm6ds'.
+    Installed 'adafruit_sht31d'.
+    Installed 'neopixel'.
 
 Uninstall a module like this::
 

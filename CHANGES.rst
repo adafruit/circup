@@ -1,6 +1,11 @@
 Release History
 ===============
 
+0.0.8
+-----
+
+* Added requirements.txt support to both freeze and install commands. Many thanks to Steven Abadie for this really useful feature.
+
 0.0.7
 -----
 

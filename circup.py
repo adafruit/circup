@@ -83,7 +83,7 @@ logger.addHandler(logfile_handler)
 # somewhat naively by setup.py.
 __title__ = "circup"
 __description__ = "A tool to manage/update libraries on CircuitPython devices."
-__version__ = "0.0.7"
+__version__ = "0.0.8"
 __license__ = "MIT"
 __url__ = "https://github.com/adafruit/circup"
 __author__ = "Adafruit Industries"
@@ -746,7 +746,7 @@ def show():  # pragma: no cover
     click.echo("{} packages.".format(len(module_names)))
 
 
-def install_module(name, py, mod_names):
+def install_module(name, py, mod_names):  # pragma: no cover
     """
     Finds a connected device and installs a given module name if it
     is available in the current module bundle and is not already
@@ -758,7 +758,7 @@ def install_module(name, py, mod_names):
     from modules that can be generated with get_bundle_versions(). See
     the Install command function for an example.
 
-    TODO: There is currently no check for the version
+    TODO: There is currently no check for the version.
     """
     if not name:
         click.echo("No module name provided.")
@@ -847,9 +847,12 @@ def install(name, py, requirement):  # pragma: no cover
         cwd = os.path.abspath(os.getcwd())
         with open(cwd + "/" + requirement, "r") as file:
             for line in file.readlines():
-                line = line.strip("\n")
-                module = line.split("==")[0] if "==" in line else line
-                install_module(module, py, mod_names)
+                # Ignore comment lines or appended comment annotations.
+                line = line.split("#", 1)[0]
+                line = line.strip()  # Remove whitespace (including \n).
+                if line:  # Ignore blank lines.
+                    module = line.split("==")[0] if "==" in line else line
+                    install_module(module, py, mod_names)
     else:
         install_module(name, py, mod_names)
 

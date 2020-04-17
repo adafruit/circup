@@ -18,9 +18,7 @@ EXCLUDE_PATTERNS = {"build/*", "docs/*"}
 _exported = {}
 
 
-def _walk(
-    start_from=".", include_patterns=None, exclude_patterns=None, recurse=True
-):
+def _walk(start_from=".", include_patterns=None, exclude_patterns=None, recurse=True):
     if include_patterns:
         _include_patterns = set(os.path.normpath(p) for p in include_patterns)
     else:
@@ -35,15 +33,11 @@ def _walk(
             filepath = os.path.normpath(os.path.join(dirpath, filename))
 
             if not any(
-                fnmatch.fnmatch(filepath, pattern)
-                for pattern in _include_patterns
+                fnmatch.fnmatch(filepath, pattern) for pattern in _include_patterns
             ):
                 continue
 
-            if any(
-                fnmatch.fnmatch(filepath, pattern)
-                for pattern in _exclude_patterns
-            ):
+            if any(fnmatch.fnmatch(filepath, pattern) for pattern in _exclude_patterns):
                 continue
 
             yield filepath
@@ -217,9 +211,7 @@ def dist():
     """
     check()
     print("Checks pass; good to package")
-    return subprocess.run(
-        ["python", "setup.py", "sdist", "bdist_wheel"]
-    ).returncode
+    return subprocess.run(["python", "setup.py", "sdist", "bdist_wheel"]).returncode
 
 
 @export

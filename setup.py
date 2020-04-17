@@ -49,9 +49,7 @@ extras_require = {
 }
 
 extras_require["dev"] = (
-    extras_require["tests"]
-    + extras_require["docs"]
-    + extras_require["package"]
+    extras_require["tests"] + extras_require["docs"] + extras_require["package"]
 )
 
 extras_require["all"] = list(

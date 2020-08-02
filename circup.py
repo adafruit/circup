@@ -521,15 +521,15 @@ def get_bundle(tag):
             "/releases/download"
             "/{tag}/adafruit-circuitpython-bundle-py-{tag}.zip".format(tag=tag)
         ),
-        "4mpy": (
+        "5mpy": (
             "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
             "/releases/download"
-            "/{tag}/adafruit-circuitpython-bundle-4.x-mpy-{tag}.zip".format(tag=tag)
+            "/{tag}/adafruit-circuitpython-bundle-5.x-mpy-{tag}.zip".format(tag=tag)
         ),
-        "5mpy": (
+        "6mpy": (
             "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/"
             "releases/download"
-            "/{tag}/adafruit-circuitpython-bundle-5.x-mpy-{tag}.zip".format(tag=tag)
+            "/{tag}/adafruit-circuitpython-bundle-6.x-mpy-{tag}.zip".format(tag=tag)
         ),
     }
     click.echo("Downloading latest version information.\n")

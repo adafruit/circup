@@ -154,7 +154,7 @@ class Module:
             try:
                 return compare(self.device_version, self.bundle_version) < 0
             except ValueError as ex:
-                logger.warning("Module '{}' has incorrect semver value.", self.name)
+                logger.warning("Module '%s' has incorrect semver value.", self.name)
                 logger.warning(ex)
         return True  # Assume out of date to try to update.
 
@@ -271,7 +271,7 @@ def find_device():
     else:
         # No support for unknown operating systems.
         raise NotImplementedError('OS "{}" not supported.'.format(os.name))
-    logger.info("Found device: {}", device_dir)
+    logger.info("Found device: %s", device_dir)
     return device_dir
 
 
@@ -283,11 +283,11 @@ def get_latest_tag():
     :return: The most recent tag value for the project.
     """
     url = "https://github.com/adafruit/Adafruit_CircuitPython_Bundle" "/releases/latest"
-    logger.info("Requesting tag information: {}", url)
+    logger.info("Requesting tag information: %s", url)
     response = requests.get(url)
-    logger.info("Response url: {}", response.url)
+    logger.info("Response url: %s", response.url)
     tag = response.url.rsplit("/", 1)[-1]
-    logger.info("Tag: '{}'", tag)
+    logger.info("Tag: '%s'", tag)
     return tag
 
 
@@ -321,7 +321,7 @@ def extract_metadata(path):
         if "__builtins__" in result:
             del result["__builtins__"]  # Side effect of using exec, not needed.
         if result:
-            logger.info("Extracted metadata: {}", result)
+            logger.info("Extracted metadata: %s", result)
         return result
     if path.endswith(".mpy"):
         result["mpy"] = True
@@ -484,10 +484,10 @@ def ensure_latest_bundle():
             except json.decoder.JSONDecodeError as ex:
                 # Sometimes (why?) the JSON file becomes corrupt. In which case
                 # log it and carry on as if setting up for first time.
-                logger.error("Could not parse {}", BUNDLE_DATA)
+                logger.error("Could not parse %s", BUNDLE_DATA)
                 logger.exception(ex)
     if tag > old_tag:
-        logger.info("New version available ({}).", tag)
+        logger.info("New version available (%s).", tag)
         try:
             get_bundle(tag)
             with open(BUNDLE_DATA, "w", encoding="utf-8") as data:
@@ -504,7 +504,7 @@ def ensure_latest_bundle():
             logger.exception(ex)
             sys.exit(1)
     else:
-        logger.info("Current library bundle up to date ({}).", tag)
+        logger.info("Current library bundle up to date (%s).", tag)
 
 
 def get_bundle(tag):
@@ -534,11 +534,11 @@ def get_bundle(tag):
     }
     click.echo("Downloading latest version information.\n")
     for platform, url in urls.items():
-        logger.info("Downloading bundle: {}", url)
+        logger.info("Downloading bundle: %s", url)
         r = requests.get(url, stream=True)
         # pylint: disable=no-member
         if r.status_code != requests.codes.ok:
-            logger.warning("Unable to connect to {}", url)
+            logger.warning("Unable to connect to %s", url)
             r.raise_for_status()
         # pylint: enable=no-member
         total_size = int(r.headers.get("Content-Length"))
@@ -549,7 +549,7 @@ def get_bundle(tag):
             for chunk in pbar:
                 f.write(chunk)
                 pbar.update(len(chunk))
-        logger.info("Saved to {}", temp_zip)
+        logger.info("Saved to %s", temp_zip)
         temp_dir = BUNDLE_DIR.format(platform)
         if os.path.isdir(temp_dir):
             shutil.rmtree(temp_dir)
@@ -589,7 +589,7 @@ def main(verbose):  # pragma: no cover
         verbose_handler.setFormatter(log_formatter)
         logger.addHandler(verbose_handler)
         click.echo("Logging to {}\n".format(LOGFILE))
-    logger.info("### Started {}", datetime.now())
+    logger.info("### Started %s", datetime.now())
     device_path = find_device()
     if device_path is None:
         click.secho("Could not find a connected Adafruit device.", fg="red")

@@ -282,7 +282,7 @@ def get_latest_tag():
 
     :return: The most recent tag value for the project.
     """
-    url = "https://github.com/adafruit/Adafruit_CircuitPython_Bundle" "/releases/latest"
+    url = "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/releases/latest"
     logger.info("Requesting tag information: {}", url)
     response = requests.get(url)
     logger.info("Response url: {}", response.url)

@@ -282,7 +282,7 @@ def get_latest_tag():
 
     :return: The most recent tag value for the project.
     """
-    url = "https://github.com/adafruit/Adafruit_CircuitPython_Bundle" "/releases/latest"
+    url = "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/releases/latest"
     logger.info("Requesting tag information: {}", url)
     response = requests.get(url)
     logger.info("Response url: {}", response.url)
@@ -521,15 +521,15 @@ def get_bundle(tag):
             "/releases/download"
             "/{tag}/adafruit-circuitpython-bundle-py-{tag}.zip".format(tag=tag)
         ),
-        "4mpy": (
+        "5mpy": (
             "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
             "/releases/download"
-            "/{tag}/adafruit-circuitpython-bundle-4.x-mpy-{tag}.zip".format(tag=tag)
+            "/{tag}/adafruit-circuitpython-bundle-5.x-mpy-{tag}.zip".format(tag=tag)
         ),
-        "5mpy": (
+        "6mpy": (
             "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/"
             "releases/download"
-            "/{tag}/adafruit-circuitpython-bundle-5.x-mpy-{tag}.zip".format(tag=tag)
+            "/{tag}/adafruit-circuitpython-bundle-6.x-mpy-{tag}.zip".format(tag=tag)
         ),
     }
     click.echo("Downloading latest version information.\n")

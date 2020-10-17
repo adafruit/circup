@@ -596,9 +596,7 @@ def main(verbose):  # pragma: no cover
         sys.exit(1)
     global CPY_VERSION
     CPY_VERSION = get_circuitpython_version(device_path)
-    click.echo(
-        f"Found device at {device_path}, running CircuitPython {CPY_VERSION}."
-    )
+    click.echo(f"Found device at {device_path}, running CircuitPython {CPY_VERSION}.")
     cp_release = requests.get(
         "https://github.com/adafruit/circuitpython/releases/latest", timeout=2
     )
@@ -703,9 +701,7 @@ def update(all):  # pragma: no cover
                     click.echo(f"Updated {module.name}")
                 except Exception as ex:
                     logger.exception(ex)
-                    click.echo(
-                        f"Something went wrong, {ex} (check the logs)"
-                    )
+                    click.echo(f"Something went wrong, {ex} (check the logs)")
                 # pylint: enable=broad-except
     else:
         click.echo("None of the modules found on the device need an update.")

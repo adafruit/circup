@@ -136,9 +136,11 @@ Use the ``--verbose`` flag to see the logs as the command is working::
     $ circup --verbose freeze
     Logging to /home/ntoll/.cache/circup/log/circup.log
 
-    INFO: Started 2019-09-05 13:13:41.031822
-    INFO: Freeze
-    INFO: Found device: /media/ntoll/CIRCUITPY
+    10/18/2020 00:54:43 INFO: ### Started Circup ###
+    10/18/2020 00:54:43 INFO: Found device: /Volumes/CIRCUITPY
+    Found device at /Volumes/CIRCUITPY, running CircuitPython 6.0.0-alpha.1-1352-gf0b37313c.
+    10/18/2020 00:54:44 INFO: Freeze
+    10/18/2020 00:54:44 INFO: Found device: /Volumes/CIRCUITPY
     ... etc ...
 
 Finally, the ``--version`` flag will tell you the current version of the

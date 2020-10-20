@@ -550,7 +550,7 @@ def get_bundle(tag):
             for chunk in pbar:
                 f.write(chunk)
                 pbar.update(len(chunk))
-        logger.info("Saved to {}", temp_zip)
+        logger.info("Saved to %s", temp_zip)
         temp_dir = BUNDLE_DIR.format(platform)
         if os.path.isdir(temp_dir):
             shutil.rmtree(temp_dir)

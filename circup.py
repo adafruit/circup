@@ -155,7 +155,7 @@ class Module:
             try:
                 return compare(self.device_version, self.bundle_version) < 0
             except ValueError as ex:
-                logger.warning("Module '{}' has incorrect semver value.", self.name)
+                logger.warning("Module '%s' has incorrect semver value.", self.name)
                 logger.warning(ex)
         return True  # Assume out of date to try to update.
 

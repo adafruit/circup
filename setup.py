@@ -24,7 +24,7 @@ with open(os.path.join(base_dir, "CHANGES.rst"), encoding="utf8") as f:
 
 install_requires = [
     "semver>=2.8.1",
-    "Click==7.0",
+    "Click>=7.0",
     "appdirs>=1.4.3",
     "requests>=2.22.0",
 ]

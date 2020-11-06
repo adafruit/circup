@@ -747,6 +747,8 @@ def install_module(name, py, mod_names):  # pragma: no cover
         if device_path is None:
             raise IOError("Could not find a connected Adafruit device.")
         library_path = os.path.join(device_path, "lib")
+        if not os.path.exists(library_path):  # pragma: no cover
+            os.makedirs(library_path)
         metadata = mod_names[name]
         # Grab device modules to check if module already installed
         device_modules = []

@@ -166,12 +166,16 @@ class Module:
 
         :return: Boolean indicating if this is a major version upgrade
         """
-        if (
-            VersionInfo.parse(self.device_version).major
-            == VersionInfo.parse(self.bundle_version).major
-        ):
-            return False
-        return True
+        try:
+            if (
+                VersionInfo.parse(self.device_version).major
+                == VersionInfo.parse(self.bundle_version).major
+            ):
+                return False
+        except TypeError as ex:
+            logger.warning("Module '%s' has incorrect semver value.", self.name)
+            logger.warning(ex)
+        return True  # Assume Major Version udpate.
 
     @property
     def row(self):

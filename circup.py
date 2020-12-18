@@ -171,8 +171,7 @@ class Module:
             == VersionInfo.parse(self.bundle_version).major
         ):
             return False
-        else:
-            return True
+        return True
 
     @property
     def row(self):

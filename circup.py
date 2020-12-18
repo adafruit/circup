@@ -685,8 +685,8 @@ def list():  # pragma: no cover
         )
         for row in data:
             output = ""
-            for i in range(len(row)):
-                output += row[i].ljust(col_width[i])
+            for index, cell in enumerate(row):
+                output += cell.ljust(col_width[index])
             if not VERBOSE:
                 click.echo(output)
             logger.info(output)
@@ -700,7 +700,9 @@ def list():  # pragma: no cover
         "Use --all to automatically update all modules without Major Version warnings."
     )
 )
-@click.option("--all", is_flag=True, help="Update all modules without Major Version warnings.")
+@click.option(
+    "--all", is_flag=True, help="Update all modules without Major Version warnings."
+)
 def update(all):  # pragma: no cover
     """
     Checks for out-of-date modules on the connected CIRCUITPYTHON device, and
@@ -717,7 +719,12 @@ def update(all):  # pragma: no cover
             update_flag = all
             if not update_flag:
                 if module.major_update:
-                    update_flag = click.confirm("'{}' is a Major Version update and may contain breaking changes. Do you want to update?".format(module.name))
+                    update_flag = click.confirm(
+                        (
+                            "'{}' is a Major Version update and may contain breaking "
+                            "changes. Do you want to update?".format(module.name)
+                        )
+                    )
                 else:
                     update_flag = click.confirm("Update '{}'?".format(module.name))
             if update_flag:

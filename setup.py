@@ -1,26 +1,21 @@
-#!/usr/bin/env python3
-import os
-import re
-from setuptools import setup
+"""A setuptools based setup module.
+See:
+https://packaging.python.org/guides/distributing-packages-using-setuptools/
+https://github.com/pypa/sampleproject
+"""
 
+# Always prefer setuptools over distutils
+from setuptools import setup, find_packages
 
-base_dir = os.path.dirname(__file__)
+# To use a consistent encoding
+from codecs import open
+from os import path
 
+here = path.abspath(path.dirname(__file__))
 
-DUNDER_ASSIGN_RE = re.compile(r"""^__\w+__\s*=\s*['"].+['"]$""")
-about = {}
-with open(os.path.join(base_dir, "circup.py"), encoding="utf8") as f:
-    for line in f:
-        if DUNDER_ASSIGN_RE.search(line):
-            exec(line, about)
-
-
-with open(os.path.join(base_dir, "README.rst"), encoding="utf8") as f:
-    readme = f.read()
-
-with open(os.path.join(base_dir, "CHANGES.rst"), encoding="utf8") as f:
-    changes = f.read()
-
+# Get the long description from the README file
+with open(path.join(here, "README.rst"), encoding="utf-8") as f:
+    long_description = f.read()
 
 install_requires = [
     "semver>=2.8.1",
@@ -57,17 +52,22 @@ extras_require["all"] = list(
 )
 
 setup(
-    name=about["__title__"],
-    version=about["__version__"],
-    description=about["__description__"],
-    long_description="{}\n\n{}".format(readme, changes),
-    author=about["__author__"],
-    author_email=about["__email__"],
-    url=about["__url__"],
-    license=about["__license__"],
-    py_modules=["circup"],
+    name="circup",
+    use_scm_version=True,
+    setup_requires=["setuptools_scm"],
+    description="A tool to manage/update libraries on CircuitPython devices.",
+    long_description=long_description,
+    long_description_content_type="text/x-rst",
+    # The project's main homepage.
+    url="https://github.com/adafruit/circup",
+    # Author details
+    author="Adafruit Industries",
+    author_email="circuitpython@adafruit.com",
     install_requires=install_requires,
     extras_require=extras_require,
+    # Choose your license
+    license="MIT",
+    # See https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Environment :: Console",
@@ -75,12 +75,20 @@ setup(
         "Intended Audience :: Education",
         "License :: OSI Approved :: MIT License",
         "Operating System :: POSIX",
+        "Operating System :: MacOS :: MacOS X",
         "Operating System :: Microsoft :: Windows",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
         "Topic :: Education",
         "Topic :: Software Development :: Embedded Systems",
         "Topic :: System :: Software Distribution",
     ],
     entry_points={"console_scripts": ["circup=circup:main"]},
+    # What does your project relate to?
+    keywords="adafruit, blinka, circuitpython, micropython, libraries",
+    # You can just specify the packages manually here if your project is
+    # simple. Or you can use find_packages().
+    py_modules=["circup"],
 )

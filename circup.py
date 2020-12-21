@@ -78,17 +78,8 @@ logfile_handler.setFormatter(log_formatter)
 logger.addHandler(logfile_handler)
 
 
-# IMPORTANT
-# ---------
-# Keep these metadata assignments simple and single-line. They are parsed
-# somewhat naively by setup.py.
-__title__ = "circup"
-__description__ = "A tool to manage/update libraries on CircuitPython devices."
-__version__ = "0.3.1"
-__license__ = "MIT"
-__url__ = "https://github.com/adafruit/circup"
-__author__ = "Adafruit Industries"
-__email__ = "ntoll@ntoll.org"
+__version__ = "0.0.0-auto.0"
+__repo__ = "https://github.com/adafruit/circup.git"
 
 
 class Module:

@@ -564,7 +564,6 @@ def get_bundle(tag):
     "--verbose", is_flag=True, help="Comprehensive logging is sent to stdout."
 )
 @click.version_option(
-    version=__version__,
     prog_name="CircUp",
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )

@@ -687,6 +687,12 @@ def update(all):  # pragma: no cover
             click.echo("Please indicate which modules you wish to update:\n")
         for module in modules:
             update_flag = all
+            if VERBOSE:
+                click.echo(
+                    "device version:{} bundle version:{}".format(
+                        module.device_version, module.bundle_version
+                    )
+                )
             if not update_flag:
                 update_flag = click.confirm("Update '{}'?".format(module.name))
             if update_flag:

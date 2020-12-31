@@ -106,4 +106,7 @@ venv.bak/
 # vim
 *.swp
 
+# VSCode
+.vscode/
+
 .DS_STORE

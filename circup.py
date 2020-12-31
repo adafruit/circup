@@ -144,7 +144,9 @@ class Module:
         """
         if self.device_version and self.bundle_version:
             try:
-                return VersionInfo.parse(self.device_version) < VersionInfo.parse(self.bundle_version)
+                return VersionInfo.parse(self.device_version) < VersionInfo.parse(
+                    self.bundle_version
+                )
             except ValueError as ex:
                 logger.warning("Module '%s' has incorrect semver value.", self.name)
                 logger.warning(ex)

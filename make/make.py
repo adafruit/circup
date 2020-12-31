@@ -167,12 +167,10 @@ def tidy(*tidy_args):
     Run black against the code and tests.
     """
     print("\nTidy code")
-    args = (BLACK, "-l", "79", "circup.py")
+    args = (BLACK, "--target-version", "py35", ".")
     result = subprocess.run(args).returncode
     if result > 0:
         return result
-    args = (BLACK, "-l", "79", "tests")
-    return subprocess.run(args).returncode
 
 
 @export

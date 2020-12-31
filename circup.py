@@ -146,9 +146,7 @@ class Module:
             try:
                 return compare(self.device_version, self.bundle_version) < 0
             except ValueError as ex:
-                logger.warning(
-                    "Module '%s' has incorrect semver value.", self.name
-                )
+                logger.warning("Module '%s' has incorrect semver value.", self.name)
                 logger.warning(ex)
         return True  # Assume out of date to try to update.
 
@@ -256,10 +254,7 @@ def find_device():
         try:
             for disk in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
                 path = "{}:\\".format(disk)
-                if (
-                    os.path.exists(path)
-                    and get_volume_name(path) == "CIRCUITPY"
-                ):
+                if os.path.exists(path) and get_volume_name(path) == "CIRCUITPY":
                     device_dir = path
                     # Report only the FIRST device found.
                     break
@@ -316,9 +311,7 @@ def extract_metadata(path):
             if DUNDER_ASSIGN_RE.search(line):
                 exec(line, result)
         if "__builtins__" in result:
-            del result[
-                "__builtins__"
-            ]  # Side effect of using exec, not needed.
+            del result["__builtins__"]  # Side effect of using exec, not needed.
         if result:
             logger.info("Extracted metadata: %s", result)
         return result
@@ -371,9 +364,7 @@ def find_modules():
                 device_version = device_metadata.get("__version__")
                 bundle_version = bundle_metadata.get("__version__")
                 mpy = device_metadata["mpy"]
-                result.append(
-                    Module(path, repo, device_version, bundle_version, mpy)
-                )
+                result.append(Module(path, repo, device_version, bundle_version, mpy))
         return result
     except Exception as ex:
         # If it's not possible to get the device and bundle metadata, bail out
@@ -448,23 +439,17 @@ def get_modules(path):
         if not os.path.basename(os.path.normpath(d)).startswith(".")
     ]
     single_file_mods = single_file_py_mods + single_file_mpy_mods
-    for sfm in [
-        f for f in single_file_mods if not os.path.basename(f).startswith(".")
-    ]:
+    for sfm in [f for f in single_file_mods if not os.path.basename(f).startswith(".")]:
         metadata = extract_metadata(sfm)
         metadata["path"] = sfm
-        result[
-            os.path.basename(sfm).replace(".py", "").replace(".mpy", "")
-        ] = metadata
+        result[os.path.basename(sfm).replace(".py", "").replace(".mpy", "")] = metadata
     for dm in directory_mods:
         name = os.path.basename(os.path.dirname(dm))
         metadata = {}
         py_files = glob.glob(os.path.join(dm, "*.py"))
         mpy_files = glob.glob(os.path.join(dm, "*.mpy"))
         all_files = py_files + mpy_files
-        for source in [
-            f for f in all_files if not os.path.basename(f).startswith(".")
-        ]:
+        for source in [f for f in all_files if not os.path.basename(f).startswith(".")]:
             metadata = extract_metadata(source)
             if "__version__" in metadata:
                 metadata["path"] = dm
@@ -531,16 +516,12 @@ def get_bundle(tag):
         "5mpy": (
             "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
             "/releases/download"
-            "/{tag}/adafruit-circuitpython-bundle-5.x-mpy-{tag}.zip".format(
-                tag=tag
-            )
+            "/{tag}/adafruit-circuitpython-bundle-5.x-mpy-{tag}.zip".format(tag=tag)
         ),
         "6mpy": (
             "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/"
             "releases/download"
-            "/{tag}/adafruit-circuitpython-bundle-6.x-mpy-{tag}.zip".format(
-                tag=tag
-            )
+            "/{tag}/adafruit-circuitpython-bundle-6.x-mpy-{tag}.zip".format(tag=tag)
         ),
     }
     click.echo("Downloading latest version information.\n")
@@ -554,9 +535,9 @@ def get_bundle(tag):
         # pylint: enable=no-member
         total_size = int(r.headers.get("Content-Length"))
         temp_zip = BUNDLE_ZIP.format(platform)
-        with click.progressbar(
-            r.iter_content(1024), length=total_size
-        ) as pbar, open(temp_zip, "wb") as f:
+        with click.progressbar(r.iter_content(1024), length=total_size) as pbar, open(
+            temp_zip, "wb"
+        ) as f:
             for chunk in pbar:
                 f.write(chunk)
                 pbar.update(len(chunk))
@@ -607,9 +588,7 @@ def main(verbose):  # pragma: no cover
     global CPY_VERSION
     CPY_VERSION = get_circuitpython_version(device_path)
     click.echo(
-        "Found device at {}, running CircuitPython {}.".format(
-            device_path, CPY_VERSION
-        )
+        "Found device at {}, running CircuitPython {}.".format(device_path, CPY_VERSION)
     )
     cp_release = requests.get(
         "https://github.com/adafruit/circuitpython/releases/latest", timeout=2
@@ -648,9 +627,7 @@ def freeze(requirement):  # pragma: no cover
             cwd = os.path.abspath(os.getcwd())
             for i, module in enumerate(output):
                 output[i] += "\n"
-            with open(
-                cwd + "/" + "requirements.txt", "w", newline="\n"
-            ) as file:
+            with open(cwd + "/" + "requirements.txt", "w", newline="\n") as file:
                 file.truncate(0)
                 file.writelines(output)
     else:
@@ -676,8 +653,7 @@ def list():  # pragma: no cover
         dashes = tuple(("-" * (width - 1) for width in col_width))
         data.insert(1, dashes)
         click.echo(
-            "The following modules are out of date or probably need "
-            "an update.\n"
+            "The following modules are out of date or probably need " "an update.\n"
         )
         for row in data:
             output = ""
@@ -721,9 +697,7 @@ def update(all):  # pragma: no cover
                 except Exception as ex:
                     logger.exception(ex)
                     click.echo(
-                        "Something went wrong, {} (check the logs)".format(
-                            str(ex)
-                        )
+                        "Something went wrong, {} (check the logs)".format(str(ex))
                     )
                 # pylint: enable=broad-except
     else:
@@ -789,14 +763,10 @@ def install_module(name, py, mod_names):  # pragma: no cover
                 shutil.copyfile(source_path, target_path)
         else:
             # Use pre-compiled mpy modules.
-            module_name = os.path.basename(metadata["path"]).replace(
-                ".py", ".mpy"
-            )
+            module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
             if not module_name:
                 # Must be a directory based module.
-                module_name = os.path.basename(
-                    os.path.dirname(metadata["path"])
-                )
+                module_name = os.path.basename(os.path.dirname(metadata["path"]))
             major_version = CPY_VERSION.split(".")[0]
             bundle_platform = "{}mpy".format(major_version)
             bundle_path = ""

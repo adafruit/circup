@@ -131,9 +131,7 @@ def test_Module_row():
     bundle_version = None
     bundle_path = os.path.join("baz", "bar", "foo", "module.py")
     with mock.patch("circup.os.path.isfile", return_value=True):
-        m = circup.Module(
-            path, repo, device_version, bundle_version, bundle_path
-        )
+        m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
     assert m.row == ("module", "1.2.3", "unknown")
 
 
@@ -222,9 +220,7 @@ def test_find_device_posix_no_mount_command():
     with open("tests/mount_exists.txt", "rb") as fixture_file:
         fixture = fixture_file.read()
     mock_check = mock.MagicMock(side_effect=[FileNotFoundError, fixture])
-    with mock.patch("os.name", "posix"), mock.patch(
-        "circup.check_output", mock_check
-    ):
+    with mock.patch("os.name", "posix"), mock.patch("circup.check_output", mock_check):
         assert circup.find_device() == "/media/ntoll/CIRCUITPY"
         assert mock_check.call_count == 2
         assert mock_check.call_args_list[0][0][0] == "mount"
@@ -299,8 +295,7 @@ def test_get_latest_tag():
         "/Adafruit_CircuitPython_Bundle/releases/tag/20190903"
     )
     expected_url = (
-        "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
-        "/releases/latest"
+        "https://github.com/adafruit/Adafruit_CircuitPython_Bundle" "/releases/latest"
     )
     with mock.patch("circup.requests.get", return_value=response) as mock_get:
         result = circup.get_latest_tag()
@@ -320,9 +315,7 @@ def test_extract_metadata_python():
         'print("Hello, world!")\n'
     )
     path = "foo.py"
-    with mock.patch(
-        "builtins.open", mock.mock_open(read_data=code)
-    ) as mock_open:
+    with mock.patch("builtins.open", mock.mock_open(read_data=code)) as mock_open:
         result = circup.extract_metadata(path)
         mock_open.assert_called_once_with(path, encoding="utf-8")
     assert len(result) == 3
@@ -384,9 +377,7 @@ def test_get_bundle_versions():
     dirs = (("foo/bar/lib", "", ""),)
     with mock.patch("circup.ensure_latest_bundle"), mock.patch(
         "circup.os.walk", return_value=dirs
-    ) as mock_walk, mock.patch(
-        "circup.get_modules", return_value="ok"
-    ) as mock_gm:
+    ) as mock_walk, mock.patch("circup.get_modules", return_value="ok") as mock_gm:
         assert circup.get_bundle_versions() == "ok"
         mock_walk.assert_called_once_with(circup.BUNDLE_DIR.format("py"))
         mock_gm.assert_called_once_with("foo/bar/lib")
@@ -405,18 +396,16 @@ def test_get_circuitpython_version():
     device_path = "device"
     with mock.patch("builtins.open", mock_open):
         assert circup.get_circuitpython_version(device_path) == "4.1.0"
-        mock_open.assert_called_once_with(
-            os.path.join(device_path, "boot_out.txt")
-        )
+        mock_open.assert_called_once_with(os.path.join(device_path, "boot_out.txt"))
 
 
 def test_get_device_versions():
     """
     Ensure get_modules is called with the path for the attached device.
     """
-    with mock.patch(
-        "circup.find_device", return_value="CIRCUITPYTHON"
-    ), mock.patch("circup.get_modules", return_value="ok") as mock_gm:
+    with mock.patch("circup.find_device", return_value="CIRCUITPYTHON"), mock.patch(
+        "circup.get_modules", return_value="ok"
+    ) as mock_gm:
         assert circup.get_device_versions() == "ok"
         mock_gm.assert_called_once_with(os.path.join("CIRCUITPYTHON", "lib"))
 
@@ -446,9 +435,7 @@ def test_get_modules_that_are_files():
         assert result["local_module"]["path"] == os.path.join(
             "tests", "local_module.py"
         )
-        assert (
-            result["local_module"]["__version__"] == "1.2.3"
-        )  # from fixture.
+        assert result["local_module"]["__version__"] == "1.2.3"  # from fixture.
         repo = "https://github.com/adafruit/SomeLibrary.git"  # from fixture.
         assert result["local_module"]["__repo__"] == repo
 
@@ -467,15 +454,11 @@ def test_get_modules_that_are_directories():
         "tests/dir_module/my_module.py",
         "tests/dir_module/__init__.py",
     ]
-    with mock.patch(
-        "circup.glob.glob", side_effect=[[], [], mods, mod_files, []]
-    ):
+    with mock.patch("circup.glob.glob", side_effect=[[], [], mods, mod_files, []]):
         result = circup.get_modules(path)
         assert len(result) == 1
         assert "dir_module" in result
-        assert result["dir_module"]["path"] == os.path.join(
-            "tests", "dir_module", ""
-        )
+        assert result["dir_module"]["path"] == os.path.join("tests", "dir_module", "")
         assert result["dir_module"]["__version__"] == "3.2.1"  # from fixture.
         repo = "https://github.com/adafruit/SomeModule.git"  # from fixture.
         assert result["dir_module"]["__repo__"] == repo
@@ -492,15 +475,11 @@ def test_get_modules_that_are_directories_with_no_metadata():
         "tests/bad_module/my_module.py",
         "tests/bad_module/__init__.py",
     ]
-    with mock.patch(
-        "circup.glob.glob", side_effect=[[], [], mods, mod_files, []]
-    ):
+    with mock.patch("circup.glob.glob", side_effect=[[], [], mods, mod_files, []]):
         result = circup.get_modules(path)
         assert len(result) == 1
         assert "bad_module" in result
-        assert result["bad_module"]["path"] == os.path.join(
-            "tests", "bad_module", ""
-        )
+        assert result["bad_module"]["path"] == os.path.join("tests", "bad_module", "")
         assert "__version__" not in result["bad_module"]
         assert "__repo__" not in result["bad_module"]
 

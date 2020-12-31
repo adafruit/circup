@@ -510,7 +510,8 @@ def test_ensure_latest_bundle_bad_bundle_data():
     ), mock.patch("circup.open"), mock.patch(
         "circup.get_bundle"
     ) as mock_gb, mock.patch(
-        "circup.json.load", side_effect=json.decoder.JSONDecodeError("BANG!", "doc", 1),
+        "circup.json.load",
+        side_effect=json.decoder.JSONDecodeError("BANG!", "doc", 1),
     ), mock.patch(
         "circup.json.dump"
     ), mock.patch(

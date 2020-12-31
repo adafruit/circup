@@ -73,4 +73,9 @@ html_theme_options = {
     "page_width": "1200px",
 }
 
-html_sidebars = {"**": ["about.html", "searchbox.html",]}
+html_sidebars = {
+    "**": [
+        "about.html",
+        "searchbox.html",
+    ]
+}

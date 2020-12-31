@@ -44,8 +44,7 @@ coverage: clean
 
 tidy: clean
 	@echo "\nTidying code with black..."
-	black -l 79 circup.py
-	black -l 79 tests
+	black --target-version=py35 .
 
 check: clean tidy pycodestyle pyflakes coverage
 

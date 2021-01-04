@@ -405,9 +405,7 @@ def test_get_device_versions():
     """
     Ensure get_modules is called with the path for the attached device.
     """
-    with mock.patch(
-        "circup.get_modules", return_value="ok"
-    ) as mock_gm:
+    with mock.patch("circup.get_modules", return_value="ok") as mock_gm:
         assert circup.get_device_versions("TESTDIR") == "ok"
         mock_gm.assert_called_once_with(os.path.join("TESTDIR", "lib"))
 
@@ -452,10 +450,7 @@ def test_get_modules_that_are_directories():
         os.path.join("tests", "dir_module", ""),
         os.path.join("tests", ".hidden_dir", ""),
     ]
-    mod_files = [
-        "tests/dir_module/my_module.py",
-        "tests/dir_module/__init__.py",
-    ]
+    mod_files = ["tests/dir_module/my_module.py", "tests/dir_module/__init__.py"]
     with mock.patch("circup.glob.glob", side_effect=[[], [], mods, mod_files, []]):
         result = circup.get_modules(path)
         assert len(result) == 1
@@ -473,10 +468,7 @@ def test_get_modules_that_are_directories_with_no_metadata():
     """
     path = "tests"  # mocked away in function.
     mods = [os.path.join("tests", "bad_module", "")]
-    mod_files = [
-        "tests/bad_module/my_module.py",
-        "tests/bad_module/__init__.py",
-    ]
+    mod_files = ["tests/bad_module/my_module.py", "tests/bad_module/__init__.py"]
     with mock.patch("circup.glob.glob", side_effect=[[], [], mods, mod_files, []]):
         result = circup.get_modules(path)
         assert len(result) == 1
@@ -512,8 +504,7 @@ def test_ensure_latest_bundle_bad_bundle_data():
     ), mock.patch("circup.open"), mock.patch(
         "circup.get_bundle"
     ) as mock_gb, mock.patch(
-        "circup.json.load",
-        side_effect=json.decoder.JSONDecodeError("BANG!", "doc", 1),
+        "circup.json.load", side_effect=json.decoder.JSONDecodeError("BANG!", "doc", 1)
     ), mock.patch(
         "circup.json.dump"
     ), mock.patch(

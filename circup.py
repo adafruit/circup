@@ -354,10 +354,7 @@ def extract_metadata(path):
                     end = loc  # Up to the start of the __version__.
                     version = content[start:end]  # Slice the version number.
                     # Create a string version as metadata in the result.
-                    result = {
-                        "__version__": version.decode("utf-8"),
-                        "mpy": True,
-                    }
+                    result = {"__version__": version.decode("utf-8"), "mpy": True}
                     break  # Nothing more to do.
                 offset += 1  # ...and again but backtrack by one.
     return result
@@ -586,7 +583,7 @@ def get_bundle(tag):
 @click.option(
     "--path",
     type=click.Path(exists=True, file_okay=False),
-    help="Path to circuit python directory. Overrides automatic path detection."
+    help="Path to circuit python directory. Overrides automatic path detection.",
 )
 @click.version_option(
     prog_name="CircUp",

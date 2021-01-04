@@ -352,7 +352,7 @@ def test_find_modules():
     ), mock.patch(
         "circup.os.path.isfile", return_value=True
     ):
-        result = circup.find_modules()
+        result = circup.find_modules("")
     assert len(result) == 1
     assert result[0].name == "adafruit_74hc595"
 
@@ -367,7 +367,7 @@ def test_find_modules_goes_bang():
     ), mock.patch("circup.click") as mock_click, mock.patch(
         "circup.sys.exit"
     ) as mock_exit:
-        circup.find_modules()
+        circup.find_modules("")
         assert mock_click.echo.call_count == 1
         mock_exit.assert_called_once_with(1)
 
@@ -405,11 +405,11 @@ def test_get_device_versions():
     """
     Ensure get_modules is called with the path for the attached device.
     """
-    with mock.patch("circup.find_device", return_value="CIRCUITPYTHON"), mock.patch(
+    with mock.patch(
         "circup.get_modules", return_value="ok"
     ) as mock_gm:
-        assert circup.get_device_versions() == "ok"
-        mock_gm.assert_called_once_with(os.path.join("CIRCUITPYTHON", "lib"))
+        assert circup.get_device_versions("TESTDIR") == "ok"
+        mock_gm.assert_called_once_with(os.path.join("TESTDIR", "lib"))
 
 
 def test_get_modules_empty_path():

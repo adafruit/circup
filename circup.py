@@ -31,7 +31,7 @@ import shutil
 import json
 import zipfile
 from subprocess import check_output
-from semver import compare, VersionInfo
+from semver import VersionInfo
 import click
 import requests
 import appdirs
@@ -144,7 +144,9 @@ class Module:
         """
         if self.device_version and self.bundle_version:
             try:
-                return compare(self.device_version, self.bundle_version) < 0
+                return VersionInfo.parse(self.device_version) < VersionInfo.parse(
+                    self.bundle_version
+                )
             except ValueError as ex:
                 logger.warning("Module '%s' has incorrect semver value.", self.name)
                 logger.warning(ex)
@@ -614,7 +616,7 @@ def main(verbose):  # pragma: no cover
     )
     latest_version = cp_release.url.split("/")[-1]
     try:
-        if compare(CPY_VERSION, latest_version) < 0:
+        if VersionInfo.parse(CPY_VERSION) < VersionInfo.parse(latest_version):
             click.secho(
                 "A newer version of CircuitPython ({}) is available.".format(
                     latest_version

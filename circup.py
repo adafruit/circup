@@ -31,7 +31,7 @@ import shutil
 import json
 import zipfile
 from subprocess import check_output
-from semver import compare, VersionInfo
+from semver import VersionInfo
 import click
 import requests
 import appdirs

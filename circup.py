@@ -31,7 +31,7 @@ import shutil
 import json
 import zipfile
 from subprocess import check_output
-from semver import compare
+from semver import compare, VersionInfo
 import click
 import requests
 import appdirs
@@ -151,6 +151,24 @@ class Module:
         return True  # Assume out of date to try to update.
 
     @property
+    def major_update(self):
+        """
+        Returns a boolean to indicate if this is a major version update.
+
+        :return: Boolean indicating if this is a major version upgrade
+        """
+        try:
+            if (
+                VersionInfo.parse(self.device_version).major
+                == VersionInfo.parse(self.bundle_version).major
+            ):
+                return False
+        except TypeError as ex:
+            logger.warning("Module '%s' has incorrect semver value.", self.name)
+            logger.warning(ex)
+        return True  # Assume Major Version udpate.
+
+    @property
     def row(self):
         """
         Returns a tuple of items to display in a table row to show the module's
@@ -161,7 +179,8 @@ class Module:
         """
         loc = self.device_version if self.device_version else "unknown"
         rem = self.bundle_version if self.bundle_version else "unknown"
-        return (self.name, loc, rem)
+        major_update = str(self.major_update)
+        return (self.name, loc, rem, major_update)
 
     def update(self):
         """
@@ -641,24 +660,26 @@ def list():  # pragma: no cover
     """
     logger.info("List")
     # Grab out of date modules.
-    data = [("Module", "Version", "Latest")]
+    data = [("Module", "Version", "Latest", "Major Update")]
+
     modules = [m.row for m in find_modules() if m.outofdate]
     if modules:
         data += modules
         # Nice tabular display.
-        col_width = [0, 0, 0]
+        col_width = [0, 0, 0, 0]
         for row in data:
             for i, word in enumerate(row):
                 col_width[i] = max(len(word) + 2, col_width[i])
         dashes = tuple(("-" * (width - 1) for width in col_width))
         data.insert(1, dashes)
         click.echo(
-            "The following modules are out of date or probably need " "an update.\n"
+            "The following modules are out of date or probably need an update.\n"
+            "Major Updates may include breaking changes. Review before updating.\n"
         )
         for row in data:
             output = ""
-            for i in range(3):
-                output += row[i].ljust(col_width[i])
+            for index, cell in enumerate(row):
+                output += cell.ljust(col_width[index])
             if not VERBOSE:
                 click.echo(output)
             logger.info(output)
@@ -669,10 +690,12 @@ def list():  # pragma: no cover
 @main.command(
     short_help=(
         "Update modules on the device. "
-        "Use --all to automatically update all modules."
+        "Use --all to automatically update all modules without Major Version warnings."
     )
 )
-@click.option("--all", is_flag=True)
+@click.option(
+    "--all", is_flag=True, help="Update all modules without Major Version warnings."
+)
 def update(all):  # pragma: no cover
     """
     Checks for out-of-date modules on the connected CIRCUITPYTHON device, and
@@ -688,7 +711,15 @@ def update(all):  # pragma: no cover
         for module in modules:
             update_flag = all
             if not update_flag:
-                update_flag = click.confirm("Update '{}'?".format(module.name))
+                if module.major_update:
+                    update_flag = click.confirm(
+                        (
+                            "'{}' is a Major Version update and may contain breaking "
+                            "changes. Do you want to update?".format(module.name)
+                        )
+                    )
+                else:
+                    update_flag = click.confirm("Update '{}'?".format(module.name))
             if update_flag:
                 # pylint: disable=broad-except
                 try:

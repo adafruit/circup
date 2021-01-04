@@ -132,7 +132,9 @@ def test_Module_row():
     bundle_path = os.path.join("baz", "bar", "foo", "module.py")
     with mock.patch("circup.os.path.isfile", return_value=True):
         m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
-    assert m.row == ("module", "1.2.3", "unknown")
+    # print(m.__dict__)
+    # print(m.row)
+    assert m.row == ("module", "1.2.3", "unknown", "True")
 
 
 def test_Module_update_dir():

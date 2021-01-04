@@ -18,7 +18,7 @@ with open(path.join(here, "README.rst"), encoding="utf-8") as f:
     long_description = f.read()
 
 install_requires = [
-    "semver>=2.8.1",
+    "semver==2.11.0",
     "Click>=7.0",
     "appdirs>=1.4.3",
     "requests>=2.22.0",

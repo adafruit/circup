@@ -28,6 +28,7 @@ import pytest
 import json
 import requests
 from unittest import mock
+from click.testing import CliRunner
 
 
 def test_Module_init_file_module():
@@ -637,3 +638,31 @@ def test_get_bundle_network_error():
         mock_requests.get.assert_called_once_with(url, stream=True)
         assert mock_logger.warning.call_count == 1
         mock_requests.get().raise_for_status.assert_called_once_with()
+
+
+def test_show_command():
+    runner = CliRunner()
+    TEST_BUNDLE_MODULES = ["one.py", "two.py", "three.py"]
+    with mock.patch("circup.get_bundle_versions", return_value=TEST_BUNDLE_MODULES):
+        result = runner.invoke(circup.show)
+    assert result.exit_code == 0
+    assert all([m.replace(".py", "") in result.output for m in TEST_BUNDLE_MODULES])
+
+
+def test_show_match_command():
+    runner = CliRunner()
+    TEST_BUNDLE_MODULES = ["one.py", "two.py", "three.py"]
+    with mock.patch("circup.get_bundle_versions", return_value=TEST_BUNDLE_MODULES):
+        result = runner.invoke(circup.show, ["t"])
+    assert result.exit_code == 0
+    assert "one" not in result.output
+
+
+def test_show_match_py_command():
+    # Check that py does not match the .py extention in the module names
+    runner = CliRunner()
+    TEST_BUNDLE_MODULES = ["one.py", "two.py", "three.py"]
+    with mock.patch("circup.get_bundle_versions", return_value=TEST_BUNDLE_MODULES):
+        result = runner.invoke(circup.show, ["py"])
+    assert result.exit_code == 0
+    assert "0 shown" in result.output

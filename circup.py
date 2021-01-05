@@ -722,6 +722,12 @@ def update(ctx, all):  # pragma: no cover
             click.echo("Please indicate which modules you wish to update:\n")
         for module in modules:
             update_flag = all
+            if VERBOSE:
+                click.echo(
+                    "Device version: {}, Bundle version: {}".format(
+                        module.device_version, module.bundle_version
+                    )
+                )
             if not update_flag:
                 if module.major_update:
                     update_flag = click.confirm(

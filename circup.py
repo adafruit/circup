@@ -354,16 +354,13 @@ def extract_metadata(path):
                     end = loc  # Up to the start of the __version__.
                     version = content[start:end]  # Slice the version number.
                     # Create a string version as metadata in the result.
-                    result = {
-                        "__version__": version.decode("utf-8"),
-                        "mpy": True,
-                    }
+                    result = {"__version__": version.decode("utf-8"), "mpy": True}
                     break  # Nothing more to do.
                 offset += 1  # ...and again but backtrack by one.
     return result
 
 
-def find_modules():
+def find_modules(device_path):
     """
     Extracts metadata from the connected device and available bundle and
     returns this as a list of Module instances representing the modules on the
@@ -374,7 +371,7 @@ def find_modules():
     """
     # pylint: disable=broad-except
     try:
-        device_modules = get_device_versions()
+        device_modules = get_device_versions(device_path)
         bundle_modules = get_bundle_versions()
         result = []
         for name, device_metadata in device_modules.items():
@@ -430,14 +427,13 @@ def get_circuitpython_version(device_path):
     return circuit_python.split(" ")[-3]
 
 
-def get_device_versions():
+def get_device_versions(device_path):
     """
     Returns a dictionary of metadata from modules on the connected device.
 
     :return: A dictionary of metadata about the modules available on the
              connected device.
     """
-    device_path = find_device()
     return get_modules(os.path.join(device_path, "lib"))
 
 
@@ -584,14 +580,21 @@ def get_bundle(tag):
 @click.option(
     "--verbose", is_flag=True, help="Comprehensive logging is sent to stdout."
 )
+@click.option(
+    "--path",
+    type=click.Path(exists=True, file_okay=False),
+    help="Path to circuit python directory. Overrides automatic path detection.",
+)
 @click.version_option(
     prog_name="CircUp",
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )
-def main(verbose):  # pragma: no cover
+@click.pass_context
+def main(ctx, verbose, path):  # pragma: no cover
     """
     A tool to manage and update libraries on a CircuitPython device.
     """
+    ctx.ensure_object(dict)
     if verbose:
         # Configure additional logging to stdout.
         global VERBOSE
@@ -602,7 +605,11 @@ def main(verbose):  # pragma: no cover
         logger.addHandler(verbose_handler)
         click.echo("Logging to {}\n".format(LOGFILE))
     logger.info("### Started Circup ###")
-    device_path = find_device()
+    if path:
+        device_path = path
+    else:
+        device_path = find_device()
+    ctx.obj["DEVICE_PATH"] = device_path
     if device_path is None:
         click.secho("Could not find a connected Adafruit device.", fg="red")
         sys.exit(1)
@@ -630,13 +637,14 @@ def main(verbose):  # pragma: no cover
 
 @main.command()
 @click.option("-r", "--requirement", is_flag=True)
-def freeze(requirement):  # pragma: no cover
+@click.pass_context
+def freeze(ctx, requirement):  # pragma: no cover
     """
     Output details of all the modules found on the connected CIRCUITPYTHON
     device. Option -r saves output to requirements.txt file
     """
     logger.info("Freeze")
-    modules = find_modules()
+    modules = find_modules(ctx.obj["DEVICE_PATH"])
     if modules:
         output = []
         for module in modules:
@@ -656,7 +664,8 @@ def freeze(requirement):  # pragma: no cover
 
 
 @main.command()
-def list():  # pragma: no cover
+@click.pass_context
+def list(ctx):  # pragma: no cover
     """
     Lists all out of date modules found on the connected CIRCUITPYTHON device.
     """
@@ -664,7 +673,7 @@ def list():  # pragma: no cover
     # Grab out of date modules.
     data = [("Module", "Version", "Latest", "Major Update")]
 
-    modules = [m.row for m in find_modules() if m.outofdate]
+    modules = [m.row for m in find_modules(ctx.obj["DEVICE_PATH"]) if m.outofdate]
     if modules:
         data += modules
         # Nice tabular display.
@@ -698,14 +707,15 @@ def list():  # pragma: no cover
 @click.option(
     "--all", is_flag=True, help="Update all modules without Major Version warnings."
 )
-def update(all):  # pragma: no cover
+@click.pass_context
+def update(ctx, all):  # pragma: no cover
     """
     Checks for out-of-date modules on the connected CIRCUITPYTHON device, and
     prompts the user to confirm updating such modules.
     """
     logger.info("Update")
     # Grab out of date modules.
-    modules = [m for m in find_modules() if m.outofdate]
+    modules = [m for m in find_modules(ctx.obj["DEVICE_PATH"]) if m.outofdate]
     if modules:
         click.echo("Found {} module[s] needing update.".format(len(modules)))
         if not all:
@@ -750,7 +760,7 @@ def show():  # pragma: no cover
 
 
 # pylint: disable=too-many-locals,too-many-branches
-def install_module(name, py, mod_names):  # pragma: no cover
+def install_module(device_path, name, py, mod_names):  # pragma: no cover
     """
     Finds a connected device and installs a given module name if it
     is available in the current module bundle and is not already
@@ -767,16 +777,13 @@ def install_module(name, py, mod_names):  # pragma: no cover
     if not name:
         click.echo("No module name provided.")
     elif name in mod_names:
-        device_path = find_device()
-        if device_path is None:
-            raise IOError("Could not find a connected Adafruit device.")
         library_path = os.path.join(device_path, "lib")
         if not os.path.exists(library_path):  # pragma: no cover
             os.makedirs(library_path)
         metadata = mod_names[name]
         # Grab device modules to check if module already installed
         device_modules = []
-        for module in find_modules():
+        for module in find_modules(device_path):
             device_modules.append(module.name)
         if name in device_modules:
             click.echo("'{}' is already installed.".format(name))
@@ -830,7 +837,8 @@ def install_module(name, py, mod_names):  # pragma: no cover
 @click.argument("name", required=False)
 @click.option("--py", is_flag=True)
 @click.option("-r", "--requirement")
-def install(name, py, requirement):  # pragma: no cover
+@click.pass_context
+def install(ctx, name, py, requirement):  # pragma: no cover
     """
     Install a named module onto the device. This is a very naive / simple
     hacky proof of concept. Option -r allows specifying a text file to
@@ -855,30 +863,28 @@ def install(name, py, requirement):  # pragma: no cover
                 line = line.strip()  # Remove whitespace (including \n).
                 if line:  # Ignore blank lines.
                     module = line.split("==")[0] if "==" in line else line
-                    install_module(module, py, mod_names)
+                    install_module(ctx.obj["DEVICE_PATH"], module, py, mod_names)
     else:
-        install_module(name, py, mod_names)
+        install_module(ctx.obj["DEVICE_PATH"], name, py, mod_names)
 
 
 @main.command()
 @click.argument("module", nargs=-1)
-def uninstall(module):  # pragma: no cover
+@click.pass_context
+def uninstall(ctx, module):  # pragma: no cover
     """
     Uninstall a named module(s) from the connected device. Multiple modules
     can be uninstalled at once by providing more than one module name, each
     separated by a space.
     """
     for name in module:
-        device_modules = get_device_versions()
+        device_modules = get_device_versions(ctx.obj["DEVICE_PATH"])
         name = name.lower()
         mod_names = {}
         for module_item, metadata in device_modules.items():
             mod_names[module_item.replace(".py", "").lower()] = metadata
         if name in mod_names:
-            device_path = find_device()
-            if device_path is None:
-                raise IOError("Could not find a connected Adafruit device.")
-            library_path = os.path.join(device_path, "lib")
+            library_path = os.path.join(ctx.obj["DEVICE_PATH"], "lib")
             metadata = mod_names[name]
             module_path = metadata["path"]
             if os.path.isdir(module_path):

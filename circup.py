@@ -689,7 +689,7 @@ def update(all):  # pragma: no cover
             update_flag = all
             if VERBOSE:
                 click.echo(
-                    "device version:{} bundle version:{}".format(
+                    "Device version: {}, Bundle version: {}".format(
                         module.device_version, module.bundle_version
                     )
                 )

@@ -9,9 +9,8 @@ import shutil
 import subprocess
 
 PYTEST = "pytest"
-PYFLAKES = "pyflakes"
-PYCODESTYLE = "pycodestyle"
 BLACK = "black"
+PYLINT = "pylint"
 
 INCLUDE_PATTERNS = {"*.py"}
 EXCLUDE_PATTERNS = {"build/*", "docs/*"}
@@ -132,33 +131,27 @@ def coverage():
 
 
 @export
-def pyflakes(*pyflakes_args):
+def black(*black_args):
     """
-    Run the PyFlakes code checker.
-
-    Call pyflakes on all .py files outside the docs and contrib directories.
+    Run Black in check mode
     """
-    print("\npyflakes")
-    os.environ["PYFLAKES_BUILTINS"] = "_"
-    return _process_code(PYFLAKES, False, *pyflakes_args)
-
-
-@export
-def pycodestyle(*pycodestyle_args):
-    """
-    Run the PEP8 style checker.
-    """
-    print("\nPEP8")
-    args = ("--ignore=E731,E402,W504,W503",) + pycodestyle_args
-    return _process_code(PYCODESTYLE, False, *args)
+    args = (BLACK, "--check", "--target-version", "py35", ".") + black_args
+    result = subprocess.run(args).returncode
+    if result > 0:
+        return result
 
 
 @export
-def pep8(*pep8_args):
+def pylint():
     """
-    Run the PEP8 style checker.
+    Run python Linter
     """
-    return pycodestyle(*pep8_args)
+    # args = ("circup.py",)
+    # return _process_code(PYLINT, False, *args)
+    args = (PYLINT, "circup.py")
+    result = subprocess.run(args).returncode
+    if result > 0:
+        return result
 
 
 @export
@@ -179,7 +172,7 @@ def check():
     Run all the checkers and tests.
     """
     print("\nCheck")
-    funcs = [clean, tidy, pyflakes, pycodestyle, coverage]
+    funcs = [clean, tidy, black, pylint, coverage]
     for func in funcs:
         return_code = func()
         if return_code != 0:

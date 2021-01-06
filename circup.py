@@ -753,16 +753,24 @@ def update(ctx, all):  # pragma: no cover
         click.echo("None of the modules found on the device need an update.")
 
 
+@click.argument("match", required=False, nargs=1)
 @main.command()
-def show():  # pragma: no cover
+def show(match):  # pragma: no cover
     """
     Show a list of available modules in the bundle. These are modules which
     *could* be installed on the device.
+
+    If MATCH is specified only matching modules will be listed.
     """
     available_modules = get_bundle_versions()
     module_names = sorted([m.replace(".py", "") for m in available_modules])
+    if match is not None:
+        module_names = [m for m in module_names if match in m]
     click.echo("\n".join(module_names))
-    click.echo("{} packages.".format(len(module_names)))
+
+    click.echo(
+        "{} shown of {} packages.".format(len(module_names), len(available_modules))
+    )
 
 
 # pylint: disable=too-many-locals,too-many-branches

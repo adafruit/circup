@@ -110,3 +110,6 @@ venv.bak/
 .vscode/
 
 .DS_STORE
+
+# emacs
+*~

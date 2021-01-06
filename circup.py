@@ -193,7 +193,7 @@ class Module:
         """
         if os.path.isdir(self.path):
             # Delete and copy the directory.
-            shutil.rmtree(self.path)
+            shutil.rmtree(self.path, ignore_errors=True)
             shutil.copytree(self.bundle_path, self.path)
         else:
             # Delete and copy file.

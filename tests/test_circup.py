@@ -152,7 +152,7 @@ def test_Module_update_dir():
         "circup.os.path.isdir", return_value=True
     ):
         m.update()
-        mock_shutil.rmtree.assert_called_once_with(m.path)
+        mock_shutil.rmtree.assert_called_once_with(m.path, ignore_errors=True)
         mock_shutil.copytree.assert_called_once_with(m.bundle_path, m.path)
 
 

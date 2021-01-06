@@ -27,12 +27,11 @@ install_requires = [
 extras_require = {
     "tests": [
         "pytest",
+        "pylint",
         "pytest-cov",
         "pytest-random-order>=1.0.0",
         "pytest-faulthandler",
         "coverage",
-        "pycodestyle",
-        "pyflakes",
         "black",
     ],
     "docs": ["sphinx"],

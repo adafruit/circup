@@ -4,8 +4,8 @@ GREP_T_FLAG := $(shell test $$(uname) = Linux && echo -T)
 all:
 	@echo "\nThere is no default Makefile target right now. Try:\n"
 	@echo "make clean - reset the project and remove auto-generated assets."
-	@echo "make pyflakes - run the PyFlakes code checker."
-	@echo "make pycodestyle - run the PEP8 style checker."
+	@ecxho "make black - runs Black Python code formatter."
+	@echo "make pylint - runs Python Linter."
 	@echo "make test - run the test suite."
 	@echo "make coverage - view a report on test coverage."
 	@echo "make tidy - tidy code with the 'black' formatter."
@@ -28,13 +28,12 @@ clean:
 	find . \( -name '*.tgz' -o -name dropin.cache \) -delete
 	find . | grep -E "(__pycache__)" | xargs rm -rf
 
-pyflakes:
-        # search the current directory tree for .py files, skipping docs and  _build, var directories, feeding them to pyflakes
-	find . \( -name _build -o -name var -o -path ./docs -o -name .env \) -type d -prune -o -name '*.py' -print0 | $(XARGS) pyflakes
 
-pycodestyle:
-        # search the current directory tree for .py files, skipping _build and var directories, feeding them to pycodestyle
-	find . \( -name _build -o -name var -o -name .env \) -type d -prune -o -name '*.py' -print0 | $(XARGS) -n 1 pycodestyle --repeat --exclude=docs/*,.vscode/* --ignore=E731,E402,W504,W503
+black:
+	black --check --target-version=py35 .
+
+pylint:
+	pylint circup.py
 
 test: clean
 	pytest --random-order
@@ -46,7 +45,7 @@ tidy: clean
 	@echo "\nTidying code with black..."
 	black --target-version=py35 .
 
-check: clean tidy pycodestyle pyflakes coverage
+check: clean tidy black pylint coverage
 
 dist: check
 	@echo "\nChecks pass, good to package..."

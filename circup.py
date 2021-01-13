@@ -583,7 +583,7 @@ def get_bundle(tag):
 @click.option(
     "--path",
     type=click.Path(exists=True, file_okay=False),
-    help="Path to circuit python directory. Overrides automatic path detection.",
+    help="Path to CircuitPython directory. Overrides automatic path detection.",
 )
 @click.version_option(
     prog_name="CircUp",

@@ -51,8 +51,11 @@ https://circuitpython.org/libraries
 Usage
 -----
 
+If you need more detailed help using Circup see the Learn Guide article 
+`"Use CircUp to easily keep your CircuitPython libraries up to date" <https://learn.adafruit.com/keep-your-circuitpython-libraries-on-devices-up-to-date-with-circup/>`_.
+
 First, plug in a device running CircuiPython. This should appear as a mounted
-storage device called ``CIRCUITPYTHON``.
+storage device called ``CIRCUITPY``.
 
 To get help, just type the command::
 
@@ -64,19 +67,31 @@ To get help, just type the command::
     Options:
       --verbose         Comprehensive logging is sent to stdout.
       --version         Show the version and exit.
+      --path DIRECTORY  Path to CircuitPython directory. Overrides automatic
+                        path detection.
       --help            Show this message and exit.
       -r --requirement  Supports requirements.txt tracking of library
                         requirements with freeze and install commands.
 
     Commands:
-      freeze     Output details of all the modules found on the connected...
-      install    Install a named module onto the device.
-      list       Lists all out of date modules found on the connected...
-      show       Show a list of available modules in the bundle.
-      uninstall  Uninstall a named module(s) from the connected device.
-      update     Update modules on the device. Use --all to automatically update
-                 all modules.
+      freeze        Output details of all the modules found on the connected...
+      install       Install a named module onto the device.
+      list          Lists all out of date modules found on the connected...
+      show          Show the long list of all available modules in the bundle.
+      show <query>  Search the names in the modules in the bundle for a match.
+      uninstall     Uninstall a named module(s) from the connected device.
+      update        Update modules on the device. Use --all to automatically update
+                    all modules.
 
+
+To search for a specific module containing the name bme:
+:code:`$ circup show bme`::
+
+    $ circup show bme
+    Found device at /Volumes/CIRCUITPY, running CircuitPython 6.1.0-beta.2.
+    adafruit_bme280
+    adafruit_bme680
+    2 shown of 257 packages.
 
 To show version information for all the modules currently on a connected
 CIRCUITPYTHON device::
@@ -143,7 +158,13 @@ Use the ``--verbose`` flag to see the logs as the command is working::
     10/18/2020 00:54:44 INFO: Found device: /Volumes/CIRCUITPY
     ... etc ...
 
-Finally, the ``--version`` flag will tell you the current version of the
+The ``--path`` flag let's you pass in a different path to the CircuitPython
+mounted volume. This is helpful when you have renamed or have more than one
+CircuitPython devices attached::
+
+    $ circup --path /run/media/user/CIRCUITPY1 list
+
+The ``--version`` flag will tell you the current version of the
 ``circup`` command itself::
 
     $ circup --version

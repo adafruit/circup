@@ -67,7 +67,7 @@ To get help, just type the command::
     Options:
       --verbose         Comprehensive logging is sent to stdout.
       --version         Show the version and exit.
-      --path DIRECTORY  Path to circuit python directory. Overrides automatic
+      --path DIRECTORY  Path to CircuitPython directory. Overrides automatic
                         path detection.
       --help            Show this message and exit.
       -r --requirement  Supports requirements.txt tracking of library

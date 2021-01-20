@@ -848,11 +848,11 @@ def install_module(device_path, name, py, mod_names):  # pragma: no cover
 
 
 @main.command()
-@click.argument("name", required=False)
+@click.argument("names", required=False, nargs=-1)
 @click.option("--py", is_flag=True)
 @click.option("-r", "--requirement")
 @click.pass_context
-def install(ctx, name, py, requirement):  # pragma: no cover
+def install(ctx, names, py, requirement):  # pragma: no cover
     """
     Install a named module onto the device. This is a very naive / simple
     hacky proof of concept. Option -r allows specifying a text file to
@@ -864,22 +864,24 @@ def install(ctx, name, py, requirement):  # pragma: no cover
     """
     available_modules = get_bundle_versions()
     # Normalize user input.
-    name = name.lower() if name else ""
-    mod_names = {}
-    for module, metadata in available_modules.items():
-        mod_names[module.replace(".py", "").lower()] = metadata
-    if requirement:
-        cwd = os.path.abspath(os.getcwd())
-        with open(cwd + "/" + requirement, "r") as file:
-            for line in file.readlines():
-                # Ignore comment lines or appended comment annotations.
-                line = line.split("#", 1)[0]
-                line = line.strip()  # Remove whitespace (including \n).
-                if line:  # Ignore blank lines.
-                    module = line.split("==")[0] if "==" in line else line
-                    install_module(ctx.obj["DEVICE_PATH"], module, py, mod_names)
-    else:
-        install_module(ctx.obj["DEVICE_PATH"], name, py, mod_names)
+    for name in names:
+        print(name)
+        name = name.lower() if name else ""
+        mod_names = {}
+        for module, metadata in available_modules.items():
+            mod_names[module.replace(".py", "").lower()] = metadata
+        if requirement:
+            cwd = os.path.abspath(os.getcwd())
+            with open(cwd + "/" + requirement, "r") as file:
+                for line in file.readlines():
+                    # Ignore comment lines or appended comment annotations.
+                    line = line.split("#", 1)[0]
+                    line = line.strip()  # Remove whitespace (including \n).
+                    if line:  # Ignore blank lines.
+                        module = line.split("==")[0] if "==" in line else line
+                        install_module(ctx.obj["DEVICE_PATH"], module, py, mod_names)
+        else:
+            install_module(ctx.obj["DEVICE_PATH"], name, py, mod_names)
 
 
 @main.command()

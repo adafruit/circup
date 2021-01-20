@@ -789,7 +789,7 @@ def install_module(device_path, name, py, mod_names):  # pragma: no cover
     TODO: There is currently no check for the version.
     """
     if not name:
-        click.echo("No module name provided.")
+        click.echo("No module name(s) provided.")
     elif name in mod_names:
         library_path = os.path.join(device_path, "lib")
         if not os.path.exists(library_path):  # pragma: no cover
@@ -848,15 +848,17 @@ def install_module(device_path, name, py, mod_names):  # pragma: no cover
 
 
 @main.command()
-@click.argument("names", required=False, nargs=-1)
+@click.argument("modules", required=False, nargs=-1)
 @click.option("--py", is_flag=True)
 @click.option("-r", "--requirement")
 @click.pass_context
-def install(ctx, names, py, requirement):  # pragma: no cover
+def install(ctx, modules, py, requirement):  # pragma: no cover
     """
-    Install a named module onto the device. This is a very naive / simple
-    hacky proof of concept. Option -r allows specifying a text file to
-    install all modules listed in the text file.
+    Install a named module(s) onto the device. Multiple modules
+    can be installed at once by providing more than one module name, each
+    separated by a space.
+    Option -r allows specifying a text file to install all modules listed in
+    the text file.
 
     TODO: Work out how to specify / handle dependencies (if at all), ensure
     there's enough space on the device, work out the version of CircuitPython
@@ -864,8 +866,7 @@ def install(ctx, names, py, requirement):  # pragma: no cover
     """
     available_modules = get_bundle_versions()
     # Normalize user input.
-    for name in names:
-        print(name)
+    for name in modules:
         name = name.lower() if name else ""
         mod_names = {}
         for module, metadata in available_modules.items():

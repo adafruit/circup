@@ -75,7 +75,7 @@ To get help, just type the command::
 
     Commands:
       freeze        Output details of all the modules found on the connected...
-      install       Install a named module onto the device.
+      install       Install a named module(s) onto the device.
       list          Lists all out of date modules found on the connected...
       show          Show the long list of all available modules in the bundle.
       show <query>  Search the names in the modules in the bundle for a match.
@@ -126,10 +126,14 @@ To interactively update the out-of-date modules::
     Update 'adafruit_ble'? [y/N]: Y
     OK
 
-Install a module onto the connected device with::
+Install a module or modules onto the connected device with::
 
     $ circup install adafruit_thermal_printer
     Installed 'adafruit_thermal_printer'.
+
+    $ circup install adafruit_thermal_printer adafruit_bus_io
+    Installed 'adafruit_thermal_printer'.
+    Installed 'adafruit_bus_io'.
 
 You can also install a list of modules from a requirements.txt file in
 the current working directory with::
@@ -141,10 +145,14 @@ the current working directory with::
     Installed 'adafruit_sht31d'.
     Installed 'neopixel'.
 
-Uninstall a module like this::
+Uninstall a module or modules like this::
 
     $ circup uninstall adafruit_thermal_printer
     Uninstalled 'adafruit_thermal_printer'.
+
+    $ circup uninstall adafruit_thermal_printer adafruit_bus_io
+    Uninstalled 'adafruit_thermal_printer'.
+    Uninstalled 'adafruit_bus_io'.
 
 Use the ``--verbose`` flag to see the logs as the command is working::
 

@@ -222,6 +222,27 @@ class Module:
         )
 
 
+def clean_library_name(assumed_library_name):
+    """
+    Most CP repos and library names are look like this:
+        repo: Adafruit_CircuitPython_LC709203F
+        library: adafruit_lc709203f
+        But some do not and this handles cleaning that up.
+    :param object of Modules
+    :return: str proper library name
+    """
+    not_standard_names = {
+        # Assumed Name : Actual Name
+        "adafruit_busdevice": "adafruit_bus_device",
+        "adafruit_simpleio": "simpleio",
+        "adafruit_adafruitio": "adafruit_io",
+        "adafruit_neopixel": "neopixel",
+    }
+    if assumed_library_name in not_standard_names.keys():
+        return not_standard_names[assumed_library_name]
+    return assumed_library_name
+
+
 def ensure_latest_bundle():
     """
     Ensure that there's a copy of the latest library bundle available so circup
@@ -683,6 +704,7 @@ def libraries_from_requirements(requirements):
             # Convert the repo name to the libary name
             # Bug: 90% sure this will fail on _some_ library
             line = line.replace("-circuitpython-", "_").replace("-", "_")
+            line = clean_library_name(line)
             libraries = libraries + (line,)
     return libraries
 

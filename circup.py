@@ -21,20 +21,22 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
-import logging
-import os
-import sys
+
 import ctypes
 import glob
+import json
+import logging
+import os
 import re
 import shutil
-import json
-import zipfile
+import sys
 from subprocess import check_output
-from semver import VersionInfo
+import zipfile
+
+import appdirs
 import click
 import requests
-import appdirs
+from semver import VersionInfo
 
 
 # Useful constants.
@@ -304,6 +306,44 @@ def get_latest_tag():
     return tag
 
 
+def get_dependencies(module_repo):
+    """
+    Return a list of other CircuitPython libraries
+    :param str module_repo: The URL to the module's Github repo
+    :return: List of module names.
+    """
+    # get the library repo name from the full .git repo URL
+    module_repo_name = module_repo.split("/")[-1].split(".")[0]
+    # Blank lines and CPython Libraries don't go on devices
+    not_cp_libraries = ["", "adafruit-blinka", "adafruit-blinka-displayio", "pyserial"]
+    requirements_base_url = "https://raw.githubusercontent.com/adafruit/"
+    requirements_file_path = "master/requirements.txt"
+    requirements_url = (
+        f"{requirements_base_url}{module_repo_name}/{requirements_file_path}"
+    )
+    requirements = requests.get(requirements_url)
+    dependencies = []
+    if requirements.status_code == 200:  # TODO: What if its not 200?
+        for line in requirements.text.split("\n"):
+            line = line.lower().strip()
+            if line.startswith("#") or line in not_cp_libraries:
+                # skip comments and CPYthon Libraries in requirements.txt
+                pass
+            else:
+                if any(operators in line for operators in [">", "<", "="]):
+                    # Remove everything after any pip style version specifiers
+                    line = re.split("[<|>|=|]", line)[0]
+                # Convert the repo name to the libary name
+                # Bug: 90% sure this will fail on _some_ library
+                line = line.replace("-circuitpython-", "_").replace("-", "_")
+                dependencies.append(line)
+        # print(module_repo)  # TODO: Convert to logging
+        if dependencies:
+            # print(dependencies)  # TODO: Convert to logging
+            return dependencies
+    return None
+
+
 def extract_metadata(path):
     """
     Given an file path, return a dictionary containing metadata extracted from
@@ -335,6 +375,10 @@ def extract_metadata(path):
             del result["__builtins__"]  # Side effect of using exec, not needed.
         if result:
             logger.info("Extracted metadata: %s", result)
+        # Add dependencies to metadata
+        # TODO: This is a bad place to do this... it makes all commands _really_ slow
+        if "__repo__" in result.keys():
+            result["dependencies"] = get_dependencies(result["__repo__"])
         return result
     if path.endswith(".mpy"):
         result["mpy"] = True
@@ -780,21 +824,27 @@ def install_module(device_path, name, py, mod_names):  # pragma: no cover
     is available in the current module bundle and is not already
     installed on the device.
 
-    Arguments are: name of the module to install, py is a boolean to
-    specify if the module should be installed from source or from a
-    pre-compiled module, and mod_names requires a dictionary of metadata
-    from modules that can be generated with get_bundle_versions(). See
-    the Install command function for an example.
+    :param str device_path: The path to the connected board.
+    :param str name: Name of module to install
+    :param bool py: Boolean to specify if the module should be installed from
+                    source or from a pre-compiled module
+    :params mod_names: Dictionary of metadata from modules that can be generated
+                       with get_bundle_versions()
 
     TODO: There is currently no check for the version.
     """
     if not name:
         click.echo("No module name(s) provided.")
     elif name in mod_names:
+        to_install = [name]
         library_path = os.path.join(device_path, "lib")
         if not os.path.exists(library_path):  # pragma: no cover
             os.makedirs(library_path)
         metadata = mod_names[name]
+        if metadata["dependencies"]:
+            to_install += metadata["dependencies"]
+            print(to_install)
+            # TODO: At this point, I have the list of dependencies.
         # Grab device modules to check if module already installed
         device_modules = []
         for module in find_modules(device_path):

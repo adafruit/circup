@@ -59,6 +59,14 @@ BUNDLE_DIR = os.path.join(DATA_DIR, "adafruit_circuitpython_bundle_{}")
 LOG_DIR = appdirs.user_log_dir(appname="circup", appauthor="adafruit")
 #: The location of the log file for the utility.
 LOGFILE = os.path.join(LOG_DIR, "circup.log")
+# Blank lines and CPython Libraries don't go on devices
+NOT_MCU_LIBRARIES = [
+    "",
+    "adafruit-blinka",
+    "adafruit_blinka_bleio",
+    "adafruit-blinka-displayio",
+    "pyserial",
+]
 #: The version of CircuitPython found on the connected device.
 CPY_VERSION = ""
 
@@ -234,10 +242,13 @@ def clean_library_name(assumed_library_name):
     """
     not_standard_names = {
         # Assumed Name : Actual Name
-        "adafruit_busdevice": "adafruit_bus_device",
-        "adafruit_simpleio": "simpleio",
         "adafruit_adafruitio": "adafruit_io",
+        "adafruit_busdevice": "adafruit_bus_device",
+        "adafruit_circuitpython_esp32spi": "adafruit_esp32spi",
+        "adafruit_circuitpython_simpleio": "simpleio",
         "adafruit_neopixel": "neopixel",
+        "adafruit_sd": "adafruit_sdcard",
+        "adafruit_simpleio": "simpleio",
     }
     if assumed_library_name in not_standard_names.keys():
         return not_standard_names[assumed_library_name]
@@ -533,13 +544,26 @@ def get_dependencies2(*requested_libraries, mod_names, to_install=()):
     """
     if not requested_libraries[0]:
         return to_install
+    # Internal variables
     _to_install = to_install
     _requested_libraries = []
     _rl = requested_libraries[0]
+
+    # BUG: If the last library is skipped nothing works
+    # rm -rf /Volumes/CIRCUITPY/lib &&  circup install adafruit_ble_berrymed_pulse_oximeter
     for l in _rl:
-        _requested_libraries.append(l)
+        print(f"l: {l}")
+        # Convert tuple to list and force all to lowercase
+        # Clean the list
+        l = clean_library_name(l.lower())
+        if l in NOT_MCU_LIBRARIES:
+            click.secho(f"Skipping: {l} is not for microcontroller installs.")
+        else:
+            _requested_libraries.append(l)
+        print(f"_requested_libraries: {_requested_libraries}")
     for library in _requested_libraries:
-        library = library.lower()
+        print(f"_requested_libraries: {_requested_libraries}")
+        print(f"{library}: {library}")
         if library not in _to_install:
             _to_install = _to_install + (library,)
             # get the library repo name from the full .git repo URL
@@ -561,10 +585,11 @@ def get_dependencies2(*requested_libraries, mod_names, to_install=()):
                         libraries_from_requirements(response.text)
                     )
             else:
-                click.echo(
-                    f"{library} library has no __repo__ metadata. "
-                    "Circup cannot install its dependencies.",
-                    err=True,
+                click.secho(
+                    f"\nWARNING: \n\t{library} library has no __repo__ metadata.\n"
+                    "\tCircup cannot install its dependencies.\n"
+                    "\tPlease file an issue in the library repo.\n",
+                    fg="yellow",
                 )
         _requested_libraries.remove(library)
         return get_dependencies2(
@@ -740,12 +765,10 @@ def libraries_from_requirements(requirements):
     :param str requirements is a string version of a requirements.txt
     :return: tuple of library names
     """
-    # Blank lines and CPython Libraries don't go on devices
-    not_cp_libraries = ["", "adafruit-blinka", "adafruit-blinka-displayio", "pyserial"]
     libraries = ()
     for line in requirements.split("\n"):
         line = line.lower().strip()
-        if line.startswith("#") or line in not_cp_libraries:
+        if line.startswith("#") or line in NOT_MCU_LIBRARIES:
             # skip comments and CPYthon Libraries in requirements.txt
             pass
         else:
@@ -918,7 +941,9 @@ def install(ctx, modules, py, requirement):  # pragma: no cover
         requested_installs = libraries_from_requirements(requirements_txt)
     else:
         requested_installs = modules
+    click.echo(f"Searching for dependencies for: {requested_installs}")
     to_install = get_dependencies2(requested_installs, mod_names=mod_names)
+    click.echo(f"Ready to install: {to_install}")
     for library in to_install:
         install_module(ctx.obj["DEVICE_PATH"], library, py, mod_names)
 

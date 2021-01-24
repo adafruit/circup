@@ -22,6 +22,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+import inspect
+
+def lineno():
+    """Returns the current line number in our program."""
+    return inspect.currentframe().f_back.f_lineno
+
 import ctypes
 import glob
 import json
@@ -523,6 +529,49 @@ def get_circuitpython_version(device_path):
     return circuit_python.split(" ")[-3]
 
 
+def get_dependencies2(*requested_libraries, mod_names, to_install=()):
+    """
+    Return a list of other CircuitPython libraries
+    :param tuple requested_libraries we need to keep walking
+    :param object mod_names: All the modules metadata
+    :return: tuple of module names to install
+    """
+    if not requested_libraries[0]:
+        return to_install
+    else:
+        _to_install = to_install
+        _requested_libraries = []
+        _rl = requested_libraries[0]
+        for l in _rl:
+            _requested_libraries.append(l)
+        for library in _requested_libraries:
+            library = library.lower()
+            if library not in _to_install:
+                _to_install = _to_install + (library,)
+                # get the library repo name from the full .git repo URL
+                if "__repo__" in mod_names[library].keys():
+                    library_repo_name = mod_names[library]["__repo__"].split("/")[-1].split(".")[0]
+                    requirements_base_url = "https://raw.githubusercontent.com/adafruit/"
+                    requirements_file_path = "master/requirements.txt"
+                    requirements_url = (
+                        f"{requirements_base_url}{library_repo_name}/{requirements_file_path}"
+                    )
+                    response = requests.get(requirements_url)
+                    if response.status_code == 200:
+                        _requested_libraries.extend(libraries_from_requirements(response.text))
+                else:
+                    click.echo(
+                        f"{library} library has no __repo__ metadata. "
+                        "Circup cannot install its dependencies.", err=True
+                        )
+            _requested_libraries.remove(library)
+            return get_dependencies2(
+                tuple(_requested_libraries),
+                mod_names=mod_names,
+                to_install=_to_install,
+            )
+
+
 def get_dependencies(module_repo):
     """
     Return a list of other CircuitPython libraries
@@ -530,11 +579,11 @@ def get_dependencies(module_repo):
     :return: List of module names OR None if no requirements.txt
     """
     # get the library repo name from the full .git repo URL
-    module_repo_name = module_repo.split("/")[-1].split(".")[0]
+    library_repo_name = module_repo.split("/")[-1].split(".")[0]
     requirements_base_url = "https://raw.githubusercontent.com/adafruit/"
     requirements_file_path = "master/requirements.txt"
     requirements_url = (
-        f"{requirements_base_url}{module_repo_name}/{requirements_file_path}"
+        f"{requirements_base_url}{library_repo_name}/{requirements_file_path}"
     )
     response = requests.get(requirements_url)
     if response.status_code == 200:
@@ -853,9 +902,9 @@ def install(ctx, modules, py, requirement):  # pragma: no cover
     Option -r allows specifying a text file to install all modules listed in
     the text file.
 
-    TODO: Work out how to specify / handle dependencies (if at all), ensure
-    there's enough space on the device, work out the version of CircuitPython
-    on the device in order to copy the appropriate .mpy versions too. ;-)
+    TODO: Ensure there's enough space on the device, work out the version of
+    CircuitPytho on the device in order to copy the appropriate .mpy versions
+    too. ;-)
     """
     available_modules = get_bundle_versions()
     mod_names = {}
@@ -867,26 +916,21 @@ def install(ctx, modules, py, requirement):  # pragma: no cover
         requested_installs = libraries_from_requirements(requirements_txt)
     else:
         requested_installs = modules
-    to_install = []
-    for request in requested_installs:
-        print(request)
-        request = request.lower() if request else ""
-        to_install.append(request)
-        dependencies = get_dependencies(mod_names[request]["__repo__"])
-        for dependency in dependencies:
-            if dependency != "adafruit_busdevice":
-                if dependency not in to_install:
-                    to_install.append(dependency)
-                    print(f'{dependency}: {mod_names[dependency]["__repo__"]}')
-                    more_dependencies = get_dependencies(
-                        mod_names[dependency]["__repo__"]
-                    )
-                    for even_more in more_dependencies:
-                        if even_more not in to_install:
-                            print(f'{even_more}: {mod_names[even_more]["__repo__"]}')
-                            to_install.append(even_more)
-        for library in to_install:
-            install_module(ctx.obj["DEVICE_PATH"], library, py, mod_names)
+        # to_install = []
+        # for request in requested_installs:
+        #     request = request.lower() if request else ""
+        #     to_install.append(request)
+        #     dependencies = get_dependencies(mod_names[request]["__repo__"])
+        #     for dependency in dependencies:
+        #         if dependency not in to_install:
+        #             to_install.append(dependency)
+        #             more_dependencies = get_dependencies(mod_names[dependency]["__repo__"])
+        #             for even_more in more_dependencies:
+        #                 if even_more not in to_install:
+        #                     to_install.append(even_more)
+    to_install = get_dependencies2(requested_installs, mod_names=mod_names)
+    for library in to_install:
+        install_module(ctx.obj["DEVICE_PATH"], library, py, mod_names)
 
 
 @click.argument("match", required=False, nargs=1)

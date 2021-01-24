@@ -59,7 +59,7 @@ BUNDLE_DIR = os.path.join(DATA_DIR, "adafruit_circuitpython_bundle_{}")
 LOG_DIR = appdirs.user_log_dir(appname="circup", appauthor="adafruit")
 #: The location of the log file for the utility.
 LOGFILE = os.path.join(LOG_DIR, "circup.log")
-# Blank lines and CPython Libraries don't go on devices
+# Blank lines and libraries don't go on devices
 NOT_MCU_LIBRARIES = [
     "",
     "adafruit-blinka",
@@ -237,19 +237,26 @@ def clean_library_name(assumed_library_name):
         repo: Adafruit_CircuitPython_LC709203F
         library: adafruit_lc709203f
         But some do not and this handles cleaning that up.
-    :param object of Modules
+    Also cleans up if the pypi or reponame is passed in instead of the
+    CP library name.
+    :param str an assumed name of a library from user or requirements.txt entry
     :return: str proper library name
     """
     not_standard_names = {
         # Assumed Name : Actual Name
         "adafruit_adafruitio": "adafruit_io",
         "adafruit_busdevice": "adafruit_bus_device",
-        "adafruit_circuitpython_esp32spi": "adafruit_esp32spi",
-        "adafruit_circuitpython_simpleio": "simpleio",
         "adafruit_neopixel": "neopixel",
         "adafruit_sd": "adafruit_sdcard",
         "adafruit_simpleio": "simpleio",
     }
+    if "circuitpython" in assumed_library_name:
+        # convert repo or pypi name to common library name
+        assumed_library_name = (
+            assumed_library_name.replace("-circuitpython-", "_")
+            .replace("_circuitpython_", "_")
+            .replace("-", "_")
+        )
     if assumed_library_name in not_standard_names.keys():
         return not_standard_names[assumed_library_name]
     return assumed_library_name
@@ -319,6 +326,10 @@ def extract_metadata(path):
         lines = content.split("\n")
         for line in lines:
             if DUNDER_ASSIGN_RE.search(line):
+                # BUG #70: This doesn't work if the __repo__ url is long and black
+                # puts it in >1 line wrapped with parenthesis
+                # see adafruit_ble_berrymed_pulse_oximeter
+                line = line.strip()
                 exec(line, result)
         if "__builtins__" in result:
             del result["__builtins__"]  # Side effect of using exec, not needed.
@@ -535,35 +546,38 @@ def get_circuitpython_version(device_path):
     return circuit_python.split(" ")[-3]
 
 
-def get_dependencies2(*requested_libraries, mod_names, to_install=()):
+def get_dependencies(*requested_libraries, mod_names, to_install=()):
     """
     Return a list of other CircuitPython libraries
-    :param tuple requested_libraries we need to keep walking
-    :param object mod_names: All the modules metadata
-    :return: tuple of module names to install
+    :param tuple requested_libraries we loop through and find dependencies
+    :param object mod_names all the modules metadata from bundle
+    :return: tuple of module names to install which we build
     """
     if not requested_libraries[0]:
+        # If nothing is requested, we're done
         return to_install
+
     # Internal variables
     _to_install = to_install
     _requested_libraries = []
     _rl = requested_libraries[0]
 
-    # BUG: If the last library is skipped nothing works
-    # rm -rf /Volumes/CIRCUITPY/lib &&  circup install adafruit_ble_berrymed_pulse_oximeter
     for l in _rl:
-        print(f"l: {l}")
-        # Convert tuple to list and force all to lowercase
-        # Clean the list
+        # Convert tuple to list and force all to lowercase, Clean the names
         l = clean_library_name(l.lower())
         if l in NOT_MCU_LIBRARIES:
-            click.secho(f"Skipping: {l} is not for microcontroller installs.")
+            click.secho(f"Skipping:\n\t{l} is not for microcontroller installs.")
         else:
-            _requested_libraries.append(l)
-        print(f"_requested_libraries: {_requested_libraries}")
+            try:
+                # Don't process any names we can't find in mod_names
+                mod_names[l]  # pylint: disable=pointless-statement
+                _requested_libraries.append(l)
+            except KeyError:
+                click.secho(
+                    f"WARNING:\n\t{l} is not a known CircuitPython library.",
+                    fg="yellow",
+                )
     for library in _requested_libraries:
-        print(f"_requested_libraries: {_requested_libraries}")
-        print(f"{library}: {library}")
         if library not in _to_install:
             _to_install = _to_install + (library,)
             # get the library repo name from the full .git repo URL
@@ -591,31 +605,14 @@ def get_dependencies2(*requested_libraries, mod_names, to_install=()):
                     "\tPlease file an issue in the library repo.\n",
                     fg="yellow",
                 )
+        # we've processed this library, remove it from the list
         _requested_libraries.remove(library)
-        return get_dependencies2(
+
+        return get_dependencies(
             tuple(_requested_libraries),
             mod_names=mod_names,
             to_install=_to_install,
         )
-
-
-def get_dependencies(module_repo):
-    """
-    Return a list of other CircuitPython libraries
-    :param str module_repo: The URL to the module's Github repo
-    :return: List of module names OR None if no requirements.txt
-    """
-    # get the library repo name from the full .git repo URL
-    library_repo_name = module_repo.split("/")[-1].split(".")[0]
-    requirements_base_url = "https://raw.githubusercontent.com/adafruit/"
-    requirements_file_path = "master/requirements.txt"
-    requirements_url = (
-        f"{requirements_base_url}{library_repo_name}/{requirements_file_path}"
-    )
-    response = requests.get(requirements_url)
-    if response.status_code == 200:
-        return libraries_from_requirements(response.text)
-    return None
 
 
 def get_device_versions(device_path):
@@ -768,17 +765,13 @@ def libraries_from_requirements(requirements):
     libraries = ()
     for line in requirements.split("\n"):
         line = line.lower().strip()
-        if line.startswith("#") or line in NOT_MCU_LIBRARIES:
-            # skip comments and CPYthon Libraries in requirements.txt
+        if line.startswith("#") or line == "":
+            # skip comments
             pass
         else:
             if any(operators in line for operators in [">", "<", "="]):
                 # Remove everything after any pip style version specifiers
                 line = re.split("[<|>|=|]", line)[0]
-            # Convert the repo name to the libary name
-            # Bug: 90% sure this will fail on _some_ library
-            line = line.replace("-circuitpython-", "_").replace("-", "_")
-            line = clean_library_name(line)
             libraries = libraries + (line,)
     return libraries
 
@@ -938,14 +931,16 @@ def install(ctx, modules, py, requirement):  # pragma: no cover
     if requirement:
         cwd = os.path.abspath(os.getcwd())
         requirements_txt = open(cwd + "/" + requirement, "r").read()
-        requested_installs = libraries_from_requirements(requirements_txt)
+        requested_installs = sorted(libraries_from_requirements(requirements_txt))
     else:
-        requested_installs = modules
+        requested_installs = sorted(modules)
     click.echo(f"Searching for dependencies for: {requested_installs}")
-    to_install = get_dependencies2(requested_installs, mod_names=mod_names)
-    click.echo(f"Ready to install: {to_install}")
-    for library in to_install:
-        install_module(ctx.obj["DEVICE_PATH"], library, py, mod_names)
+    to_install = get_dependencies(requested_installs, mod_names=mod_names)
+    if to_install is not None:
+        to_install = sorted(to_install)
+        click.echo(f"Ready to install: {to_install}\n")
+        for library in to_install:
+            install_module(ctx.obj["DEVICE_PATH"], library, py, mod_names)
 
 
 @click.argument("match", required=False, nargs=1)

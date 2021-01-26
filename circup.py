@@ -598,7 +598,9 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
                     + "/"
                     + requirements_file_path
                 )
-                logger.info('Getting %s Requirements from: \n\t%s', library, requirements_url)
+                logger.info(
+                    "Getting %s Requirements from: \n\t%s", library, requirements_url
+                )
                 response = requests.get(requirements_url)
                 if response.status_code == 200:
                     _requested_libraries.extend(

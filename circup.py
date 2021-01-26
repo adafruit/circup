@@ -43,8 +43,6 @@ from semver import VersionInfo
 # Useful constants.
 #: The unique USB vendor ID for Adafruit boards.
 VENDOR_ID = 9114
-#: The regex used to extract ``__version__`` and ``__repo__`` assignments.
-DUNDER_ASSIGN_RE = re.compile(r"""^__\w+__\s*=\s*['"].+['"]$""")
 #: Flag to indicate if the command is being run in verbose mode.
 VERBOSE = False
 #: The location of data files used by circup (following OS conventions).
@@ -63,7 +61,7 @@ LOGFILE = os.path.join(LOG_DIR, "circup.log")
 NOT_MCU_LIBRARIES = [
     "",
     "adafruit-blinka",
-    "adafruit_blinka_bleio",
+    "adafruit-blinka-bleio",
     "adafruit-blinka-displayio",
     "pyserial",
 ]
@@ -319,20 +317,15 @@ def extract_metadata(path):
     :return: The dunder based metadata found in the file, as a dictionary.
     """
     result = {}
+    logger.info('%s', path)
     if path.endswith(".py"):
         result["mpy"] = False
         with open(path, encoding="utf-8") as source_file:
             content = source_file.read()
-        lines = content.split("\n")
-        for line in lines:
-            if DUNDER_ASSIGN_RE.search(line):
-                # BUG #70: This doesn't work if the __repo__ url is long and black
-                # puts it in >1 line wrapped with parenthesis
-                # see adafruit_ble_berrymed_pulse_oximeter
-                line = line.strip()
-                exec(line, result)
-        if "__builtins__" in result:
-            del result["__builtins__"]  # Side effect of using exec, not needed.
+        #: The regex used to extract ``__version__`` and ``__repo__`` assignments.
+        dunder_key_val = r"""(__\w+__)\s*=\s*(?:['"]|\(\s)(.+)['"]"""
+        for match in re.findall(dunder_key_val, content):
+            result[match[0]] = str(match[1])
         if result:
             logger.info("Extracted metadata: %s", result)
         return result

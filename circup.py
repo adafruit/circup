@@ -553,14 +553,14 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
     :param object mod_names all the modules metadata from bundle
     :return: tuple of module names to install which we build
     """
-    if not requested_libraries[0]:
-        # If nothing is requested, we're done
-        return to_install
-
     # Internal variables
     _to_install = to_install
     _requested_libraries = []
     _rl = requested_libraries[0]
+
+    if not requested_libraries[0]:
+        # If nothing is requested, we're done
+        return _to_install
 
     for l in _rl:
         # Convert tuple to list and force all to lowercase, Clean the names
@@ -577,6 +577,11 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
                     f"WARNING:\n\t{l} is not a known CircuitPython library.",
                     fg="yellow",
                 )
+
+    if not _requested_libraries:
+        # If nothing is requested, we're done
+        return _to_install
+
     for library in _requested_libraries:
         if library not in _to_install:
             _to_install = _to_install + (library,)
@@ -593,6 +598,7 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
                     + "/"
                     + requirements_file_path
                 )
+                logger.info('Getting %s Requirements from: \n\t%s', library, requirements_url)
                 response = requests.get(requirements_url)
                 if response.status_code == 200:
                     _requested_libraries.extend(

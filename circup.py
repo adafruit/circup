@@ -317,7 +317,7 @@ def extract_metadata(path):
     :return: The dunder based metadata found in the file, as a dictionary.
     """
     result = {}
-    logger.info('%s', path)
+    logger.info("%s", path)
     if path.endswith(".py"):
         result["mpy"] = False
         with open(path, encoding="utf-8") as source_file:

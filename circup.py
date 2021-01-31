@@ -468,11 +468,6 @@ def get_bundle(tag):
             "/releases/download"
             "/{tag}/adafruit-circuitpython-bundle-py-{tag}.zip".format(tag=tag)
         ),
-        "5mpy": (
-            "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
-            "/releases/download"
-            "/{tag}/adafruit-circuitpython-bundle-5.x-mpy-{tag}.zip".format(tag=tag)
-        ),
         "6mpy": (
             "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/"
             "releases/download"

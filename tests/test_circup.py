@@ -606,11 +606,11 @@ def test_get_bundle():
         mock_requests.get.reset_mock()
         tag = "12345"
         circup.get_bundle(tag)
-        assert mock_requests.get.call_count == 3
-        assert mock_open.call_count == 3
-        assert mock_shutil.rmtree.call_count == 3
-        assert mock_zipfile.ZipFile.call_count == 3
-        assert mock_zipfile.ZipFile().__enter__().extractall.call_count == 3
+        assert mock_requests.get.call_count == 2
+        assert mock_open.call_count == 2
+        assert mock_shutil.rmtree.call_count == 2
+        assert mock_zipfile.ZipFile.call_count == 2
+        assert mock_zipfile.ZipFile().__enter__().extractall.call_count == 2
 
 
 def test_get_bundle_network_error():

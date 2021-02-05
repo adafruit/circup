@@ -554,7 +554,7 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
         # Convert tuple to list and force all to lowercase, Clean the names
         l = clean_library_name(l.lower())
         if l in NOT_MCU_LIBRARIES:
-            click.secho(f"Skipping:\n\t{l} is not for microcontroller installs.")
+            logger.info("Skipping %s. It is not for microcontroller installs.", l)
         else:
             try:
                 # Don't process any names we can't find in mod_names
@@ -578,29 +578,11 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
                 library_repo_name = (
                     mod_names[library]["__repo__"].split("/")[-1].split(".")[0]
                 )
-                requirements_base_url = "https://raw.githubusercontent.com/adafruit/"
-                requirements_file_path = "master/requirements.txt"
-                requirements_url = (
-                    requirements_base_url
-                    + library_repo_name
-                    + "/"
-                    + requirements_file_path
-                )
-                logger.info(
-                    "Getting %s Requirements from: \n\t%s", library, requirements_url
-                )
-                response = requests.get(requirements_url)
-                if response.status_code == 200:
+                requirements_txt = get_requirements(library_repo_name)
+                if requirements_txt:
                     _requested_libraries.extend(
-                        libraries_from_requirements(response.text)
+                        libraries_from_requirements(requirements_txt)
                     )
-            else:
-                click.secho(
-                    f"\nWARNING: \n\t{library} library has no __repo__ metadata.\n"
-                    "\tCircup cannot install its dependencies.\n"
-                    "\tPlease file an issue in the library repo.\n",
-                    fg="yellow",
-                )
         # we've processed this library, remove it from the list
         _requested_libraries.remove(library)
 
@@ -676,6 +658,55 @@ def get_modules(path):
             # No version metadata found.
             result[name] = {"path": dm, "mpy": bool(mpy_files)}
     return result
+
+
+def get_requirements(repo_name):
+    """
+    Return a string of the requirements.txt for a GitHub Repo
+    :param str repo_name GitHub repo name
+    :return: str the content of requirements.txt or None if not found
+    """
+    requirements_base_url = "https://raw.githubusercontent.com/adafruit/"
+    requirements_file_path = "/requirements.txt"
+    repo_url = "https://github.com/adafruit/" + repo_name
+    # Search Group returns the branch name from the
+    branch_search = r"""href="(?:.+)\/(.+)\/(?:.+)\>requirements\.txt<\/a>"""
+
+    r = requests.get(repo_url)
+    if r.status_code == 200:
+        default_branch = re.search(branch_search, r.text).groups()[0]
+    else:
+        click.secho(
+            f"WARNING: Library {repo_name} repo has incorrect __repo__"
+            "\n\tmetadata. Circup cannot install its dependencies."
+            "\n\tPlease file an issue in the library repo.",
+            fg="yellow",
+        )
+        default_branch = None
+
+    if default_branch:
+        requirements_url = (
+            requirements_base_url
+            + repo_name
+            + "/"
+            + default_branch
+            + requirements_file_path
+        )
+        logger.info(
+            "Getting %s Requirements from: \n\t%s",
+            repo_name,
+            requirements_url,
+        )
+        response = requests.get(requirements_url)
+        if response.status_code == 200:
+            return response.text
+        click.secho(
+            f"\nWARNING: \n\tLibrary in {repo_name} repo has incorrect __repo__\n"
+            "\tmetadata. Circup cannot install its dependencies.\n"
+            "\tPlease file an issue in the library repo.\n",
+            fg="yellow",
+        )
+    return None
 
 
 # pylint: disable=too-many-locals,too-many-branches

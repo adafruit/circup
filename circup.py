@@ -174,7 +174,7 @@ class Module:
                 == VersionInfo.parse(self.bundle_version).major
             ):
                 return False
-        except TypeError as ex:
+        except (TypeError, ValueError) as ex:
             logger.warning("Module '%s' has incorrect semver value.", self.name)
             logger.warning(ex)
         return True  # Assume Major Version udpate.

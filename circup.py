@@ -439,7 +439,7 @@ def find_modules(device_path):
             if name in bundle_modules:
                 bundle_metadata = bundle_modules[name]
                 path = device_metadata["path"]
-                repo = device_metadata.get("__repo__")
+                repo = bundle_metadata.get("__repo__")
                 device_version = device_metadata.get("__version__")
                 bundle_version = bundle_metadata.get("__version__")
                 mpy = device_metadata["mpy"]

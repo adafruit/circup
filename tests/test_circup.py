@@ -121,6 +121,24 @@ def test_Module_outofdate_bad_versions():
         assert mock_logger.call_count == 2
 
 
+def test_Module_major_update_bad_versions():
+    """
+    Sometimes, the version is not a valid semver value. In this case, the
+    ``major_update`` property assumes the module is a major update, so as not
+    to block the user from getting the latest update.
+    Such a problem should be logged.
+    """
+    path = os.path.join("foo", "bar", "baz", "module.py")
+    repo = "https://github.com/adafruit/SomeLibrary.git"
+    device_version = "1.2.3"
+    bundle_version = "version-3"
+    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
+    m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
+    with mock.patch("circup.logger.warning") as mock_logger:
+        assert m.major_update is True
+        assert mock_logger.call_count == 2
+
+
 def test_Module_row():
     """
     Ensure the tuple contains the expected items to be correctly displayed in
@@ -356,6 +374,10 @@ def test_find_modules():
         result = circup.find_modules("")
     assert len(result) == 1
     assert result[0].name == "adafruit_74hc595"
+    assert (
+        result[0].repo
+        == "https://github.com/adafruit/Adafruit_CircuitPython_74HC595.git"
+    )
 
 
 def test_find_modules_goes_bang():

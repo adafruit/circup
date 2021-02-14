@@ -174,7 +174,7 @@ class Module:
                 == VersionInfo.parse(self.bundle_version).major
             ):
                 return False
-        except TypeError as ex:
+        except (TypeError, ValueError) as ex:
             logger.warning("Module '%s' has incorrect semver value.", self.name)
             logger.warning(ex)
         return True  # Assume Major Version udpate.
@@ -439,7 +439,7 @@ def find_modules(device_path):
             if name in bundle_modules:
                 bundle_metadata = bundle_modules[name]
                 path = device_metadata["path"]
-                repo = device_metadata.get("__repo__")
+                repo = bundle_metadata.get("__repo__")
                 device_version = device_metadata.get("__version__")
                 bundle_version = bundle_metadata.get("__version__")
                 mpy = device_metadata["mpy"]
@@ -1054,6 +1054,17 @@ def update(ctx, all):  # pragma: no cover
                         module.device_version, module.bundle_version
                     )
                 )
+            if isinstance(module.bundle_version, str) and not VersionInfo.isvalid(
+                module.bundle_version
+            ):
+                click.secho(
+                    f"WARNING: Library {module.name} repo has incorrect __version__"
+                    "\n\tmetadata. Circup will assume it needs updating."
+                    "\n\tPlease file an issue in the library repo.",
+                    fg="yellow",
+                )
+                if module.repo:
+                    click.secho(f"\t{module.repo}", fg="yellow")
             if not update_flag:
                 if module.major_update:
                     update_flag = click.confirm(

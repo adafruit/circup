@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, written for Adafruit Industries
+
+# SPDX-License-Identifier: MIT
+
 name: Build CI
 
 on: [pull_request, push]

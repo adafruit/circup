@@ -51,7 +51,7 @@ https://circuitpython.org/libraries
 Usage
 -----
 
-If you need more detailed help using Circup see the Learn Guide article 
+If you need more detailed help using Circup see the Learn Guide article
 `"Use CircUp to easily keep your CircuitPython libraries up to date" <https://learn.adafruit.com/keep-your-circuitpython-libraries-on-devices-up-to-date-with-circup/>`_.
 
 First, plug in a device running CircuiPython. This should appear as a mounted
@@ -110,9 +110,9 @@ To list all the modules that require an update::
     $ circup list
     The following modules are out of date or probably need an update.
 
-    Module             Version  Latest   
-    ------------------ -------- -------- 
-    adafruit_binascii  v1.0     1.0.1    
+    Module             Version  Latest
+    ------------------ -------- --------
+    adafruit_binascii  v1.0     1.0.1
     adafruit_ble       1.0.2    4.0
 
 To interactively update the out-of-date modules::

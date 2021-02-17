@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
 # Minimal makefile for Sphinx documentation
 #
 

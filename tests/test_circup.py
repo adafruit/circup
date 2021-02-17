@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
 """
 Unit tests for the circup module.
 
@@ -22,13 +25,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 import os
-import circup
 import ctypes
-import pytest
 import json
-import requests
 from unittest import mock
+
+
 from click.testing import CliRunner
+import pytest
+import requests
+
+import circup
 
 
 def test_Module_init_file_module():
@@ -316,7 +322,7 @@ def test_get_latest_tag():
         "/Adafruit_CircuitPython_Bundle/releases/tag/20190903"
     )
     expected_url = (
-        "https://github.com/adafruit/Adafruit_CircuitPython_Bundle" "/releases/latest"
+        "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/releases/latest"
     )
     with mock.patch("circup.requests.get", return_value=response) as mock_get:
         result = circup.get_latest_tag()
@@ -558,6 +564,10 @@ def test_ensure_latest_bundle_to_update():
 
 
 def test_ensure_latest_bundle_to_update_http_error():
+    # pylint: disable=pointless-statement
+    # 2nd to last line is deemed pointless.
+    # Don't understand but for now this is an accpetable workaround
+    # Tracking issue will be opened.
     """
     If an HTTP error happens during a bundle update, print a friendly
     error message and exit 1.
@@ -663,6 +673,9 @@ def test_get_bundle_network_error():
 
 
 def test_show_command():
+    """
+    test_show_command
+    """
     runner = CliRunner()
     TEST_BUNDLE_MODULES = ["one.py", "two.py", "three.py"]
     with mock.patch("circup.get_bundle_versions", return_value=TEST_BUNDLE_MODULES):
@@ -672,6 +685,9 @@ def test_show_command():
 
 
 def test_show_match_command():
+    """
+    test_show_match_command
+    """
     runner = CliRunner()
     TEST_BUNDLE_MODULES = ["one.py", "two.py", "three.py"]
     with mock.patch("circup.get_bundle_versions", return_value=TEST_BUNDLE_MODULES):
@@ -681,7 +697,9 @@ def test_show_match_command():
 
 
 def test_show_match_py_command():
-    # Check that py does not match the .py extention in the module names
+    """
+    Check that py does not match the .py extention in the module names
+    """
     runner = CliRunner()
     TEST_BUNDLE_MODULES = ["one.py", "two.py", "three.py"]
     with mock.patch("circup.get_bundle_versions", return_value=TEST_BUNDLE_MODULES):

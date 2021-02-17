@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
 """
 CircUp -- a utility to manage and update libraries on a CircuitPython device.
 

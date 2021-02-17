@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
 #!python3
 """
 A "pretend" make command written in Python for Windows users. :-)
@@ -9,8 +12,6 @@ import shutil
 import subprocess
 
 PYTEST = "pytest"
-BLACK = "black"
-PYLINT = "pylint"
 
 INCLUDE_PATTERNS = {"*.py"}
 EXCLUDE_PATTERNS = {"build/*", "docs/*"}
@@ -18,6 +19,7 @@ _exported = {}
 
 
 def _walk(start_from=".", include_patterns=None, exclude_patterns=None, recurse=True):
+    """_walk"""
     if include_patterns:
         _include_patterns = set(os.path.normpath(p) for p in include_patterns)
     else:
@@ -27,7 +29,7 @@ def _walk(start_from=".", include_patterns=None, exclude_patterns=None, recurse=
     else:
         _exclude_patterns = set()
 
-    for dirpath, dirnames, filenames in os.walk(start_from):
+    for dirpath, filenames in os.walk(start_from):
         for filename in filenames:
             filepath = os.path.normpath(os.path.join(dirpath, filename))
 
@@ -56,10 +58,10 @@ def _process_code(executable, use_python, *args):
         execution = [executable]
     returncodes = set()
     for filepath in _walk(".", INCLUDE_PATTERNS, EXCLUDE_PATTERNS, False):
-        p = subprocess.run(execution + [filepath] + list(args))
+        p = subprocess.run(execution + [filepath] + list(args), check=True)
         returncodes.add(p.returncode)
     for filepath in _walk("tests", INCLUDE_PATTERNS, EXCLUDE_PATTERNS):
-        p = subprocess.run(execution + [filepath] + list(args))
+        p = subprocess.run(execution + [filepath] + list(args), check=True)
         returncodes.add(p.returncode)
     return max(returncodes)
 
@@ -106,7 +108,7 @@ def test(*pytest_args):
     with a failure value. This forces things to stop if tests fail.
     """
     print("\ntest")
-    return subprocess.run([PYTEST] + list(pytest_args)).returncode
+    return subprocess.run([PYTEST] + list(pytest_args), check=True).returncode
 
 
 @export
@@ -126,44 +128,9 @@ def coverage():
             "term-missing",
             "--cov=circup",
             "tests/",
-        ]
+        ],
+        check=True,
     ).returncode
-
-
-@export
-def black(*black_args):
-    """
-    Run Black in check mode
-    """
-    args = (BLACK, "--check", "--target-version", "py35", ".") + black_args
-    result = subprocess.run(args).returncode
-    if result > 0:
-        return result
-
-
-@export
-def pylint():
-    """
-    Run python Linter
-    """
-    # args = ("circup.py",)
-    # return _process_code(PYLINT, False, *args)
-    args = (PYLINT, "circup.py")
-    result = subprocess.run(args).returncode
-    if result > 0:
-        return result
-
-
-@export
-def tidy(*tidy_args):
-    """
-    Run black against the code and tests.
-    """
-    print("\nTidy code")
-    args = (BLACK, "--target-version", "py35", ".")
-    result = subprocess.run(args).returncode
-    if result > 0:
-        return result
 
 
 @export
@@ -172,7 +139,7 @@ def check():
     Run all the checkers and tests.
     """
     print("\nCheck")
-    funcs = [clean, tidy, black, pylint, coverage]
+    funcs = [clean, coverage]
     for func in funcs:
         return_code = func()
         if return_code != 0:
@@ -202,7 +169,9 @@ def dist():
     """
     check()
     print("Checks pass; good to package")
-    return subprocess.run(["python", "setup.py", "sdist", "bdist_wheel"]).returncode
+    return subprocess.run(
+        ["python", "setup.py", "sdist", "bdist_wheel"], check=True
+    ).returncode
 
 
 @export
@@ -213,7 +182,7 @@ def publish_test():
     dist()
     print("Packaging complete; upload to PyPI")
     return subprocess.run(
-        ["twine", "upload", "-r", "test", "--sign", "dist/*"]
+        ["twine", "upload", "-r", "test", "--sign", "dist/*"], check=True
     ).returncode
 
 
@@ -224,7 +193,9 @@ def publish_live():
     """
     dist()
     print("Packaging complete; upload to PyPI")
-    return subprocess.run(["twine", "upload", "--sign", "dist/*"]).returncode
+    return subprocess.run(
+        ["twine", "upload", "--sign", "dist/*"], check=True
+    ).returncode
 
 
 @export
@@ -232,11 +203,13 @@ def docs():
     """
     Build the docs.
     """
+    # pylint: disable=bare-except
+    # This whole system will go away, ignore this pylint warning
     cwd = os.getcwd()
     os.chdir("docs")
     try:
-        return subprocess.run(["cmd", "/c", "make.bat", "html"]).returncode
-    except Exception:
+        return subprocess.run(["cmd", "/c", "make.bat", "html"], check=True).returncode
+    except:
         return 1
     finally:
         os.chdir(cwd)
@@ -256,6 +229,8 @@ def help():
 
 
 def main(command="help", *args):
+    # pylint: disable=keyword-arg-before-vararg
+    # This whole system will go away, ignore this pylint warning
     """
     Dispatch on command name, passing all remaining parameters to the
     module-level function.
@@ -263,7 +238,7 @@ def main(command="help", *args):
     try:
         function = _exported[command]
     except KeyError:
-        raise RuntimeError("No such command: %s" % command)
+        raise RuntimeError("No such command: %s" % command) from None
     else:
         return function(*args)
 

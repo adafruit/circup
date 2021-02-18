@@ -37,17 +37,14 @@ jobs:
       # (e.g. - apt-get: gettext, etc; pip: circuitpython-build-tools, requirements.txt; etc.)
       run: |
         source actions-ci/install.sh
-    - name: Pip install pylint, black, & Sphinx
+    - name: Pip install Sphinx & pre-commit
       run: |
-        pip install --force-reinstall pylint black Sphinx sphinx-rtd-theme
+        pip install --force-reinstall Sphinx sphinx-rtd-theme pre-commit
     - name: Library version
       run: git describe --dirty --always --tags
-    - name: Check formatting
+    - name: Pre-commit hooks
       run: |
-        black --check --target-version=py35 .
-    - name: PyLint
-      run: |
-        pylint $( find . -path './circup.py' )
+        pre-commit run --all-files
     - name: Run Test Suite
       run: |
         make test

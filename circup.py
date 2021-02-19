@@ -11,6 +11,7 @@ import glob
 import json
 import logging
 import os
+from pathlib import Path
 import re
 import shutil
 from subprocess import check_output
@@ -561,16 +562,12 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
     for library in _requested_libraries:
         if library not in _to_install:
             _to_install = _to_install + (library,)
-            # get the library repo name from the full .git repo URL
-            if "__repo__" in mod_names[library].keys():
-                library_repo_name = (
-                    mod_names[library]["__repo__"].split("/")[-1].split(".")[0]
+            # get the requirements.txt from bundle
+            requirements_txt = get_requirements(library)
+            if requirements_txt:
+                _requested_libraries.extend(
+                    libraries_from_requirements(requirements_txt)
                 )
-                requirements_txt = get_requirements(library_repo_name)
-                if requirements_txt:
-                    _requested_libraries.extend(
-                        libraries_from_requirements(requirements_txt)
-                    )
         # we've processed this library, remove it from the list
         _requested_libraries.remove(library)
 
@@ -648,53 +645,23 @@ def get_modules(path):
     return result
 
 
-def get_requirements(repo_name):
+def get_requirements(library_name):
     """
     Return a string of the requirements.txt for a GitHub Repo
-
-    :param str repo_name: GitHub repo name
+    NOTE: This is only looks at the py bundle. No known differences in the mpy
+    bundle for requirements.txt
+    
+    :param str library_name: CircuitPython library name
     :return: str the content of requirements.txt or None if not found
     """
-    requirements_base_url = "https://raw.githubusercontent.com/adafruit/"
-    requirements_file_path = "/requirements.txt"
-    repo_url = "https://github.com/adafruit/" + repo_name
-    # Search Group returns the branch name from the
-    branch_search = r"""href="(?:.+)\/(.+)\/(?:.+)\>requirements\.txt<\/a>"""
-
-    r = requests.get(repo_url)
-    if r.status_code == 200:
-        default_branch = re.search(branch_search, r.text).groups()[0]
-    else:
-        click.secho(
-            f"WARNING: Library {repo_name} repo has incorrect __repo__"
-            "\n\tmetadata. Circup cannot install its dependencies."
-            "\n\tPlease file an issue in the library repo.",
-            fg="yellow",
-        )
-        default_branch = None
-
-    if default_branch:
-        requirements_url = (
-            requirements_base_url
-            + repo_name
-            + "/"
-            + default_branch
-            + requirements_file_path
-        )
-        logger.info(
-            "Getting %s Requirements from: \n\t%s",
-            repo_name,
-            requirements_url,
-        )
-        response = requests.get(requirements_url)
-        if response.status_code == 200:
-            return response.text
-        click.secho(
-            f"\nWARNING: \n\tLibrary in {repo_name} repo has incorrect __repo__\n"
-            "\tmetadata. Circup cannot install its dependencies.\n"
-            "\tPlease file an issue in the library repo.\n",
-            fg="yellow",
-        )
+    tag = get_latest_tag()
+    bundle_path = BUNDLE_DIR.format("py")
+    requirements_txt = (
+        "{}/adafruit-circuitpython-bundle-py-{}/requirements/{}/"
+        "requirements.txt".format(bundle_path, tag, library_name)
+    )
+    if Path(requirements_txt).is_file():
+        return open(requirements_txt).read()
     return None
 
 

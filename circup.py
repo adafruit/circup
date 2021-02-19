@@ -650,7 +650,7 @@ def get_requirements(library_name):
     Return a string of the requirements.txt for a GitHub Repo
     NOTE: This is only looks at the py bundle. No known differences in the mpy
     bundle for requirements.txt
-    
+
     :param str library_name: CircuitPython library name
     :return: str the content of requirements.txt or None if not found
     """

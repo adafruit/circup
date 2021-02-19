@@ -13,7 +13,6 @@ API
 .. automodule:: circup
     :members:
 
-.. include:: ../CHANGES.rst
 
 License
 =======

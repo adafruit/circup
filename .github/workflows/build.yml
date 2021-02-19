@@ -50,5 +50,6 @@ jobs:
       run: |
         pytest --random-order --cov-config .coveragerc --cov-report term-missing --cov=circup
     - name: Build docs
+      working-directory: docs
       run: |
         sphinx-build -E -W -b html . _build/html

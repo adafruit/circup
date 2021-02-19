@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, written for Adafruit Industries
+
+# SPDX-License-Identifier: MIT
+
 name: Build CI
 
 on: [pull_request, push]
@@ -17,13 +21,22 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: 3.6
+    - name: Pip install Sphinx & pre-commit
+      run: |
+        pip install --force-reinstall Sphinx sphinx-rtd-theme pre-commit
     - name: Versions
       run: |
         python3 --version
+        pre-commit --version
     - name: Checkout Current Repo
       uses: actions/checkout@v1
       with:
         submodules: true
+    - name: Library version
+      run: git describe --dirty --always --tags
+    - name: Pre-commit hooks
+      run: |
+        pre-commit run --all-files
     - name: Checkout tools repo
       uses: actions/checkout@v2
       with:
@@ -33,20 +46,10 @@ jobs:
       # (e.g. - apt-get: gettext, etc; pip: circuitpython-build-tools, requirements.txt; etc.)
       run: |
         source actions-ci/install.sh
-    - name: Pip install pylint, black, & Sphinx
-      run: |
-        pip install --force-reinstall pylint black Sphinx sphinx-rtd-theme
-    - name: Library version
-      run: git describe --dirty --always --tags
-    - name: Check formatting
-      run: |
-        black --check --target-version=py35 .
-    - name: PyLint
-      run: |
-        pylint $( find . -path './circup.py' )
     - name: Run Test Suite
       run: |
-        make test
+        pytest --random-order --cov-config .coveragerc --cov-report term-missing --cov=circup
     - name: Build docs
+      working-directory: docs
       run: |
-        make docs
+        sphinx-build -E -W -b html . _build/html

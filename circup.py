@@ -1,25 +1,8 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
 """
 CircUp -- a utility to manage and update libraries on a CircuitPython device.
-
-Copyright (c) 2019 Adafruit Industries
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 """
 
 
@@ -58,7 +41,7 @@ BUNDLE_DIR = os.path.join(DATA_DIR, "adafruit_circuitpython_bundle_{}")
 LOG_DIR = appdirs.user_log_dir(appname="circup", appauthor="adafruit")
 #: The location of the log file for the utility.
 LOGFILE = os.path.join(LOG_DIR, "circup.log")
-# Blank lines and libraries don't go on devices
+#:  The libraries (and blank lines) which don't go on devices
 NOT_MCU_LIBRARIES = [
     "",
     "adafruit-blinka",
@@ -106,8 +89,8 @@ class Module:
         resulting self.file value will be None, and the name will be the
         basename of the directory path.
 
-        :param str path: The path to the module on the connected CIRCUITPYTHON
-        device.
+        :param str path: The path to the module on the connected
+            CIRCUITPYTHON device.
         :param str repo: The URL of the Git repository for this module.
         :param str device_version: The semver value for the version on device.
         :param str bundle_version: The semver value for the version in bundle.
@@ -233,12 +216,16 @@ class Module:
 def clean_library_name(assumed_library_name):
     """
     Most CP repos and library names are look like this:
+
         repo: Adafruit_CircuitPython_LC709203F
         library: adafruit_lc709203f
-        But some do not and this handles cleaning that up.
+
+    But some do not and this handles cleaning that up.
     Also cleans up if the pypi or reponame is passed in instead of the
     CP library name.
-    :param str an assumed name of a library from user or requirements.txt entry
+
+    :param str assumed_library_name: An assumed name of a library from user
+        or requirements.txt entry
     :return: str proper library name
     """
     not_standard_names = {
@@ -302,7 +289,7 @@ def ensure_latest_bundle():
 def extract_metadata(path):
     """
     Given an file path, return a dictionary containing metadata extracted from
-    dunder attributes found therein. Works with both *.py and *.mpy files.
+    dunder attributes found therein. Works with both .py and .mpy files.
 
     For Python source files, such metadata assignments should be simple and
     single-line. For example::
@@ -310,7 +297,7 @@ def extract_metadata(path):
         __version__ = "1.1.4"
         __repo__ = "https://github.com/adafruit/SomeLibrary.git"
 
-    For byte compiled *.mpy files, a brute force / backtrack approach is used
+    For byte compiled .mpy files, a brute force / backtrack approach is used
     to find the __version__ number in the file -- see comments in the
     code for the implementation details.
 
@@ -538,8 +525,9 @@ def get_circuitpython_version(device_path):
 def get_dependencies(*requested_libraries, mod_names, to_install=()):
     """
     Return a list of other CircuitPython libraries
-    :param tuple requested_libraries we loop through and find dependencies
-    :param object mod_names all the modules metadata from bundle
+
+    :param tuple requested_libraries: The libraries to search for dependencies
+    :param object mod_names:  All the modules metadata from bundle
     :return: tuple of module names to install which we build
     """
     # Internal variables
@@ -662,7 +650,8 @@ def get_requirements(library_name):
     Return a string of the requirements.txt for a GitHub Repo
     NOTE: This is only looks at the py bundle. No known differences in the mpy
     bundle for requirements.txt
-    :param str repo_name GitHub repo name
+
+    :param str library_name: CircuitPython library name
     :return: str the content of requirements.txt or None if not found
     """
     tag = get_latest_tag()
@@ -682,15 +671,14 @@ def install_module(device_path, name, py, mod_names):  # pragma: no cover
     Finds a connected device and installs a given module name if it
     is available in the current module bundle and is not already
     installed on the device.
+    TODO: There is currently no check for the version.
 
     :param str device_path: The path to the connected board.
     :param str name: Name of module to install
     :param bool py: Boolean to specify if the module should be installed from
                     source or from a pre-compiled module
-    :params mod_names: Dictionary of metadata from modules that can be generated
+    :param mod_names: Dictionary of metadata from modules that can be generated
                        with get_bundle_versions()
-
-    TODO: There is currently no check for the version.
     """
     if not name:
         click.echo("No module name(s) provided.")
@@ -753,7 +741,9 @@ def install_module(device_path, name, py, mod_names):  # pragma: no cover
 
 def libraries_from_requirements(requirements):
     """
-    :param str requirements is a string version of a requirements.txt
+    Clean up supplied requirements.txt and turn into tuple of CP libraries
+
+    :param str requirements: A string version of a requirements.txt
     :return: tuple of library names
     """
     libraries = ()

@@ -255,9 +255,8 @@ def ensure_latest_bundle():
     Ensure that there's a copy of the latest library bundle available so circup
     can check the metadata contained therein.
     """
-    global LATEST_BUNDLE_VERSION
     logger.info("Checking for library updates.")
-    tag = LATEST_BUNDLE_VERSION
+    tag = get_latest_tag()
     old_tag = "0"
     if os.path.isfile(BUNDLE_DATA):
         with open(BUNDLE_DATA, encoding="utf-8") as data:
@@ -608,6 +607,20 @@ def get_latest_release_from_url(url):
     return tag
 
 
+def get_latest_tag():
+    """
+    Find the value of the latest tag for the Adafruit CircuitPython library
+    bundle.
+    :return: The most recent tag value for the project.
+    """
+    global LATEST_BUNDLE_VERSION
+    if LATEST_BUNDLE_VERSION == "":
+        LATEST_BUNDLE_VERSION = get_latest_release_from_url(
+            "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/releases/latest"
+        )
+    return LATEST_BUNDLE_VERSION
+
+
 def get_modules(path):
     """
     Get a dictionary containing metadata about all the Python modules found in
@@ -658,11 +671,10 @@ def get_requirements(library_name):
     :param str library_name: CircuitPython library name
     :return: str the content of requirements.txt or None if not found
     """
-    global LATEST_BUNDLE_VERSION
     bundle_path = BUNDLE_DIR.format("py")
     requirements_txt = (
         "{}/adafruit-circuitpython-bundle-py-{}/requirements/{}/"
-        "requirements.txt".format(bundle_path, LATEST_BUNDLE_VERSION, library_name)
+        "requirements.txt".format(bundle_path, get_latest_tag(), library_name)
     )
     if Path(requirements_txt).is_file():
         return open(requirements_txt).read()
@@ -810,16 +822,13 @@ def main(ctx, verbose, path):  # pragma: no cover
     if device_path is None:
         click.secho("Could not find a connected Adafruit device.", fg="red")
         sys.exit(1)
-    global CPY_VERSION, LATEST_BUNDLE_VERSION
+    global CPY_VERSION
     CPY_VERSION = get_circuitpython_version(device_path)
     click.echo(
         "Found device at {}, running CircuitPython {}.".format(device_path, CPY_VERSION)
     )
     latest_version = get_latest_release_from_url(
         "https://github.com/adafruit/circuitpython/releases/latest"
-    )
-    LATEST_BUNDLE_VERSION = get_latest_release_from_url(
-        "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/releases/latest"
     )
     try:
         if VersionInfo.parse(CPY_VERSION) < VersionInfo.parse(latest_version):

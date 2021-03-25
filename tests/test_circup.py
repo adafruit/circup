@@ -311,21 +311,21 @@ def test_find_device_unknown_os():
     assert ex.value.args[0] == 'OS "foo" not supported.'
 
 
-def test_get_latest_tag():
+def test_get_latest_release_from_url():
     """
     Ensure the expected tag value is extracted from the returned URL (resulting
     from a call to the expected endpoint).
     """
     response = mock.MagicMock()
-    response.url = (
-        "https://github.com/adafruit"
+    response.headers = {
+        "Location": "https://github.com/adafruit"
         "/Adafruit_CircuitPython_Bundle/releases/tag/20190903"
-    )
+    }
     expected_url = (
         "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/releases/latest"
     )
-    with mock.patch("circup.requests.get", return_value=response) as mock_get:
-        result = circup.get_latest_tag()
+    with mock.patch("circup.requests.head", return_value=response) as mock_get:
+        result = circup.get_latest_release_from_url(expected_url)
         assert result == "20190903"
         mock_get.assert_called_once_with(expected_url)
 

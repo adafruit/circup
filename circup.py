@@ -463,6 +463,11 @@ def get_bundle(tag):
             "releases/download"
             "/{tag}/adafruit-circuitpython-bundle-6.x-mpy-{tag}.zip".format(tag=tag)
         ),
+        "7mpy": (
+            "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/"
+            "releases/download"
+            "/{tag}/adafruit-circuitpython-bundle-7.x-mpy-{tag}.zip".format(tag=tag)
+        ),
     }
     click.echo("Downloading latest version information.\n")
     for platform, url in urls.items():

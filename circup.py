@@ -385,6 +385,21 @@ def clean_library_name(assumed_library_name):
     return assumed_library_name
 
 
+def completion_for_install(ctx, args, incomplete):
+    """
+    Returns the list of available modules for the command line tab-completion
+    with the ``circup install`` command.
+    """
+    # pylint: disable=unused-argument
+    available_modules = get_bundle_versions()
+    module_names = {m.replace(".py", "") for m in available_modules}
+    # remove modules already listed (no other arg should be a module name)
+    module_names = module_names - set(args)
+    if incomplete:
+        module_names = [name for name in module_names if name.startswith(incomplete)]
+    return module_names
+
+
 def ensure_latest_bundle(bundle):
     """
     Ensure that there's a copy of the latest library bundle available so circup
@@ -1102,7 +1117,9 @@ def list(ctx):  # pragma: no cover
 
 
 @main.command()
-@click.argument("modules", required=False, nargs=-1)
+@click.argument(
+    "modules", required=False, nargs=-1, autocompletion=completion_for_install
+)
 @click.option("--py", is_flag=True)
 @click.option("-r", "--requirement")
 @click.pass_context

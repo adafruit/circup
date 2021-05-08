@@ -921,13 +921,15 @@ def install(ctx, modules, py, requirement):  # pragma: no cover
     Install a named module(s) onto the device. Multiple modules
     can be installed at once by providing more than one module name, each
     separated by a space.
+
+    Option --py installs .py version of module(s).
+
     Option -r allows specifying a text file to install all modules listed in
     the text file.
-
-    TODO: Ensure there's enough space on the device, work out the version of
-    CircuitPytho on the device in order to copy the appropriate .mpy versions
-    too. ;-)
     """
+    # TODO: Ensure there's enough space on the device, work out the version of
+    # CircuitPytho on the device in order to copy the appropriate .mpy versions
+    # too. ;-)
     available_modules = get_bundle_versions()
     mod_names = {}
     for module, metadata in available_modules.items():

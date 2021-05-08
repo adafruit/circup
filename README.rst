@@ -75,7 +75,8 @@ To get help, just type the command::
 
     Commands:
       freeze        Output details of all the modules found on the connected...
-      install       Install a named module(s) onto the device.
+      install       Installs .mpy version of named module(s) onto the device.
+      install --py  Installs .py version of named module(s).
       list          Lists all out of date modules found on the connected...
       show          Show the long list of all available modules in the bundle.
       show <query>  Search the names in the modules in the bundle for a match.
@@ -134,6 +135,12 @@ Install a module or modules onto the connected device with::
     $ circup install adafruit_thermal_printer adafruit_bus_io
     Installed 'adafruit_thermal_printer'.
     Installed 'adafruit_bus_io'.
+
+If you need to work with the original .py version of a module, use the --py
+flag.
+
+    $ circup install --py adafruit_thermal_printer
+    Installed 'adafruit_thermal_printer'.
 
 You can also install a list of modules from a requirements.txt file in
 the current working directory with::

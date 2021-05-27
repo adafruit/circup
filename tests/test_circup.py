@@ -37,31 +37,120 @@ import requests
 import circup
 
 
+TEST_BUNDLE_NAME = "adafruit/Adafruit_CircuitPython_Bundle"
+
+
+def test_Bundle_init():
+    """
+    Create a Bundle and check all the strings are set as expected.
+    """
+    with mock.patch("circup.logger.info"), mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ), mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
+        "circup.tags_data_load", return_value=dict()
+    ), mock.patch(
+        "circup.DATA_DIR", "DATA_DIR"
+    ):
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+    assert repr(bundle) == repr(
+        {
+            "key": TEST_BUNDLE_NAME,
+            "url": "https://github.com/" + TEST_BUNDLE_NAME + "/releases",
+            "urlzip": "adafruit-circuitpython-bundle-{platform}-{tag}.zip",
+            "dir": "DATA_DIR/adafruit/adafruit-circuitpython-bundle-{platform}",
+            "zip": "DATA_DIR/adafruit-circuitpython-bundle-{platform}.zip",
+            "url_format": "https://github.com/"
+            + TEST_BUNDLE_NAME
+            + "/releases/download/{tag}/"
+            "adafruit-circuitpython-bundle-{platform}-{tag}.zip",
+            "current": None,
+            "latest": None,
+        }
+    )
+
+
+def test_Bundle_lib_dir():
+    """
+    Check the return of Bundle.lib_dir with a test tag.
+    """
+    bundle_data = {TEST_BUNDLE_NAME: "TESTTAG"}
+    with mock.patch("circup.logger.info"), mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ), mock.patch("circup.tags_data_load", return_value=bundle_data), mock.patch(
+        "circup.DATA_DIR", "DATA_DIR"
+    ):
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        assert bundle.current_tag == "TESTTAG"
+        assert bundle.lib_dir("py") == (
+            "DATA_DIR/"
+            "adafruit/adafruit-circuitpython-bundle-py/"
+            "adafruit-circuitpython-bundle-py-TESTTAG/lib"
+        )
+        assert bundle.lib_dir("6mpy") == (
+            "DATA_DIR/"
+            "adafruit/adafruit-circuitpython-bundle-6mpy/"
+            "adafruit-circuitpython-bundle-6.x-mpy-TESTTAG/lib"
+        )
+        assert bundle.lib_dir("7mpy") == (
+            "DATA_DIR/"
+            "adafruit/adafruit-circuitpython-bundle-7mpy/"
+            "adafruit-circuitpython-bundle-7.x-mpy-TESTTAG/lib"
+        )
+
+
+def test_Bundle_latest_tag():
+    """
+    Check the latest tag gets through Bundle.latest_tag.
+    """
+    bundle_data = {TEST_BUNDLE_NAME: "TESTTAG"}
+    with mock.patch("circup.logger.info"), mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ), mock.patch(
+        "circup.get_latest_release_from_url", return_value="BESTESTTAG"
+    ), mock.patch(
+        "circup.tags_data_load", return_value=bundle_data
+    ), mock.patch(
+        "circup.DATA_DIR", "DATA_DIR"
+    ):
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        assert bundle.latest_tag == "BESTESTTAG"
+
+
+def test_get_bundles_list():
+    """
+    Check we are getting the bundles list from BUNDLES_DEFAULT_LIST.
+    """
+    with mock.patch("circup.BUNDLES_DEFAULT_LIST", [TEST_BUNDLE_NAME]):
+        bundles_list = circup.get_bundles_list()
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        assert repr(bundles_list) == repr([bundle])
+
+
 def test_Module_init_file_module():
     """
-    Ensure the Module instance is set up as expected and logged, is if for a
+    Ensure the Module instance is set up as expected and logged, as if for a
     single file Python module.
     """
-    path = os.path.join("foo", "bar", "baz", "module.py")
+    path = os.path.join("foo", "bar", "baz", "local_module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "3.2.1"
     with mock.patch("circup.logger.info") as mock_logger, mock.patch(
         "circup.os.path.isfile", return_value=True
     ), mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
-        "circup.os.walk", return_value=[["lib", "", ""]]
-    ) as mock_walk:
-        m = circup.Module(path, repo, device_version, bundle_version, False)
+        "circup.Bundle.lib_dir", return_value="tests"
+    ):
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
         mock_logger.assert_called_once_with(m)
         assert m.path == path
-        assert m.file == "module.py"
-        assert m.name == "module"
+        assert m.file == "local_module.py"
+        assert m.name == "local_module"
         assert m.repo == repo
         assert m.device_version == device_version
         assert m.bundle_version == bundle_version
-        assert m.bundle_path == os.path.join("lib", m.file)
+        assert m.bundle_path == os.path.join("tests", m.file)
         assert m.mpy is False
-        mock_walk.assert_called_once_with(circup.BUNDLE_DIR.format("py"))
 
 
 def test_Module_init_directory_module():
@@ -69,7 +158,7 @@ def test_Module_init_directory_module():
     Ensure the Module instance is set up as expected and logged, as if for a
     directory based Python module.
     """
-    path = os.path.join("foo", "bar", "modulename", "")
+    path = os.path.join("foo", "bar", "dir_module", "")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "3.2.1"
@@ -77,19 +166,21 @@ def test_Module_init_directory_module():
     with mock.patch("circup.logger.info") as mock_logger, mock.patch(
         "circup.os.path.isfile", return_value=False
     ), mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
-        "circup.os.walk", return_value=[["lib", "", ""]]
-    ) as mock_walk:
-        m = circup.Module(path, repo, device_version, bundle_version, mpy)
+        "circup.DATA_DIR", "/tests/DATA_DIR"
+    ), mock.patch(
+        "circup.Bundle.lib_dir", return_value="tests"
+    ):
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        m = circup.Module(path, repo, device_version, bundle_version, mpy, bundle)
         mock_logger.assert_called_once_with(m)
         assert m.path == path
         assert m.file is None
-        assert m.name == "modulename"
+        assert m.name == "dir_module"
         assert m.repo == repo
         assert m.device_version == device_version
         assert m.bundle_version == bundle_version
-        assert m.bundle_path == os.path.join("lib", m.name)
+        assert m.bundle_path == os.path.join("tests", m.name)
         assert m.mpy is True
-        mock_walk.assert_called_once_with(circup.BUNDLE_DIR.format("4mpy"))
 
 
 def test_Module_outofdate():
@@ -98,13 +189,13 @@ def test_Module_outofdate():
     boolean value to correctly indicate if the referenced module is, in fact,
     out of date.
     """
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
-    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
-    m1 = circup.Module(path, repo, "1.2.3", "3.2.1", bundle_path)
-    m2 = circup.Module(path, repo, "1.2.3", "1.2.3", bundle_path)
+    m1 = circup.Module(path, repo, "1.2.3", "3.2.1", False, bundle)
+    m2 = circup.Module(path, repo, "1.2.3", "1.2.3", False, bundle)
     # shouldn't happen!
-    m3 = circup.Module(path, repo, "3.2.1", "1.2.3", bundle_path)
+    m3 = circup.Module(path, repo, "3.2.1", "1.2.3", False, bundle)
     assert m1.outofdate is True
     assert m2.outofdate is False
     assert m3.outofdate is False
@@ -116,12 +207,12 @@ def test_Module_outofdate_bad_versions():
     ``outofdate`` property assumes the module should be updated (to correct
     this problem). Such a problem should be logged.
     """
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "hello"
     bundle_version = "3.2.1"
-    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
-    m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
+    m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
     with mock.patch("circup.logger.warning") as mock_logger:
         assert m.outofdate is True
         assert mock_logger.call_count == 2
@@ -134,12 +225,12 @@ def test_Module_major_update_bad_versions():
     to block the user from getting the latest update.
     Such a problem should be logged.
     """
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "version-3"
-    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
-    m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
+    m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
     with mock.patch("circup.logger.warning") as mock_logger:
         assert m.major_update is True
         assert mock_logger.call_count == 2
@@ -150,15 +241,13 @@ def test_Module_row():
     Ensure the tuple contains the expected items to be correctly displayed in
     a table of version-related results.
     """
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = None
-    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
     with mock.patch("circup.os.path.isfile", return_value=True):
-        m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
-    # print(m.__dict__)
-    # print(m.row)
+        m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
     assert m.row == ("module", "1.2.3", "unknown", "True")
 
 
@@ -167,12 +256,12 @@ def test_Module_update_dir():
     Ensure if the module is a directory, the expected actions take place to
     update the module on the connected device.
     """
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = None
-    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
-    m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
+    m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
     with mock.patch("circup.shutil") as mock_shutil, mock.patch(
         "circup.os.path.isdir", return_value=True
     ):
@@ -186,12 +275,12 @@ def test_Module_update_file():
     Ensure if the module is a file, the expected actions take place to
     update the module on the connected device.
     """
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = None
-    bundle_path = os.path.join("baz", "bar", "foo", "module.py")
-    m = circup.Module(path, repo, device_version, bundle_version, bundle_path)
+    m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
     with mock.patch("circup.shutil") as mock_shutil, mock.patch(
         "circup.os.remove"
     ) as mock_remove, mock.patch("circup.os.path.isdir", return_value=False):
@@ -204,23 +293,24 @@ def test_Module_repr():
     """
     Ensure the repr(dict) is returned (helps when logging).
     """
-    path = os.path.join("foo", "bar", "baz", "module.py")
+    path = os.path.join("foo", "bar", "baz", "local_module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "3.2.1"
     with mock.patch("circup.os.path.isfile", return_value=True), mock.patch(
         "circup.CPY_VERSION", "4.1.2"
-    ), mock.patch("circup.os.walk", return_value=[["lib", "", ""]]):
-        m = circup.Module(path, repo, device_version, bundle_version, False)
+    ), mock.patch("circup.Bundle.lib_dir", return_value="tests"):
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
     assert repr(m) == repr(
         {
             "path": path,
-            "file": "module.py",
-            "name": "module",
+            "file": "local_module.py",
+            "name": "local_module",
             "repo": repo,
             "device_version": device_version,
             "bundle_version": bundle_version,
-            "bundle_path": os.path.join("lib", m.file),
+            "bundle_path": os.path.join("tests", m.file),
             "mpy": False,
         }
     )
@@ -321,9 +411,7 @@ def test_get_latest_release_from_url():
         "Location": "https://github.com/adafruit"
         "/Adafruit_CircuitPython_Bundle/releases/tag/20190903"
     }
-    expected_url = (
-        "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/releases/latest"
-    )
+    expected_url = "https://github.com/" + TEST_BUNDLE_NAME + "/releases/latest"
     with mock.patch("circup.requests.head", return_value=response) as mock_get:
         result = circup.get_latest_release_from_url(expected_url)
         assert result == "20190903"
@@ -377,7 +465,11 @@ def test_find_modules():
     ), mock.patch(
         "circup.os.path.isfile", return_value=True
     ):
-        result = circup.find_modules("")
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        bundles_list = [bundle]
+        for module in bundle_modules:
+            bundle_modules[module]["bundle"] = bundle
+        result = circup.find_modules("", bundles_list)
     assert len(result) == 1
     assert result[0].name == "adafruit_74hc595"
     assert (
@@ -396,7 +488,9 @@ def test_find_modules_goes_bang():
     ), mock.patch("circup.click") as mock_click, mock.patch(
         "circup.sys.exit"
     ) as mock_exit:
-        circup.find_modules("")
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        bundles_list = [bundle]
+        circup.find_modules("", bundles_list)
         assert mock_click.echo.call_count == 1
         mock_exit.assert_called_once_with(1)
 
@@ -405,12 +499,16 @@ def test_get_bundle_versions():
     """
     Ensure get_modules is called with the path for the library bundle.
     """
-    dirs = (("foo/bar/lib", "", ""),)
     with mock.patch("circup.ensure_latest_bundle"), mock.patch(
-        "circup.os.walk", return_value=dirs
-    ) as mock_walk, mock.patch("circup.get_modules", return_value="ok") as mock_gm:
-        assert circup.get_bundle_versions() == "ok"
-        mock_walk.assert_called_once_with(circup.BUNDLE_DIR.format("py"))
+        "circup.get_modules", return_value={"ok": {"name": "ok"}}
+    ) as mock_gm, mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
+        "circup.Bundle.lib_dir", return_value="foo/bar/lib"
+    ):
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        bundles_list = [bundle]
+        assert circup.get_bundle_versions(bundles_list) == {
+            "ok": {"name": "ok", "bundle": bundle}
+        }
         mock_gm.assert_called_once_with("foo/bar/lib")
 
 
@@ -512,13 +610,16 @@ def test_ensure_latest_bundle_no_bundle_data():
     If there's no BUNDLE_DATA file (containing previous current version of the
     bundle) then default to update.
     """
-    with mock.patch("circup.get_latest_tag", return_value="12345"), mock.patch(
+    with mock.patch("circup.Bundle.latest_tag", "12345"), mock.patch(
         "circup.os.path.isfile", return_value=False
     ), mock.patch("circup.get_bundle") as mock_gb, mock.patch(
         "circup.json"
-    ) as mock_json:
-        circup.ensure_latest_bundle()
-        mock_gb.assert_called_once_with("12345")
+    ) as mock_json, mock.patch(
+        "circup.open"
+    ):
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        circup.ensure_latest_bundle(bundle)
+        mock_gb.assert_called_once_with(bundle, "12345")
         assert mock_json.dump.call_count == 1  # Current version saved to file.
 
 
@@ -528,7 +629,7 @@ def test_ensure_latest_bundle_bad_bundle_data():
     bundle) but it has been corrupted (which has sometimes happened during
     manual testing) then default to update.
     """
-    with mock.patch("circup.get_latest_tag", return_value="12345"), mock.patch(
+    with mock.patch("circup.Bundle.latest_tag", "12345"), mock.patch(
         "circup.os.path.isfile", return_value=True
     ), mock.patch("circup.open"), mock.patch(
         "circup.get_bundle"
@@ -539,10 +640,12 @@ def test_ensure_latest_bundle_bad_bundle_data():
     ), mock.patch(
         "circup.logger"
     ) as mock_logger:
-        circup.ensure_latest_bundle()
-        mock_gb.assert_called_once_with("12345")
-        assert mock_logger.error.call_count == 1
-        assert mock_logger.exception.call_count == 1
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        circup.ensure_latest_bundle(bundle)
+        mock_gb.assert_called_once_with(bundle, "12345")
+        # wrong file is opened twice (one at __init__, one at save())
+        assert mock_logger.error.call_count == 2
+        assert mock_logger.exception.call_count == 2
 
 
 def test_ensure_latest_bundle_to_update():
@@ -550,30 +653,31 @@ def test_ensure_latest_bundle_to_update():
     If the version found in the BUNDLE_DATA is out of date, then cause an
     update to the bundle.
     """
-    with mock.patch("circup.get_latest_tag", return_value="54321"), mock.patch(
+    with mock.patch("circup.Bundle.latest_tag", "54321"), mock.patch(
         "circup.os.path.isfile", return_value=True
     ), mock.patch("circup.open"), mock.patch(
         "circup.get_bundle"
     ) as mock_gb, mock.patch(
         "circup.json"
     ) as mock_json:
-        mock_json.load.return_value = {"tag": "12345"}
-        circup.ensure_latest_bundle()
-        mock_gb.assert_called_once_with("54321")
+        mock_json.load.return_value = {TEST_BUNDLE_NAME: "12345"}
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        circup.ensure_latest_bundle(bundle)
+        mock_gb.assert_called_once_with(bundle, "54321")
         assert mock_json.dump.call_count == 1  # Current version saved to file.
 
 
 def test_ensure_latest_bundle_to_update_http_error():
-    # pylint: disable=pointless-statement
-    # 2nd to last line is deemed pointless.
-    # Don't understand but for now this is an accpetable workaround
-    # Tracking issue will be opened.
     """
     If an HTTP error happens during a bundle update, print a friendly
     error message and exit 1.
     """
-    with mock.patch("circup.get_latest_tag", return_value="54321"), mock.patch(
-        "circup.os.path.isfile", return_value=True
+    tags_data = {TEST_BUNDLE_NAME: "12345"}
+    with mock.patch("circup.Bundle.latest_tag", "54321"), mock.patch(
+        #         "circup.tags_data_load", return_value=tags_data
+        #     ), mock.patch(
+        "circup.os.path.isfile",
+        return_value=True,
     ), mock.patch("circup.open"), mock.patch(
         "circup.get_bundle", side_effect=requests.exceptions.HTTPError("404")
     ) as mock_gb, mock.patch(
@@ -583,11 +687,13 @@ def test_ensure_latest_bundle_to_update_http_error():
     ) as mock_click, mock.patch(
         "circup.sys.exit"
     ) as mock_exit:
-        mock_json.load.return_value = {"tag": "12345"}
-        circup.ensure_latest_bundle()
-        mock_gb.assert_called_once_with("54321")
+        circup.Bundle.tags_data = dict()
+        mock_json.load.return_value = tags_data
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        circup.ensure_latest_bundle(bundle)
+        mock_gb.assert_called_once_with(bundle, "54321")
         assert mock_json.dump.call_count == 0  # not saved.
-        mock_click.call_count == 1  # friendly message.
+        assert mock_click.call_count == 1  # friendly message.
         mock_exit.assert_called_once_with(1)  # exit 1.
 
 
@@ -596,7 +702,7 @@ def test_ensure_latest_bundle_no_update():
     If the version found in the BUNDLE_DATA is NOT out of date, just log the
     fact and don't update.
     """
-    with mock.patch("circup.get_latest_tag", return_value="12345"), mock.patch(
+    with mock.patch("circup.Bundle.latest_tag", "12345"), mock.patch(
         "circup.os.path.isfile", return_value=True
     ), mock.patch("circup.open"), mock.patch(
         "circup.get_bundle"
@@ -605,8 +711,9 @@ def test_ensure_latest_bundle_no_update():
     ) as mock_json, mock.patch(
         "circup.logger"
     ) as mock_logger:
-        mock_json.load.return_value = {"tag": "12345"}
-        circup.ensure_latest_bundle()
+        mock_json.load.return_value = {TEST_BUNDLE_NAME: "12345"}
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        circup.ensure_latest_bundle(bundle)
         assert mock_gb.call_count == 0
         assert mock_logger.info.call_count == 2
 
@@ -637,7 +744,8 @@ def test_get_bundle():
         mock_requests.get().status_code = mock_requests.codes.ok
         mock_requests.get.reset_mock()
         tag = "12345"
-        circup.get_bundle(tag)
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        circup.get_bundle(bundle, tag)
         assert mock_requests.get.call_count == 3
         assert mock_open.call_count == 3
         assert mock_shutil.rmtree.call_count == 3
@@ -651,8 +759,8 @@ def test_get_bundle_network_error():
     then the error is logged and re-raised for the HTTP status code.
     """
     with mock.patch("circup.requests") as mock_requests, mock.patch(
-        "circup.logger"
-    ) as mock_logger:
+        "circup.tags_data_load", return_value=dict()
+    ), mock.patch("circup.logger") as mock_logger:
         # Force failure with != requests.codes.ok
         mock_requests.get().status_code = mock_requests.codes.BANG
         # Ensure raise_for_status actually raises an exception.
@@ -660,11 +768,11 @@ def test_get_bundle_network_error():
         mock_requests.get.reset_mock()
         tag = "12345"
         with pytest.raises(Exception) as ex:
-            circup.get_bundle(tag)
+            bundle = circup.Bundle(TEST_BUNDLE_NAME)
+            circup.get_bundle(bundle, tag)
             assert ex.value.args[0] == "Bang!"
         url = (
-            "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
-            "/releases/download"
+            "https://github.com/" + TEST_BUNDLE_NAME + "/releases/download"
             "/{tag}/adafruit-circuitpython-bundle-py-{tag}.zip".format(tag=tag)
         )
         mock_requests.get.assert_called_once_with(url, stream=True)

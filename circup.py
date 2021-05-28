@@ -397,7 +397,7 @@ def completion_for_install(ctx, args, incomplete):
     module_names = module_names - set(args)
     if incomplete:
         module_names = [name for name in module_names if name.startswith(incomplete)]
-    return module_names
+    return sorted(module_names)
 
 
 def ensure_latest_bundle(bundle):

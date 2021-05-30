@@ -211,6 +211,63 @@ The ``--version`` flag will tell you the current version of the
 
 That's it!
 
+
+Library Name Autocomplete
+-------------------------
+
+When enabled, circup will autocomplete library names, simliar to other command line tools.
+
+For example:
+
+  ``circup install n`` + tab -``circup install neopixel`` (+tab: offers ``neopixel`` and ``neopixel_spi`` completions)
+
+  ``circup install a`` + tab -``circup install adafruit\_`` + m a g + tab -``circup install adafruit_magtag``
+
+How to Activate Library Name Autocomplete
+-----------------------------------------
+
+In order to activate shell completion, you need to inform your shell that completion is available for your script. Any Click application automatically provides support for that.
+
+For Bash, add this to ~/.bashrc::
+
+    eval "$(_CIRCUP_COMPLETE=source_bash circup)"
+
+For Zsh, add this to ~/.zshrc::
+
+    eval "$(_CIRCUP_COMPLETE=source_zsh circup)"
+
+For Fish, add this to ~/.config/fish/completions/foo-bar.fish::
+
+    eval (env _CIRCUP_COMPLETE=source_fish circup)
+
+Open a new shell to enable completion. Or run the eval command directly in your current shell to enable it temporarily.
+### Activation Script
+
+The above eval examples will invoke your application every time a shell is started. This may slow down shell startup time significantly.
+
+Alternatively, export the generated completion code as a static script to be executed. You can ship this file with your builds; tools like Git do this. At least Zsh will also cache the results of completion files, but not eval scripts.
+
+For Bash::
+
+    _CIRCUP_COMPLETE=source_bash circup circup-complete.sh
+
+For Zsh::
+
+    _CIRCUP_COMPLETE=source_zsh circup circup-complete.sh
+
+For Fish::
+
+    _CIRCUP_COMPLETE=source_zsh circup circup-complete.sh
+
+In .bashrc or .zshrc, source the script instead of the eval command::
+
+    . /path/to/circup-complete.sh
+
+For Fish, add the file to the completions directory::
+
+    _CIRCUP_COMPLETE=source_fish circup ~/.config/fish/completions/circup-complete.fish
+
+
 .. note::
 
     If you find a bug, or you want to suggest an enhancement or new feature

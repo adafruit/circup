@@ -338,7 +338,16 @@ def ensure_latest_bundle(bundle):
     """
     logger.info("Checking library updates for %s.", bundle.key)
     tag = bundle.latest_tag
-    if tag > bundle.current_tag:
+    do_update = False
+    if tag == bundle.current_tag:
+        for platform in PLATFORMS:
+            # missing directories (new platform added on an existing install
+            # or side effect of pytest or network errors)
+            do_update = do_update or not os.path.isdir(bundle.lib_dir(platform))
+    else:
+        do_update = True
+
+    if do_update:
         logger.info("New version available (%s).", tag)
         try:
             get_bundle(bundle, tag)

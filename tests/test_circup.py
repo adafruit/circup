@@ -704,7 +704,9 @@ def test_ensure_latest_bundle_no_update():
     """
     with mock.patch("circup.Bundle.latest_tag", "12345"), mock.patch(
         "circup.os.path.isfile", return_value=True
-    ), mock.patch("circup.open"), mock.patch(
+    ), mock.patch("circup.os.path.isdir", return_value=True), mock.patch(
+        "circup.open"
+    ), mock.patch(
         "circup.get_bundle"
     ) as mock_gb, mock.patch(
         "circup.json"

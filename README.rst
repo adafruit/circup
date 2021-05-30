@@ -56,7 +56,7 @@ metadata within the module.
 
 This utility looks at all the libraries on the device and checks if they are
 the most recent (compared to the versions found in the most recent version of
-the Adafruit CircuitPython Bundle). If the libraries are out of date, the
+the Adafruit CircuitPython Bundle and Circuitpython Community Bundle). If the libraries are out of date, the
 utility helps you update them.
 
 The Adafruit CircuitPython Bundle can be found here:
@@ -67,6 +67,10 @@ Full details of these libraries, what they're for and how to get them, can be
 found here:
 
 https://circuitpython.org/libraries
+
+The Circuitpython Community Bundle can be found here:
+
+https://github.com/adafruit/CircuitPython_Community_Bundle/releases/latest
 
 Usage
 -----

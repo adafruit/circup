@@ -103,7 +103,12 @@ class Bundle:
         self._latest = None
 
     def lib_dir(self, platform):
-        """ This bundle's `lib` directory for the platform. """
+        """
+        This bundle's lib directory for the platform.
+
+        :param str platform: The platform identifier (py/6mpy/...).
+        :return: The path to the lib directory for the platform.
+        """
         tag = self.current_tag
         return os.path.join(
             self.dir.format(platform=platform),
@@ -124,6 +129,12 @@ class Bundle:
 
     @current_tag.setter
     def current_tag(self, tag):
+        """
+        Set the current cached tag (after updating).
+
+        :param str tag: The new value for the current tag.
+        :return: The current cached tag value for the project.
+        """
         self._current = tag
 
     @property
@@ -533,7 +544,8 @@ def get_bundle(bundle, tag):
     Downloads and extracts the version of the bundle with the referenced tag.
     The resulting zip file is saved on the local filesystem.
 
-    :param str tag: The GIT tag to use to download the bundle.
+    :param Bundle bundle: the target Bundle object.
+    :param str tag: The tag to use to download the bundle.
     """
     click.echo("Downloading latest version for {}.\n".format(bundle.key))
     for platform in PLATFORMS:
@@ -748,6 +760,7 @@ def get_requirements(bundle, library_name):
     NOTE: This only looks at the py bundle. No known differences in the mpy
     bundle for requirements.txt
 
+    :param Bundle bundle: the target Bundle object.
     :param str library_name: CircuitPython library name
     :return: str the content of requirements.txt or None if not found
     """

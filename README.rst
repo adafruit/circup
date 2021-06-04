@@ -230,15 +230,15 @@ In order to activate shell completion, you need to inform your shell that comple
 
 For Bash, add this to ~/.bashrc::
 
-    eval "$(_CIRCUP_COMPLETE=source_bash circup)"
+    eval "$(_CIRCUP_COMPLETE=bash_source circup)"
 
 For Zsh, add this to ~/.zshrc::
 
-    eval "$(_CIRCUP_COMPLETE=source_zsh circup)"
+    eval "$(_CIRCUP_COMPLETE=zsh_source circup)"
 
 For Fish, add this to ~/.config/fish/completions/foo-bar.fish::
 
-    eval (env _CIRCUP_COMPLETE=source_fish circup)
+    eval (env _CIRCUP_COMPLETE=fish_source circup)
 
 Open a new shell to enable completion. Or run the eval command directly in your current shell to enable it temporarily.
 ### Activation Script
@@ -249,15 +249,15 @@ Alternatively, export the generated completion code as a static script to be exe
 
 For Bash::
 
-    _CIRCUP_COMPLETE=source_bash circup circup-complete.sh
+    _CIRCUP_COMPLETE=bash_source circup circup-complete.sh
 
 For Zsh::
 
-    _CIRCUP_COMPLETE=source_zsh circup circup-complete.sh
+    _CIRCUP_COMPLETE=zsh_source circup circup-complete.sh
 
 For Fish::
 
-    _CIRCUP_COMPLETE=source_zsh circup circup-complete.sh
+    _CIRCUP_COMPLETE=fish_source circup circup-complete.sh
 
 In .bashrc or .zshrc, source the script instead of the eval command::
 
@@ -265,7 +265,7 @@ In .bashrc or .zshrc, source the script instead of the eval command::
 
 For Fish, add the file to the completions directory::
 
-    _CIRCUP_COMPLETE=source_fish circup ~/.config/fish/completions/circup-complete.fish
+    _CIRCUP_COMPLETE=fish_source circup ~/.config/fish/completions/circup-complete.fish
 
 
 .. note::

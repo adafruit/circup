@@ -25,18 +25,12 @@ from semver import VersionInfo
 
 
 # Useful constants.
-#: The unique USB vendor ID for Adafruit boards.
-VENDOR_ID = 9114
 #: Flag to indicate if the command is being run in verbose mode.
 VERBOSE = False
 #: The location of data files used by circup (following OS conventions).
 DATA_DIR = appdirs.user_data_dir(appname="circup", appauthor="adafruit")
-#: The path to the JSON file containing the metadata about the current bundle.
+#: The path to the JSON file containing the metadata about the bundles.
 BUNDLE_DATA = os.path.join(DATA_DIR, "circup.json")
-#: The path to the zip file containing the current library bundle.
-BUNDLE_ZIP = os.path.join(DATA_DIR, "adafruit-circuitpython-bundle-{}.zip")
-#: The path to the directory into which the current bundle is unzipped.
-BUNDLE_DIR = os.path.join(DATA_DIR, "adafruit_circuitpython_bundle_{}")
 #: The directory containing the utility's log file.
 LOG_DIR = appdirs.user_log_dir(appname="circup", appauthor="adafruit")
 #: The location of the log file for the utility.
@@ -51,8 +45,14 @@ NOT_MCU_LIBRARIES = [
 ]
 #: The version of CircuitPython found on the connected device.
 CPY_VERSION = ""
-#: The latest version of the CircuitPython Bundle from github.
-LATEST_BUNDLE_VERSION = ""
+#: Adafruit bundle repository
+BUNDLE_ADAFRUIT = "adafruit/Adafruit_CircuitPython_Bundle"
+#: Community bundle repository
+BUNDLE_COMMUNITY = "adafruit/CircuitPython_Community_Bundle"
+#: Default bundle repository list
+BUNDLES_DEFAULT_LIST = [BUNDLE_ADAFRUIT, BUNDLE_COMMUNITY]
+#: Module formats list (and the other form used in github files)
+PLATFORMS = {"py": "py", "6mpy": "6.x-mpy", "7mpy": "7.x-mpy"}
 
 
 # Ensure DATA_DIR / LOG_DIR related directories and files exist.
@@ -77,6 +77,97 @@ __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/adafruit/circup.git"
 
 
+class Bundle:
+    """
+    All the links and file names for a bundle
+    """
+
+    def __init__(self, repo):
+        """
+        Initialise a Bundle created from its github info.
+        Construct all the strings in one place.
+
+        :param str repo: Repository string for github: "user/repository"
+        """
+        vendor, bundle_id = repo.split("/")
+        bundle_id = bundle_id.lower().replace("_", "-")
+        self.key = repo
+        #
+        self.url = "https://github.com/" + repo + "/releases"
+        self.urlzip = bundle_id + "-{platform}-{tag}.zip"
+        self.dir = os.path.join(DATA_DIR, vendor, bundle_id + "-{platform}")
+        self.zip = os.path.join(DATA_DIR, bundle_id + "-{platform}.zip")
+        self.url_format = self.url + "/download/{tag}/" + self.urlzip
+        # tag
+        self._current = None
+        self._latest = None
+
+    def lib_dir(self, platform):
+        """
+        This bundle's lib directory for the platform.
+
+        :param str platform: The platform identifier (py/6mpy/...).
+        :return: The path to the lib directory for the platform.
+        """
+        tag = self.current_tag
+        return os.path.join(
+            self.dir.format(platform=platform),
+            self.urlzip[:-4].format(platform=PLATFORMS[platform], tag=tag),
+            "lib",
+        )
+
+    @property
+    def current_tag(self):
+        """
+        Lazy load current cached tag from the BUNDLE_DATA json file.
+
+        :return: The current cached tag value for the project.
+        """
+        if self._current is None:
+            self._current = tags_data_load().get(self.key, "0")
+        return self._current
+
+    @current_tag.setter
+    def current_tag(self, tag):
+        """
+        Set the current cached tag (after updating).
+
+        :param str tag: The new value for the current tag.
+        :return: The current cached tag value for the project.
+        """
+        self._current = tag
+
+    @property
+    def latest_tag(self):
+        """
+        Lazy find the value of the latest tag for the bundle.
+
+        :return: The most recent tag value for the project.
+        """
+        if self._latest is None:
+            self._latest = get_latest_release_from_url(self.url + "/latest")
+        return self._latest
+
+    def __repr__(self):
+        """
+        Helps with log files.
+
+        :return: A repr of a dictionary containing the Bundles's metadata.
+        """
+        return repr(
+            {
+                "key": self.key,
+                "url": self.url,
+                "urlzip": self.urlzip,
+                "dir": self.dir,
+                "zip": self.zip,
+                "url_format": self.url_format,
+                "current": self._current,
+                "latest": self._latest,
+            }
+        )
+
+
 class Module:
     """
     Represents a CircuitPython module.
@@ -84,7 +175,7 @@ class Module:
 
     # pylint: disable=too-many-arguments
 
-    def __init__(self, path, repo, device_version, bundle_version, mpy):
+    def __init__(self, path, repo, device_version, bundle_version, mpy, bundle):
         """
         The ``self.file`` and ``self.name`` attributes are constructed from
         the ``path`` value. If the path is to a directory based module, the
@@ -97,6 +188,7 @@ class Module:
         :param str device_version: The semver value for the version on device.
         :param str bundle_version: The semver value for the version in bundle.
         :param bool mpy: Flag to indicate if the module is byte-code compiled.
+        :param Bundle bundle: Bundle object where the module is located.
         """
         self.path = path
         if os.path.isfile(self.path):
@@ -120,12 +212,12 @@ class Module:
         else:
             # Regular Python
             bundle_platform = "py"
-        for search_path, _, _ in os.walk(BUNDLE_DIR.format(bundle_platform)):
-            if os.path.basename(search_path) == "lib":
-                if self.file:
-                    self.bundle_path = os.path.join(search_path, self.file)
-                else:
-                    self.bundle_path = os.path.join(search_path, self.name)
+        # module path in the bundle
+        search_path = bundle.lib_dir(bundle_platform)
+        if self.file:
+            self.bundle_path = os.path.join(search_path, self.file)
+        else:
+            self.bundle_path = os.path.join(search_path, self.name)
         logger.info(self)
 
     # pylint: enable=too-many-arguments
@@ -250,31 +342,29 @@ def clean_library_name(assumed_library_name):
     return assumed_library_name
 
 
-def ensure_latest_bundle():
+def ensure_latest_bundle(bundle):
     """
     Ensure that there's a copy of the latest library bundle available so circup
     can check the metadata contained therein.
     """
-    logger.info("Checking for library updates.")
-    tag = get_latest_tag()
-    old_tag = "0"
-    if os.path.isfile(BUNDLE_DATA):
-        with open(BUNDLE_DATA, encoding="utf-8") as data:
-            try:
-                old_tag = json.load(data)["tag"]
-            except json.decoder.JSONDecodeError as ex:
-                # Sometimes (why?) the JSON file becomes corrupt. In which case
-                # log it and carry on as if setting up for first time.
-                logger.error("Could not parse %s", BUNDLE_DATA)
-                logger.exception(ex)
-    if tag > old_tag:
+    logger.info("Checking library updates for %s.", bundle.key)
+    tag = bundle.latest_tag
+    do_update = False
+    if tag == bundle.current_tag:
+        for platform in PLATFORMS:
+            # missing directories (new platform added on an existing install
+            # or side effect of pytest or network errors)
+            do_update = do_update or not os.path.isdir(bundle.lib_dir(platform))
+    else:
+        do_update = True
+
+    if do_update:
         logger.info("New version available (%s).", tag)
         try:
-            get_bundle(tag)
-            with open(BUNDLE_DATA, "w", encoding="utf-8") as data:
-                json.dump({"tag": tag}, data)
+            get_bundle(bundle, tag)
+            tags_data_save_tag(bundle.key, tag)
         except requests.exceptions.HTTPError as ex:
-            # See #20 for reason this this
+            # See #20 for reason for this
             click.secho(
                 (
                     "There was a problem downloading the bundle. "
@@ -285,7 +375,7 @@ def ensure_latest_bundle():
             logger.exception(ex)
             sys.exit(1)
     else:
-        logger.info("Current library bundle up to date %s.", tag)
+        logger.info("Current bundle up to date %s.", tag)
 
 
 def extract_metadata(path):
@@ -411,29 +501,34 @@ def find_device():
     return device_dir
 
 
-def find_modules(device_path):
+def find_modules(device_path, bundles_list):
     """
-    Extracts metadata from the connected device and available bundle and
+    Extracts metadata from the connected device and available bundles and
     returns this as a list of Module instances representing the modules on the
     device.
 
+    :param str device_path: The path to the connected board.
+    :param Bundle bundles_list: List of supported bundles as Bundle objects.
     :return: A list of Module instances describing the current state of the
              modules on the connected device.
     """
     # pylint: disable=broad-except
     try:
         device_modules = get_device_versions(device_path)
-        bundle_modules = get_bundle_versions()
+        bundle_modules = get_bundle_versions(bundles_list)
         result = []
         for name, device_metadata in device_modules.items():
             if name in bundle_modules:
                 bundle_metadata = bundle_modules[name]
                 path = device_metadata["path"]
                 repo = bundle_metadata.get("__repo__")
+                bundle = bundle_metadata.get("bundle")
                 device_version = device_metadata.get("__version__")
                 bundle_version = bundle_metadata.get("__version__")
                 mpy = device_metadata["mpy"]
-                result.append(Module(path, repo, device_version, bundle_version, mpy))
+                result.append(
+                    Module(path, repo, device_version, bundle_version, mpy, bundle)
+                )
         return result
     except Exception as ex:
         # If it's not possible to get the device and bundle metadata, bail out
@@ -444,33 +539,17 @@ def find_modules(device_path):
     # pylint: enable=broad-except
 
 
-def get_bundle(tag):
+def get_bundle(bundle, tag):
     """
     Downloads and extracts the version of the bundle with the referenced tag.
+    The resulting zip file is saved on the local filesystem.
 
-    :param str tag: The GIT tag to use to download the bundle.
-    :return: The location of the resulting zip file in a temporary location on
-             the local filesystem.
+    :param Bundle bundle: the target Bundle object.
+    :param str tag: The tag to use to download the bundle.
     """
-    urls = {
-        "py": (
-            "https://github.com/adafruit/Adafruit_CircuitPython_Bundle"
-            "/releases/download"
-            "/{tag}/adafruit-circuitpython-bundle-py-{tag}.zip".format(tag=tag)
-        ),
-        "6mpy": (
-            "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/"
-            "releases/download"
-            "/{tag}/adafruit-circuitpython-bundle-6.x-mpy-{tag}.zip".format(tag=tag)
-        ),
-        "7mpy": (
-            "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/"
-            "releases/download"
-            "/{tag}/adafruit-circuitpython-bundle-7.x-mpy-{tag}.zip".format(tag=tag)
-        ),
-    }
-    click.echo("Downloading latest version information.\n")
-    for platform, url in urls.items():
+    click.echo("Downloading latest version for {}.\n".format(bundle.key))
+    for platform in PLATFORMS:
+        url = bundle.url_format.format(platform=PLATFORMS[platform], tag=tag)
         logger.info("Downloading bundle: %s", url)
         r = requests.get(url, stream=True)
         # pylint: disable=no-member
@@ -479,7 +558,7 @@ def get_bundle(tag):
             r.raise_for_status()
         # pylint: enable=no-member
         total_size = int(r.headers.get("Content-Length"))
-        temp_zip = BUNDLE_ZIP.format(platform)
+        temp_zip = bundle.zip.format(platform=platform)
         with click.progressbar(r.iter_content(1024), length=total_size) as pbar, open(
             temp_zip, "wb"
         ) as f:
@@ -487,29 +566,49 @@ def get_bundle(tag):
                 f.write(chunk)
                 pbar.update(len(chunk))
         logger.info("Saved to %s", temp_zip)
-        temp_dir = BUNDLE_DIR.format(platform)
+        temp_dir = bundle.dir.format(platform=platform)
         if os.path.isdir(temp_dir):
             shutil.rmtree(temp_dir)
         with zipfile.ZipFile(temp_zip, "r") as zfile:
             zfile.extractall(temp_dir)
+    bundle.current_tag = tag
     click.echo("\nOK\n")
 
 
-def get_bundle_versions():
+def get_bundle_versions(bundles_list):
     """
     Returns a dictionary of metadata from modules in the latest known release
     of the library bundle. Uses the Python version (rather than the compiled
     version) of the library modules.
 
+    :param Bundle bundles_list: List of supported bundles as Bundle objects.
     :return: A dictionary of metadata about the modules available in the
              library bundle.
     """
-    ensure_latest_bundle()
-    path = None
-    for path, _, _ in os.walk(BUNDLE_DIR.format("py")):
-        if os.path.basename(path) == "lib":
-            break
-    return get_modules(path)
+    all_the_modules = dict()
+    for bundle in bundles_list:
+        ensure_latest_bundle(bundle)
+        path = bundle.lib_dir("py")
+        path_modules = get_modules(path)
+        for name, module in path_modules.items():
+            module["bundle"] = bundle
+            if name not in all_the_modules:  # here we decide the order of priority
+                all_the_modules[name] = module
+    return all_the_modules
+
+
+def get_bundles_list():
+    """
+    Retrieve the list of bundles. Currently uses the fixed list.
+    The goal is to implement reading from a configuration file.
+    https://github.com/adafruit/circup/issues/82#issuecomment-843368130
+
+    :return: List of supported bundles as Bundle objects.
+    """
+    bundles_list = [Bundle(b) for b in BUNDLES_DEFAULT_LIST]
+    logger.info("Using bundles: %s", ", ".join([b.key for b in bundles_list]))
+    # TODO: this is were we retrieve the bundles list from json
+    return bundles_list
 
 
 def get_circuitpython_version(device_path):
@@ -535,6 +634,7 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
 
     :param tuple requested_libraries: The libraries to search for dependencies
     :param object mod_names:  All the modules metadata from bundle
+    :param list(str) to_install: Modules already selected for installation.
     :return: tuple of module names to install which we build
     """
     # Internal variables
@@ -570,7 +670,8 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
         if library not in _to_install:
             _to_install = _to_install + (library,)
             # get the requirements.txt from bundle
-            requirements_txt = get_requirements(library)
+            bundle = mod_names[library]["bundle"]
+            requirements_txt = get_requirements(bundle, library)
             if requirements_txt:
                 _requested_libraries.extend(
                     libraries_from_requirements(requirements_txt)
@@ -579,9 +680,7 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
         _requested_libraries.remove(library)
 
         return get_dependencies(
-            tuple(_requested_libraries),
-            mod_names=mod_names,
-            to_install=_to_install,
+            tuple(_requested_libraries), mod_names=mod_names, to_install=_to_install
         )
 
 
@@ -589,6 +688,7 @@ def get_device_versions(device_path):
     """
     Returns a dictionary of metadata from modules on the connected device.
 
+    :param str device_path: Path to the device volume.
     :return: A dictionary of metadata about the modules available on the
              connected device.
     """
@@ -599,6 +699,7 @@ def get_latest_release_from_url(url):
     """
     Find the tag name of the latest release by using HTTP HEAD and decoding the redirect.
 
+    :param str url: URL to the latest release page on a git repository.
     :return: The most recent tag value for the release.
     """
 
@@ -610,20 +711,6 @@ def get_latest_release_from_url(url):
     tag = responseurl.rsplit("/", 1)[-1]
     logger.info("Tag: '%s'", tag)
     return tag
-
-
-def get_latest_tag():
-    """
-    Find the value of the latest tag for the Adafruit CircuitPython library
-    bundle.
-    :return: The most recent tag value for the project.
-    """
-    global LATEST_BUNDLE_VERSION
-    if LATEST_BUNDLE_VERSION == "":
-        LATEST_BUNDLE_VERSION = get_latest_release_from_url(
-            "https://github.com/adafruit/Adafruit_CircuitPython_Bundle/releases/latest"
-        )
-    return LATEST_BUNDLE_VERSION
 
 
 def get_modules(path):
@@ -667,19 +754,20 @@ def get_modules(path):
     return result
 
 
-def get_requirements(library_name):
+def get_requirements(bundle, library_name):
     """
     Return a string of the requirements.txt for a GitHub Repo
-    NOTE: This is only looks at the py bundle. No known differences in the mpy
+    NOTE: This only looks at the py bundle. No known differences in the mpy
     bundle for requirements.txt
 
+    :param Bundle bundle: the target Bundle object.
     :param str library_name: CircuitPython library name
     :return: str the content of requirements.txt or None if not found
     """
-    bundle_path = BUNDLE_DIR.format("py")
+    bundle_path = bundle.dir.format(platform="py")
     requirements_txt = (
         "{}/adafruit-circuitpython-bundle-py-{}/requirements/{}/"
-        "requirements.txt".format(bundle_path, get_latest_tag(), library_name)
+        "requirements.txt".format(bundle_path, bundle.latest_tag, library_name)
     )
     if Path(requirements_txt).is_file():
         return open(requirements_txt).read()
@@ -687,7 +775,9 @@ def get_requirements(library_name):
 
 
 # pylint: disable=too-many-locals,too-many-branches
-def install_module(device_path, name, py, mod_names):  # pragma: no cover
+def install_module(
+    device_path, device_modules, name, py, mod_names
+):  # pragma: no cover
     """
     Finds a connected device and installs a given module name if it
     is available in the current module bundle and is not already
@@ -695,6 +785,7 @@ def install_module(device_path, name, py, mod_names):  # pragma: no cover
     TODO: There is currently no check for the version.
 
     :param str device_path: The path to the connected board.
+    :param list(dict) device_modules: List of module metadata from the device.
     :param str name: Name of module to install
     :param bool py: Boolean to specify if the module should be installed from
                     source or from a pre-compiled module
@@ -708,10 +799,8 @@ def install_module(device_path, name, py, mod_names):  # pragma: no cover
         if not os.path.exists(library_path):  # pragma: no cover
             os.makedirs(library_path)
         metadata = mod_names[name]
+        bundle = metadata["bundle"]
         # Grab device modules to check if module already installed
-        device_modules = []
-        for module in find_modules(device_path):
-            device_modules.append(module.name)
         if name in device_modules:
             click.echo("'{}' is already installed.".format(name))
             return
@@ -736,20 +825,16 @@ def install_module(device_path, name, py, mod_names):  # pragma: no cover
                 module_name = os.path.basename(os.path.dirname(metadata["path"]))
             major_version = CPY_VERSION.split(".")[0]
             bundle_platform = "{}mpy".format(major_version)
-            bundle_path = ""
-            for path, _, _ in os.walk(BUNDLE_DIR.format(bundle_platform)):
-                if os.path.basename(path) == "lib":
-                    bundle_path = os.path.join(path, module_name)
-            if bundle_path:
-                if os.path.isdir(bundle_path):
-                    target_path = os.path.join(library_path, module_name)
-                    # Copy the directory.
-                    shutil.copytree(bundle_path, target_path)
-                else:
-                    target = os.path.basename(bundle_path)
-                    target_path = os.path.join(library_path, target)
-                    # Copy file.
-                    shutil.copyfile(bundle_path, target_path)
+            bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
+            if os.path.isdir(bundle_path):
+                target_path = os.path.join(library_path, module_name)
+                # Copy the directory.
+                shutil.copytree(bundle_path, target_path)
+            elif os.path.isfile(bundle_path):
+                target = os.path.basename(bundle_path)
+                target_path = os.path.join(library_path, target)
+                # Copy file.
+                shutil.copyfile(bundle_path, target_path)
             else:
                 raise IOError("Cannot find compiled version of module.")
         click.echo("Installed '{}'.".format(name))
@@ -779,6 +864,42 @@ def libraries_from_requirements(requirements):
                 line = re.split("[<|>|=|]", line)[0]
             libraries = libraries + (line,)
     return libraries
+
+
+def tags_data_load():
+    """
+    Load the list of the version tags of the bundles on disk.
+
+    :return: a dict() of tags indexed by Bundle identifiers/keys.
+    """
+    tags_data = None
+    try:
+        with open(BUNDLE_DATA, encoding="utf-8") as data:
+            try:
+                tags_data = json.load(data)
+            except json.decoder.JSONDecodeError as ex:
+                # Sometimes (why?) the JSON file becomes corrupt. In which case
+                # log it and carry on as if setting up for first time.
+                logger.error("Could not parse %s", BUNDLE_DATA)
+                logger.exception(ex)
+    except FileNotFoundError:
+        pass
+    if not isinstance(tags_data, dict):
+        tags_data = {}
+    return tags_data
+
+
+def tags_data_save_tag(key, tag):
+    """
+    Add or change the saved tag value for a bundle.
+
+    :param str key: The bundle's identifier/key.
+    :param str tag: The new tag for the bundle.
+    """
+    tags_data = tags_data_load()
+    tags_data[key] = tag
+    with open(BUNDLE_DATA, "w", encoding="utf-8") as data:
+        json.dump(tags_data, data)
 
 
 # ----------- CLI command definitions  ----------- #
@@ -857,7 +978,7 @@ def freeze(ctx, requirement):  # pragma: no cover
     device. Option -r saves output to requirements.txt file
     """
     logger.info("Freeze")
-    modules = find_modules(ctx.obj["DEVICE_PATH"])
+    modules = find_modules(ctx.obj["DEVICE_PATH"], get_bundles_list())
     if modules:
         output = []
         for module in modules:
@@ -886,7 +1007,11 @@ def list(ctx):  # pragma: no cover
     # Grab out of date modules.
     data = [("Module", "Version", "Latest", "Major Update")]
 
-    modules = [m.row for m in find_modules(ctx.obj["DEVICE_PATH"]) if m.outofdate]
+    modules = [
+        m.row
+        for m in find_modules(ctx.obj["DEVICE_PATH"], get_bundles_list())
+        if m.outofdate
+    ]
     if modules:
         data += modules
         # Nice tabular display.
@@ -927,10 +1052,8 @@ def install(ctx, modules, py, requirement):  # pragma: no cover
     Option -r allows specifying a text file to install all modules listed in
     the text file.
     """
-    # TODO: Ensure there's enough space on the device, work out the version of
-    # CircuitPytho on the device in order to copy the appropriate .mpy versions
-    # too. ;-)
-    available_modules = get_bundle_versions()
+    # TODO: Ensure there's enough space on the device
+    available_modules = get_bundle_versions(get_bundles_list())
     mod_names = {}
     for module, metadata in available_modules.items():
         mod_names[module.replace(".py", "").lower()] = metadata
@@ -942,11 +1065,14 @@ def install(ctx, modules, py, requirement):  # pragma: no cover
         requested_installs = sorted(modules)
     click.echo(f"Searching for dependencies for: {requested_installs}")
     to_install = get_dependencies(requested_installs, mod_names=mod_names)
+    device_modules = get_device_versions(ctx.obj["DEVICE_PATH"])
     if to_install is not None:
         to_install = sorted(to_install)
         click.echo(f"Ready to install: {to_install}\n")
         for library in to_install:
-            install_module(ctx.obj["DEVICE_PATH"], library, py, mod_names)
+            install_module(
+                ctx.obj["DEVICE_PATH"], device_modules, library, py, mod_names
+            )
 
 
 @click.argument("match", required=False, nargs=1)
@@ -958,7 +1084,7 @@ def show(match):  # pragma: no cover
 
     If MATCH is specified only matching modules will be listed.
     """
-    available_modules = get_bundle_versions()
+    available_modules = get_bundle_versions(get_bundles_list())
     module_names = sorted([m.replace(".py", "") for m in available_modules])
     if match is not None:
         module_names = [m for m in module_names if match in m]
@@ -1020,7 +1146,11 @@ def update(ctx, all):  # pragma: no cover
     """
     logger.info("Update")
     # Grab out of date modules.
-    modules = [m for m in find_modules(ctx.obj["DEVICE_PATH"]) if m.outofdate]
+    modules = [
+        m
+        for m in find_modules(ctx.obj["DEVICE_PATH"], get_bundles_list())
+        if m.outofdate
+    ]
     if modules:
         click.echo("Found {} module[s] needing update.".format(len(modules)))
         if not all:

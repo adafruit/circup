@@ -24,7 +24,7 @@ with open(path.join(here, "README.rst"), encoding="utf-8") as f:
 
 install_requires = [
     "semver~=2.13",
-    "Click>=7.0",
+    "Click>=8.0",
     "appdirs>=1.4.3",
     "requests>=2.22.0",
 ]

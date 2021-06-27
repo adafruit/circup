@@ -564,18 +564,48 @@ def test_find_modules_goes_bang():
 def test_get_bundle_versions():
     """
     Ensure get_modules is called with the path for the library bundle.
+    Ensure ensure_latest_bundle is called even if lib_dir exists.
     """
-    with mock.patch("circup.ensure_latest_bundle"), mock.patch(
+    with mock.patch("circup.ensure_latest_bundle") as mock_elb, mock.patch(
         "circup.get_modules", return_value={"ok": {"name": "ok"}}
     ) as mock_gm, mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
         "circup.Bundle.lib_dir", return_value="foo/bar/lib"
+    ), mock.patch(
+        "circup.os.path.isdir", return_value=True
     ):
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         bundles_list = [bundle]
         assert circup.get_bundle_versions(bundles_list) == {
             "ok": {"name": "ok", "bundle": bundle}
         }
+        mock_elb.assert_called_once_with(bundle)
         mock_gm.assert_called_once_with("foo/bar/lib")
+
+
+def test_get_bundle_versions_avoid_download():
+    """
+    When avoid_download is True and lib_dir exists, don't ensure_latest_bundle.
+    Testing both cases: lib_dir exists and lib_dir doesn't exists.
+    """
+    with mock.patch("circup.ensure_latest_bundle") as mock_elb, mock.patch(
+        "circup.get_modules", return_value={"ok": {"name": "ok"}}
+    ) as mock_gm, mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
+        "circup.Bundle.lib_dir", return_value="foo/bar/lib"
+    ):
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        bundles_list = [bundle]
+        with mock.patch("circup.os.path.isdir", return_value=True):
+            assert circup.get_bundle_versions(bundles_list, avoid_download=True) == {
+                "ok": {"name": "ok", "bundle": bundle}
+            }
+            assert mock_elb.call_count == 0
+            mock_gm.assert_called_once_with("foo/bar/lib")
+        with mock.patch("circup.os.path.isdir", return_value=False):
+            assert circup.get_bundle_versions(bundles_list, avoid_download=True) == {
+                "ok": {"name": "ok", "bundle": bundle}
+            }
+            mock_elb.assert_called_once_with(bundle)
+            mock_gm.assert_called_with("foo/bar/lib")
 
 
 def test_get_circuitpython_version():

@@ -175,7 +175,9 @@ class Module:
 
     # pylint: disable=too-many-arguments
 
-    def __init__(self, path, repo, device_version, bundle_version, mpy, bundle):
+    def __init__(
+        self, path, repo, device_version, bundle_version, mpy, bundle, compatibility
+    ):
         """
         The ``self.file`` and ``self.name`` attributes are constructed from
         the ``path`` value. If the path is to a directory based module, the
@@ -189,6 +191,7 @@ class Module:
         :param str bundle_version: The semver value for the version in bundle.
         :param bool mpy: Flag to indicate if the module is byte-code compiled.
         :param Bundle bundle: Bundle object where the module is located.
+        :param (str,str) compatibility: Min and max versions of CP compatible with the mpy.
         """
         self.path = path
         if os.path.isfile(self.path):
@@ -203,6 +206,8 @@ class Module:
         self.device_version = device_version
         self.bundle_version = bundle_version
         self.mpy = mpy
+        self.min_version = compatibility[0]
+        self.max_version = compatibility[1]
         # Figure out the bundle path.
         self.bundle_path = None
         if self.mpy:
@@ -226,9 +231,12 @@ class Module:
     def outofdate(self):
         """
         Returns a boolean to indicate if this module is out of date.
+        Treat mismatched MPY versions as out of date.
 
         :return: Truthy indication if the module is out of date.
         """
+        if self.mpy_mismatch:
+            return True
         if self.device_version and self.bundle_version:
             try:
                 return VersionInfo.parse(self.device_version) < VersionInfo.parse(
@@ -238,6 +246,34 @@ class Module:
                 logger.warning("Module '%s' has incorrect semver value.", self.name)
                 logger.warning(ex)
         return True  # Assume out of date to try to update.
+
+    @property
+    def mpy_mismatch(self):
+        """
+        Returns a boolean to indicate if this module's MPY version is compatible
+        with the board's current version of Circuitpython. A min or max version
+        that evals to False means no limit.
+
+        :return: Boolean indicating if the MPY versions don't match.
+        """
+        if not self.mpy:
+            return False
+        try:
+            cpv = VersionInfo.parse(CPY_VERSION)
+        except ValueError as ex:
+            logger.warning("CircuitPython has incorrect semver value.")
+            logger.warning(ex)
+        try:
+            if self.min_version and cpv < VersionInfo.parse(self.min_version):
+                return True  # CP version too old
+            if self.max_version and cpv >= VersionInfo.parse(self.max_version):
+                return True  # MPY version too old
+        except (TypeError, ValueError) as ex:
+            logger.warning(
+                "Module '%s' has incorrect MPY compatibility information.", self.name
+            )
+            logger.warning(ex)
+        return False
 
     @property
     def major_update(self):
@@ -261,15 +297,20 @@ class Module:
     def row(self):
         """
         Returns a tuple of items to display in a table row to show the module's
-        name, local version and remote version.
+        name, local version and remote version, and reason to update.
 
         :return: A tuple containing the module's name, version on the connected
-                 device and version in the latest bundle.
+                 device, version in the latest bundle and reason to update.
         """
         loc = self.device_version if self.device_version else "unknown"
         rem = self.bundle_version if self.bundle_version else "unknown"
-        major_update = str(self.major_update)
-        return (self.name, loc, rem, major_update)
+        if self.mpy_mismatch:
+            update_reason = "MPY Format"
+        elif self.major_update:
+            update_reason = "Major Version"
+        else:
+            update_reason = "Minor Version"
+        return (self.name, loc, rem, update_reason)
 
     def update(self):
         """
@@ -303,6 +344,8 @@ class Module:
                 "bundle_version": self.bundle_version,
                 "bundle_path": self.bundle_path,
                 "mpy": self.mpy,
+                "min_version": self.min_version,
+                "max_version": self.max_version,
             }
         )
 
@@ -408,19 +451,29 @@ def extract_metadata(path):
             result[match[0]] = str(match[1])
         if result:
             logger.info("Extracted metadata: %s", result)
-        return result
-    if path.endswith(".mpy"):
+    elif path.endswith(".mpy"):
         result["mpy"] = True
         with open(path, "rb") as mpy_file:
             content = mpy_file.read()
-        # Find the start location of the "__version__" (prepended with byte
-        # value of 11 to indicate length of "__version__").
-        loc = content.find(b"\x0b__version__")
+        # Track the MPY version number
+        mpy_version = content[0:2]
+        compatibility = None
+        # Find the start location of the __version__
+        if mpy_version == b"M\x03":
+            # One byte for the length of "__version__"
+            loc = content.find(b"__version__") - 1
+            compatibility = (None, "7.0.0-alpha.1")
+        elif mpy_version == b"C\x05":
+            # Two bytes in mpy version 5
+            loc = content.find(b"__version__") - 2
+            compatibility = ("7.0.0-alpha.1", None)
         if loc > -1:
             # Backtrack until a byte value of the offset is reached.
             offset = 1
             while offset < loc:
                 val = int(content[loc - offset])
+                if mpy_version == b"C\x05":
+                    val = val // 2
                 if val == offset - 1:  # Off by one..!
                     # Found version, extract the number given boundaries.
                     start = loc - offset + 1  # No need for prepended length.
@@ -430,6 +483,8 @@ def extract_metadata(path):
                     result = {"__version__": version.decode("utf-8"), "mpy": True}
                     break  # Nothing more to do.
                 offset += 1  # ...and again but backtrack by one.
+        if compatibility:
+            result["compatibility"] = compatibility
     return result
 
 
@@ -512,22 +567,31 @@ def find_modules(device_path, bundles_list):
     :return: A list of Module instances describing the current state of the
              modules on the connected device.
     """
-    # pylint: disable=broad-except
+    # pylint: disable=broad-except,too-many-locals
     try:
         device_modules = get_device_versions(device_path)
         bundle_modules = get_bundle_versions(bundles_list)
         result = []
         for name, device_metadata in device_modules.items():
             if name in bundle_modules:
-                bundle_metadata = bundle_modules[name]
                 path = device_metadata["path"]
+                bundle_metadata = bundle_modules[name]
                 repo = bundle_metadata.get("__repo__")
                 bundle = bundle_metadata.get("bundle")
                 device_version = device_metadata.get("__version__")
                 bundle_version = bundle_metadata.get("__version__")
                 mpy = device_metadata["mpy"]
+                compatibility = device_metadata.get("compatibility", (None, None))
                 result.append(
-                    Module(path, repo, device_version, bundle_version, mpy, bundle)
+                    Module(
+                        path,
+                        repo,
+                        device_version,
+                        bundle_version,
+                        mpy,
+                        bundle,
+                        compatibility,
+                    )
                 )
         return result
     except Exception as ex:
@@ -536,7 +600,7 @@ def find_modules(device_path, bundles_list):
         logger.exception(ex)
         click.echo("There was a problem: {}".format(ex))
         sys.exit(1)
-    # pylint: enable=broad-except
+    # pylint: enable=broad-except,too-many-locals
 
 
 def get_bundle(bundle, tag):
@@ -545,7 +609,7 @@ def get_bundle(bundle, tag):
     The resulting zip file is saved on the local filesystem.
 
     :param Bundle bundle: the target Bundle object.
-    :param str tag: The tag to use to download the bundle.
+    :param str tag: The GIT tag to use to download the bundle.
     """
     click.echo("Downloading latest version for {}.\n".format(bundle.key))
     for platform in PLATFORMS:
@@ -1005,7 +1069,7 @@ def list(ctx):  # pragma: no cover
     """
     logger.info("List")
     # Grab out of date modules.
-    data = [("Module", "Version", "Latest", "Major Update")]
+    data = [("Module", "Version", "Latest", "Update Reason")]
 
     modules = [
         m.row
@@ -1024,6 +1088,7 @@ def list(ctx):  # pragma: no cover
         click.echo(
             "The following modules are out of date or probably need an update.\n"
             "Major Updates may include breaking changes. Review before updating.\n"
+            "MPY Format changes from Circuitpython 6 to 7 require an update.\n"
         )
         for row in data:
             output = ""
@@ -1175,7 +1240,14 @@ def update(ctx, all):  # pragma: no cover
                 if module.repo:
                     click.secho(f"\t{module.repo}", fg="yellow")
             if not update_flag:
-                if module.major_update:
+                if module.mpy_mismatch:
+                    click.secho(
+                        f"WARNING: '{module.name}': mpy format doesn't match the"
+                        " device's Circuitpython version. Updating is required.",
+                        fg="yellow",
+                    )
+                    update_flag = click.confirm("Do you want to update?")
+                elif module.major_update:
                     update_flag = click.confirm(
                         (
                             "'{}' is a Major Version update and may contain breaking "
@@ -1195,8 +1267,8 @@ def update(ctx, all):  # pragma: no cover
                         "Something went wrong, {} (check the logs)".format(str(ex))
                     )
                 # pylint: enable=broad-except
-    else:
-        click.echo("None of the modules found on the device need an update.")
+        return
+    click.echo("None of the modules found on the device need an update.")
 
 
 # Allows execution via `python -m circup ...`

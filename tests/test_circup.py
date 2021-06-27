@@ -141,7 +141,9 @@ def test_Module_init_file_module():
         "circup.Bundle.lib_dir", return_value="tests"
     ):
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
+        m = circup.Module(
+            path, repo, device_version, bundle_version, False, bundle, (None, None)
+        )
         mock_logger.assert_called_once_with(m)
         assert m.path == path
         assert m.file == "local_module.py"
@@ -171,7 +173,9 @@ def test_Module_init_directory_module():
         "circup.Bundle.lib_dir", return_value="tests"
     ):
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        m = circup.Module(path, repo, device_version, bundle_version, mpy, bundle)
+        m = circup.Module(
+            path, repo, device_version, bundle_version, mpy, bundle, (None, None)
+        )
         mock_logger.assert_called_once_with(m)
         assert m.path == path
         assert m.file is None
@@ -192,10 +196,10 @@ def test_Module_outofdate():
     bundle = circup.Bundle(TEST_BUNDLE_NAME)
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
-    m1 = circup.Module(path, repo, "1.2.3", "3.2.1", False, bundle)
-    m2 = circup.Module(path, repo, "1.2.3", "1.2.3", False, bundle)
+    m1 = circup.Module(path, repo, "1.2.3", "3.2.1", False, bundle, (None, None))
+    m2 = circup.Module(path, repo, "1.2.3", "1.2.3", False, bundle, (None, None))
     # shouldn't happen!
-    m3 = circup.Module(path, repo, "3.2.1", "1.2.3", False, bundle)
+    m3 = circup.Module(path, repo, "3.2.1", "1.2.3", False, bundle, (None, None))
     assert m1.outofdate is True
     assert m2.outofdate is False
     assert m3.outofdate is False
@@ -212,10 +216,45 @@ def test_Module_outofdate_bad_versions():
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "hello"
     bundle_version = "3.2.1"
-    m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
+    m = circup.Module(
+        path, repo, device_version, bundle_version, False, bundle, (None, None)
+    )
     with mock.patch("circup.logger.warning") as mock_logger:
         assert m.outofdate is True
         assert mock_logger.call_count == 2
+
+
+def test_Module_mpy_mismatch():
+    """
+    Ensure the ``outofdate`` property on a Module instance returns the expected
+    boolean value to correctly indicate if the referenced module is, in fact,
+    out of date.
+    """
+    path = os.path.join("foo", "bar", "baz", "module.mpy")
+    repo = "https://github.com/adafruit/SomeLibrary.git"
+    with mock.patch("circup.CPY_VERSION", "6.1.2"):
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        m1 = circup.Module(path, repo, "1.2.3", "1.2.3", True, bundle, (None, None))
+        m2 = circup.Module(
+            path, repo, "1.2.3", "1.2.3", True, bundle, ("7.0.0-alpha.1", None)
+        )
+        m3 = circup.Module(
+            path, repo, "1.2.3", "1.2.3", True, bundle, (None, "7.0.0-alpha.1")
+        )
+    with mock.patch("circup.CPY_VERSION", "6.2.0"):
+        assert m1.mpy_mismatch is False
+        assert m1.outofdate is False
+        assert m2.mpy_mismatch is True
+        assert m2.outofdate is True
+        assert m3.mpy_mismatch is False
+        assert m3.outofdate is False
+    with mock.patch("circup.CPY_VERSION", "7.0.0"):
+        assert m1.mpy_mismatch is False
+        assert m1.outofdate is False
+        assert m2.mpy_mismatch is False
+        assert m2.outofdate is False
+        assert m3.mpy_mismatch is True
+        assert m3.outofdate is True
 
 
 def test_Module_major_update_bad_versions():
@@ -230,7 +269,9 @@ def test_Module_major_update_bad_versions():
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "version-3"
-    m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
+    m = circup.Module(
+        path, repo, device_version, bundle_version, False, bundle, (None, None)
+    )
     with mock.patch("circup.logger.warning") as mock_logger:
         assert m.major_update is True
         assert mock_logger.call_count == 2
@@ -244,11 +285,15 @@ def test_Module_row():
     bundle = circup.Bundle(TEST_BUNDLE_NAME)
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
-    device_version = "1.2.3"
-    bundle_version = None
-    with mock.patch("circup.os.path.isfile", return_value=True):
-        m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
-    assert m.row == ("module", "1.2.3", "unknown", "True")
+    with mock.patch("circup.os.path.isfile", return_value=True), mock.patch(
+        "circup.CPY_VERSION", "6.1.2"
+    ):
+        m = circup.Module(path, repo, "1.2.3", None, False, bundle, (None, None))
+        assert m.row == ("module", "1.2.3", "unknown", "Major Version")
+        m = circup.Module(path, repo, "1.2.3", "1.3.4", False, bundle, (None, None))
+        assert m.row == ("module", "1.2.3", "1.3.4", "Minor Version")
+        m = circup.Module(path, repo, "1.2.3", "1.2.3", True, bundle, ("9.0.0", None))
+        assert m.row == ("module", "1.2.3", "1.2.3", "MPY Format")
 
 
 def test_Module_update_dir():
@@ -261,7 +306,9 @@ def test_Module_update_dir():
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = None
-    m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
+    m = circup.Module(
+        path, repo, device_version, bundle_version, False, bundle, (None, None)
+    )
     with mock.patch("circup.shutil") as mock_shutil, mock.patch(
         "circup.os.path.isdir", return_value=True
     ):
@@ -280,7 +327,9 @@ def test_Module_update_file():
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = None
-    m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
+    m = circup.Module(
+        path, repo, device_version, bundle_version, False, bundle, (None, None)
+    )
     with mock.patch("circup.shutil") as mock_shutil, mock.patch(
         "circup.os.remove"
     ) as mock_remove, mock.patch("circup.os.path.isdir", return_value=False):
@@ -301,7 +350,9 @@ def test_Module_repr():
         "circup.CPY_VERSION", "4.1.2"
     ), mock.patch("circup.Bundle.lib_dir", return_value="tests"):
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        m = circup.Module(path, repo, device_version, bundle_version, False, bundle)
+        m = circup.Module(
+            path, repo, device_version, bundle_version, False, bundle, (None, None)
+        )
     assert repr(m) == repr(
         {
             "path": path,
@@ -312,6 +363,8 @@ def test_Module_repr():
             "bundle_version": bundle_version,
             "bundle_path": os.path.join("tests", m.file),
             "mpy": False,
+            "min_version": None,
+            "max_version": None,
         }
     )
 
@@ -437,16 +490,29 @@ def test_extract_metadata_python():
     assert result["__version__"] == "1.1.4"
     assert result["__repo__"] == "https://github.com/adafruit/SomeLibrary.git"
     assert result["mpy"] is False
+    assert "compatibility" not in result
 
 
-def test_extract_metadata_byte_code():
+def test_extract_metadata_byte_code_v6():
     """
     Ensure the __version__ is correctly extracted from the bytecode ".mpy"
-    file. Version in test_module is 0.9.2
+    file generated from Circuitpython < 7. Version in test_module is 0.9.2
     """
     result = circup.extract_metadata("tests/test_module.mpy")
     assert result["__version__"] == "0.9.2"
     assert result["mpy"] is True
+    assert result["compatibility"] == (None, "7.0.0-alpha.1")
+
+
+def test_extract_metadata_byte_code_v7():
+    """
+    Ensure the __version__ is correctly extracted from the bytecode ".mpy"
+    file generated from Circuitpython >= 7. Version in local_module_cp7 is 1.2.3
+    """
+    result = circup.extract_metadata("tests/local_module_cp7.mpy")
+    assert result["__version__"] == "1.2.3"
+    assert result["mpy"] is True
+    assert result["compatibility"] == ("7.0.0-alpha.1", None)
 
 
 def test_find_modules():

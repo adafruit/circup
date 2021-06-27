@@ -391,7 +391,7 @@ def completion_for_install(ctx, param, incomplete):
     with the ``circup install`` command.
     """
     # pylint: disable=unused-argument
-    available_modules = get_bundle_versions(get_bundles_list())
+    available_modules = get_bundle_versions(get_bundles_list(), avoid_download=True)
     module_names = {m.replace(".py", "") for m in available_modules}
     if incomplete:
         module_names = [name for name in module_names if name.startswith(incomplete)]
@@ -402,6 +402,8 @@ def ensure_latest_bundle(bundle):
     """
     Ensure that there's a copy of the latest library bundle available so circup
     can check the metadata contained therein.
+
+    :param Bundle bundle: the target Bundle object.
     """
     logger.info("Checking library updates for %s.", bundle.key)
     tag = bundle.latest_tag
@@ -652,19 +654,21 @@ def get_bundle(bundle, tag):
     click.echo("\nOK\n")
 
 
-def get_bundle_versions(bundles_list):
+def get_bundle_versions(bundles_list, avoid_download=False):
     """
     Returns a dictionary of metadata from modules in the latest known release
     of the library bundle. Uses the Python version (rather than the compiled
     version) of the library modules.
 
     :param Bundle bundles_list: List of supported bundles as Bundle objects.
+    :param bool avoid_download: if True, download the bundle only if missing.
     :return: A dictionary of metadata about the modules available in the
              library bundle.
     """
     all_the_modules = dict()
     for bundle in bundles_list:
-        ensure_latest_bundle(bundle)
+        if not avoid_download or not os.path.isdir(bundle.lib_dir("py")):
+            ensure_latest_bundle(bundle)
         path = bundle.lib_dir("py")
         path_modules = get_modules(path)
         for name, module in path_modules.items():

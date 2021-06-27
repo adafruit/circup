@@ -391,7 +391,7 @@ def completion_for_install(ctx, param, incomplete):
     with the ``circup install`` command.
     """
     # pylint: disable=unused-argument
-    available_modules = get_bundle_versions()
+    available_modules = get_bundle_versions(get_bundles_list())
     module_names = {m.replace(".py", "") for m in available_modules}
     if incomplete:
         module_names = [name for name in module_names if name.startswith(incomplete)]

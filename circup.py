@@ -11,7 +11,6 @@ import glob
 import json
 import logging
 import os
-from pathlib import Path
 import re
 import shutil
 from subprocess import check_output
@@ -94,7 +93,8 @@ class Bundle:
         self.key = repo
         #
         self.url = "https://github.com/" + repo + "/releases"
-        self.urlzip = bundle_id + "-{platform}-{tag}.zip"
+        self.basename = bundle_id + "-{platform}-{tag}"
+        self.urlzip = self.basename + ".zip"
         self.dir = os.path.join(DATA_DIR, vendor, bundle_id + "-{platform}")
         self.zip = os.path.join(DATA_DIR, bundle_id + "-{platform}.zip")
         self.url_format = self.url + "/download/{tag}/" + self.urlzip
@@ -112,9 +112,30 @@ class Bundle:
         tag = self.current_tag
         return os.path.join(
             self.dir.format(platform=platform),
-            self.urlzip[:-4].format(platform=PLATFORMS[platform], tag=tag),
+            self.basename.format(platform=PLATFORMS[platform], tag=tag),
             "lib",
         )
+
+    def requirements_for(self, library_name):
+        """
+        The requirements file for this library.
+
+        :param str library_name: The name of the library.
+        :return: The path to the requirements.txt file.
+        """
+        platform = "py"
+        tag = self.current_tag
+        requirements_txt = os.path.join(
+            self.dir.format(platform=platform),
+            self.basename.format(platform=PLATFORMS[platform], tag=tag),
+            "requirements",
+            library_name,
+            "requirements.txt",
+        )
+        if os.path.isfile(requirements_txt):
+            with open(requirements_txt, "r") as read_this:
+                return read_this.read()
+        return None
 
     @property
     def current_tag(self):
@@ -752,7 +773,7 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
             _to_install = _to_install + (library,)
             # get the requirements.txt from bundle
             bundle = mod_names[library]["bundle"]
-            requirements_txt = get_requirements(bundle, library)
+            requirements_txt = bundle.requirements_for(library)
             if requirements_txt:
                 _requested_libraries.extend(
                     libraries_from_requirements(requirements_txt)
@@ -833,26 +854,6 @@ def get_modules(path):
             # No version metadata found.
             result[name] = {"path": dm, "mpy": bool(mpy_files)}
     return result
-
-
-def get_requirements(bundle, library_name):
-    """
-    Return a string of the requirements.txt for a GitHub Repo
-    NOTE: This only looks at the py bundle. No known differences in the mpy
-    bundle for requirements.txt
-
-    :param Bundle bundle: the target Bundle object.
-    :param str library_name: CircuitPython library name
-    :return: str the content of requirements.txt or None if not found
-    """
-    bundle_path = bundle.dir.format(platform="py")
-    requirements_txt = (
-        "{}/adafruit-circuitpython-bundle-py-{}/requirements/{}/"
-        "requirements.txt".format(bundle_path, bundle.latest_tag, library_name)
-    )
-    if Path(requirements_txt).is_file():
-        return open(requirements_txt).read()
-    return None
 
 
 # pylint: disable=too-many-locals,too-many-branches

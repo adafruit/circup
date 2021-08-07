@@ -935,7 +935,7 @@ def libraries_from_imports(code_py, mod_names):
     :param str code_py: Full path of the code.py file
     :return: sequence of library names
     """
-    imports = [info.name for info in findimports.find_imports(code_py)]
+    imports = [info.name.split(".", 1)[0] for info in findimports.find_imports(code_py)]
     return [r for r in imports if r in mod_names]
 
 

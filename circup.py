@@ -19,6 +19,7 @@ import zipfile
 
 import appdirs
 import click
+import findimports
 import requests
 from semver import VersionInfo
 
@@ -927,6 +928,17 @@ def install_module(
 # pylint: enable=too-many-locals,too-many-branches
 
 
+def libraries_from_imports(code_py, mod_names):
+    """
+    Parse the given code.py file and return the imported libraries
+
+    :param str code_py: Full path of the code.py file
+    :return: sequence of library names
+    """
+    imports = [info.name for info in findimports.find_imports(code_py)]
+    return [r for r in imports if r in mod_names]
+
+
 def libraries_from_requirements(requirements):
     """
     Clean up supplied requirements.txt and turn into tuple of CP libraries
@@ -1119,14 +1131,17 @@ def list(ctx):  # pragma: no cover
         click.echo("All modules found on the device are up to date.")
 
 
+# pylint: disable=too-many-arguments,too-many-locals
 @main.command()
 @click.argument(
     "modules", required=False, nargs=-1, shell_complete=completion_for_install
 )
 @click.option("--py", is_flag=True)
 @click.option("-r", "--requirement")
+@click.option("--auto/--no-auto", "-a/-A")
+@click.option("--auto-file", default="code.py")
 @click.pass_context
-def install(ctx, modules, py, requirement):  # pragma: no cover
+def install(ctx, modules, py, requirement, auto, auto_file):  # pragma: no cover
     """
     Install a named module(s) onto the device. Multiple modules
     can be installed at once by providing more than one module name, each
@@ -1136,6 +1151,8 @@ def install(ctx, modules, py, requirement):  # pragma: no cover
 
     Option -r allows specifying a text file to install all modules listed in
     the text file.
+
+    Option -a installs based on the modules imported by code.py
     """
     # TODO: Ensure there's enough space on the device
     available_modules = get_bundle_versions(get_bundles_list())
@@ -1145,9 +1162,13 @@ def install(ctx, modules, py, requirement):  # pragma: no cover
     if requirement:
         cwd = os.path.abspath(os.getcwd())
         requirements_txt = open(cwd + "/" + requirement, "r").read()
-        requested_installs = sorted(libraries_from_requirements(requirements_txt))
+        requested_installs = libraries_from_requirements(requirements_txt)
+    elif auto:
+        auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file)
+        requested_installs = libraries_from_imports(auto_file, mod_names)
     else:
-        requested_installs = sorted(modules)
+        requested_installs = modules
+    requested_installs = sorted(set(requested_installs))
     click.echo(f"Searching for dependencies for: {requested_installs}")
     to_install = get_dependencies(requested_installs, mod_names=mod_names)
     device_modules = get_device_versions(ctx.obj["DEVICE_PATH"])
@@ -1158,6 +1179,9 @@ def install(ctx, modules, py, requirement):  # pragma: no cover
             install_module(
                 ctx.obj["DEVICE_PATH"], device_modules, library, py, mod_names
             )
+
+
+# pylint: enable=too-many-arguments,too-many-locals
 
 
 @click.argument("match", required=False, nargs=1)

@@ -27,6 +27,7 @@ install_requires = [
     "Click>=8.0",
     "appdirs>=1.4.3",
     "requests>=2.22.0",
+    "findimports>=2.1.0",
 ]
 
 extras_require = {

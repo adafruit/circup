@@ -109,6 +109,18 @@ To get help, just type the command::
                     all modules.
 
 
+To automatically install all modules imported by ``code.py``,
+:code:`$ circup install --auto`::
+
+    $ circup install --auto
+    Found device at /Volumes/CIRCUITPY, running CircuitPython 7.0.0-alpha.5.
+    Searching for dependencies for: ['adafruit_bmp280']
+    Ready to install: ['adafruit_bmp280', 'adafruit_bus_device', 'adafruit_register']
+
+    Installed 'adafruit_bmp280'.
+    Installed 'adafruit_bus_device'.
+    Installed 'adafruit_register'.
+
 To search for a specific module containing the name bme:
 :code:`$ circup show bme`::
 

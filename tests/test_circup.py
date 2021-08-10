@@ -27,6 +27,7 @@ SOFTWARE.
 import os
 import ctypes
 import json
+import pathlib
 from unittest import mock
 
 
@@ -912,3 +913,27 @@ def test_show_match_py_command():
         result = runner.invoke(circup.show, ["py"])
     assert result.exit_code == 0
     assert "0 shown" in result.output
+
+
+def test_libraries_from_imports():
+    """Ensure that various styles of import all work"""
+    mod_names = [
+        "adafruit_bus_device",
+        "adafruit_button",
+        "adafruit_display_shapes",
+        "adafruit_display_text",
+        "adafruit_esp32spi",
+        "adafruit_hid",
+        "adafruit_oauth2",
+        "adafruit_requests",
+        "adafruit_touchscreen",
+    ]
+    test_file = str(pathlib.Path(__file__).parent / "import_styles.py")
+    result = circup.libraries_from_imports(test_file, mod_names)
+    print(result)
+    assert result == [
+        "adafruit_bus_device",
+        "adafruit_button",
+        "adafruit_esp32spi",
+        "adafruit_hid",
+    ]

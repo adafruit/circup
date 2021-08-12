@@ -49,8 +49,10 @@ CPY_VERSION = ""
 BUNDLE_ADAFRUIT = "adafruit/Adafruit_CircuitPython_Bundle"
 #: Community bundle repository
 BUNDLE_COMMUNITY = "adafruit/CircuitPython_Community_Bundle"
+#: CircuitPython Organization bundle repository
+BUNDLE_CIRCUITPYTHON_ORG = "circuitpython/CircuitPython_Org_Bundle"
 #: Default bundle repository list
-BUNDLES_DEFAULT_LIST = [BUNDLE_ADAFRUIT, BUNDLE_COMMUNITY]
+BUNDLES_DEFAULT_LIST = [BUNDLE_ADAFRUIT, BUNDLE_COMMUNITY, BUNDLE_CIRCUITPYTHON_ORG]
 #: Module formats list (and the other form used in github files)
 PLATFORMS = {"py": "py", "6mpy": "6.x-mpy", "7mpy": "7.x-mpy"}
 

@@ -55,7 +55,8 @@ BUNDLE_CIRCUITPYTHON_ORG = "circuitpython/CircuitPython_Org_Bundle"
 BUNDLES_DEFAULT_LIST = [BUNDLE_ADAFRUIT, BUNDLE_COMMUNITY, BUNDLE_CIRCUITPYTHON_ORG]
 #: Module formats list (and the other form used in github files)
 PLATFORMS = {"py": "py", "6mpy": "6.x-mpy", "7mpy": "7.x-mpy"}
-
+#: Commands that do not require an attached board
+BOARDLESS_COMMANDS = ["show"]
 
 # Ensure DATA_DIR / LOG_DIR related directories and files exist.
 if not os.path.exists(DATA_DIR):  # pragma: no cover
@@ -529,7 +530,7 @@ def extract_metadata(path):
 
 def find_device():
     """
-    Return the location on the filesystem for the connected Adafruit device.
+    Return the location on the filesystem for the connected CircuitPython device.
     This is based upon how Mu discovers this information.
 
     :return: The path to the device on the local filesystem.
@@ -1041,17 +1042,27 @@ def main(ctx, verbose, path):  # pragma: no cover
     else:
         device_path = find_device()
     ctx.obj["DEVICE_PATH"] = device_path
-    if device_path is None:
-        click.secho("Could not find a connected Adafruit device.", fg="red")
-        sys.exit(1)
-    global CPY_VERSION
-    CPY_VERSION = get_circuitpython_version(device_path)
-    click.echo(
-        "Found device at {}, running CircuitPython {}.".format(device_path, CPY_VERSION)
-    )
     latest_version = get_latest_release_from_url(
         "https://github.com/adafruit/circuitpython/releases/latest"
     )
+    global CPY_VERSION
+    if device_path is None and ctx.invoked_subcommand in BOARDLESS_COMMANDS:
+        CPY_VERSION = latest_version
+        click.echo(
+            "No CircuitPython device detected.  Using CircuitPython {}.".format(
+                CPY_VERSION
+            )
+        )
+    elif device_path is None:
+        click.secho("Could not find a connected CircuitPython device.", fg="red")
+        sys.exit(1)
+    else:
+        CPY_VERSION = get_circuitpython_version(device_path)
+        click.echo(
+            "Found device at {}, running CircuitPython {}.".format(
+                device_path, CPY_VERSION
+            )
+        )
     try:
         if VersionInfo.parse(CPY_VERSION) < VersionInfo.parse(latest_version):
             click.secho(

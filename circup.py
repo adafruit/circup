@@ -394,6 +394,7 @@ def clean_library_name(assumed_library_name):
         # Assumed Name : Actual Name
         "adafruit_adafruitio": "adafruit_io",
         "adafruit_busdevice": "adafruit_bus_device",
+        "adafruit_display_button": "adafruit_button",
         "adafruit_neopixel": "neopixel",
         "adafruit_sd": "adafruit_sdcard",
         "adafruit_simpleio": "simpleio",

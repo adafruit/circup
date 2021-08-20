@@ -397,6 +397,7 @@ def clean_library_name(assumed_library_name):
         "adafruit_neopixel": "neopixel",
         "adafruit_sd": "adafruit_sdcard",
         "adafruit_simpleio": "simpleio",
+        "pimoroni_ltr559": "pimoroni_circuitpython_ltr559",
     }
     if "circuitpython" in assumed_library_name:
         # convert repo or pypi name to common library name

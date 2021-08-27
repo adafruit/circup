@@ -654,8 +654,8 @@ def get_bundle(bundle, tag):
     :param str tag: The GIT tag to use to download the bundle.
     """
     click.echo("Downloading latest version for {}.\n".format(bundle.key))
-    for platform in PLATFORMS:
-        url = bundle.url_format.format(platform=PLATFORMS[platform], tag=tag)
+    for platform, github_string in PLATFORMS.items():
+        url = bundle.url_format.format(platform=github_string, tag=tag)
         logger.info("Downloading bundle: %s", url)
         r = requests.get(url, stream=True)
         # pylint: disable=no-member
@@ -722,18 +722,36 @@ def get_bundles_list():
 def get_circuitpython_version(device_path):
     """
     Returns the version number of CircuitPython running on the board connected
-    via ``device_path``. This is obtained from the ``boot_out.txt`` file on the
-    device, whose content will start with something like this::
+    via ``device_path``, along with the board ID. This is obtained from the
+    ``boot_out.txt`` file on the device, whose first line will start with
+    something like this::
 
         Adafruit CircuitPython 4.1.0 on 2019-08-02;
 
+    While the second line is::
+
+        Board ID:raspberry_pi_pico
+
     :param str device_path: The path to the connected board.
-    :return: The version string for CircuitPython running on the connected
-             board.
+    :return: A tuple with the version string for CircuitPython and the board ID string.
     """
-    with open(os.path.join(device_path, "boot_out.txt")) as boot:
-        circuit_python, _ = boot.read().split(";")
-    return circuit_python.split(" ")[-3]
+    try:
+        with open(os.path.join(device_path, "boot_out.txt")) as boot:
+            version_line = boot.readline()
+            circuit_python = version_line.split(";")[0].split(" ")[-3]
+            board_line = boot.readline()
+            if board_line.startswith("Board ID:"):
+                board_id = board_line[9:].strip()
+            else:
+                board_id = ""
+    except FileNotFoundError:
+        click.secho(
+            "Missing file boot_out.txt on the device: wrong path or drive corrupted.",
+            fg="red",
+        )
+        logger.error("boot_out.txt not found.")
+        sys.exit(1)
+    return (circuit_python, board_id)
 
 
 def get_dependencies(*requested_libraries, mod_names, to_install=()):
@@ -1059,7 +1077,7 @@ def main(ctx, verbose, path):  # pragma: no cover
         click.secho("Could not find a connected CircuitPython device.", fg="red")
         sys.exit(1)
     else:
-        CPY_VERSION = get_circuitpython_version(device_path)
+        CPY_VERSION, board_id = get_circuitpython_version(device_path)
         click.echo(
             "Found device at {}, running CircuitPython {}.".format(
                 device_path, CPY_VERSION
@@ -1073,6 +1091,11 @@ def main(ctx, verbose, path):  # pragma: no cover
                 ),
                 fg="green",
             )
+            if board_id:
+                url_download = f"https://circuitpython.org/board/{board_id}"
+            else:
+                url_download = "https://circuitpython.org/downloads"
+            click.secho("Get it here: {}".format(url_download), fg="green")
     except ValueError as ex:
         logger.warning("CircuitPython has incorrect semver value.")
         logger.warning(ex)

@@ -1234,6 +1234,7 @@ def show(match):  # pragma: no cover
     available_modules = get_bundle_versions(get_bundles_list())
     module_names = sorted([m.replace(".py", "") for m in available_modules])
     if match is not None:
+        match = match.lower()
         module_names = [m for m in module_names if match in m]
     click.echo("\n".join(module_names))
 

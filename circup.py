@@ -1175,7 +1175,7 @@ def list(ctx):  # pragma: no cover
     "modules", required=False, nargs=-1, shell_complete=completion_for_install
 )
 @click.option("--py", is_flag=True)
-@click.option("-r", "--requirement")
+@click.option("-r", "--requirement", type=click.Path(exists=True, dir_okay=False))
 @click.option("--auto/--no-auto", "-a/-A")
 @click.option("--auto-file", default="code.py")
 @click.pass_context
@@ -1198,8 +1198,8 @@ def install(ctx, modules, py, requirement, auto, auto_file):  # pragma: no cover
     for module, metadata in available_modules.items():
         mod_names[module.replace(".py", "").lower()] = metadata
     if requirement:
-        cwd = os.path.abspath(os.getcwd())
-        requirements_txt = open(cwd + "/" + requirement, "r").read()
+        with open(requirement, "r") as fp:
+            requirements_txt = fp.read()
         requested_installs = libraries_from_requirements(requirements_txt)
     elif auto:
         auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file)

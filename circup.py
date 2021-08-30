@@ -96,12 +96,12 @@ class Bundle:
         bundle_id = bundle_id.lower().replace("_", "-")
         self.key = repo
         #
-        self.url = "https://github.com/" + repo + "/releases"
+        self.url = "https://github.com/" + repo
         self.basename = bundle_id + "-{platform}-{tag}"
         self.urlzip = self.basename + ".zip"
         self.dir = os.path.join(DATA_DIR, vendor, bundle_id + "-{platform}")
         self.zip = os.path.join(DATA_DIR, bundle_id + "-{platform}.zip")
-        self.url_format = self.url + "/download/{tag}/" + self.urlzip
+        self.url_format = self.url + "/releases/download/{tag}/" + self.urlzip
         # tag
         self._current = None
         self._latest = None
@@ -170,7 +170,7 @@ class Bundle:
         :return: The most recent tag value for the project.
         """
         if self._latest is None:
-            self._latest = get_latest_release_from_url(self.url + "/latest")
+            self._latest = get_latest_release_from_url(self.url + "/releases/latest")
         return self._latest
 
     def __repr__(self):

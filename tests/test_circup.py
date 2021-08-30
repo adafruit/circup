@@ -56,7 +56,7 @@ def test_Bundle_init():
     assert repr(bundle) == repr(
         {
             "key": TEST_BUNDLE_NAME,
-            "url": "https://github.com/" + TEST_BUNDLE_NAME + "/releases",
+            "url": "https://github.com/" + TEST_BUNDLE_NAME,
             "urlzip": "adafruit-circuitpython-bundle-{platform}-{tag}.zip",
             "dir": "DATA_DIR/adafruit/adafruit-circuitpython-bundle-{platform}",
             "zip": "DATA_DIR/adafruit-circuitpython-bundle-{platform}.zip",

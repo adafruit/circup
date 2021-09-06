@@ -96,4 +96,5 @@ setup(
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
     py_modules=["circup"],
+    data_files=[("circup_config", ["bundle_config.json"])],
 )

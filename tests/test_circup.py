@@ -56,7 +56,7 @@ def test_Bundle_init():
     assert repr(bundle) == repr(
         {
             "key": TEST_BUNDLE_NAME,
-            "url": "https://github.com/" + TEST_BUNDLE_NAME + "/releases",
+            "url": "https://github.com/" + TEST_BUNDLE_NAME,
             "urlzip": "adafruit-circuitpython-bundle-{platform}-{tag}.zip",
             "dir": "DATA_DIR/adafruit/adafruit-circuitpython-bundle-{platform}",
             "zip": "DATA_DIR/adafruit-circuitpython-bundle-{platform}.zip",
@@ -614,14 +614,22 @@ def test_get_circuitpython_version():
     Given valid content of a boot_out.txt file on a connected device, return
     the version number of CircuitPython running on the board.
     """
-    data = (
+    device_path = "device"
+    data_no_id = (
         "Adafruit CircuitPython 4.1.0 on 2019-08-02; "
         "Adafruit CircuitPlayground Express with samd21g18"
     )
-    mock_open = mock.mock_open(read_data=data)
-    device_path = "device"
-    with mock.patch("builtins.open", mock_open):
-        assert circup.get_circuitpython_version(device_path) == "4.1.0"
+    with mock.patch("builtins.open", mock.mock_open(read_data=data_no_id)) as mock_open:
+        assert circup.get_circuitpython_version(device_path) == ("4.1.0", "")
+        mock_open.assert_called_once_with(os.path.join(device_path, "boot_out.txt"))
+    data_with_id = data_no_id + "\r\n" "Board ID:this_is_a_board"
+    with mock.patch(
+        "builtins.open", mock.mock_open(read_data=data_with_id)
+    ) as mock_open:
+        assert circup.get_circuitpython_version(device_path) == (
+            "4.1.0",
+            "this_is_a_board",
+        )
         mock_open.assert_called_once_with(os.path.join(device_path, "boot_out.txt"))
 
 

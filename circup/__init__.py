@@ -20,6 +20,7 @@ import zipfile
 import appdirs
 import click
 import findimports
+import pkg_resources
 import requests
 from semver import VersionInfo
 
@@ -30,7 +31,9 @@ VERBOSE = False
 #: The location of data files used by circup (following OS conventions).
 DATA_DIR = appdirs.user_data_dir(appname="circup", appauthor="adafruit")
 #: The path to the JSON file containing the metadata about the bundles.
-BUNDLE_CONFIG_FILE = os.path.join(sys.prefix, "circup_config/bundle_config.json")
+BUNDLE_CONFIG_FILE = pkg_resources.resource_filename(
+    "circup", "config/bundle_config.json"
+)
 #: The path to the JSON file containing the metadata about the bundles.
 BUNDLE_DATA = os.path.join(DATA_DIR, "circup.json")
 #: The directory containing the utility's log file.

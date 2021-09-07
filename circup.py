@@ -701,16 +701,14 @@ def get_bundle_versions(bundles_list, avoid_download=False):
 
 def get_bundles_list():
     """
-    Retrieve the list of bundles. Currently uses the fixed list.
-    The goal is to implement reading from a configuration file.
-    https://github.com/adafruit/circup/issues/82#issuecomment-843368130
+    Retrieve the list of bundles as listed BUNDLE_CONFIG_FILE (JSON)
 
     :return: List of supported bundles as Bundle objects.
     """
     with open(BUNDLE_CONFIG_FILE) as bundle_config_json:
         bundle_config = json.load(bundle_config_json)
     bundles_list = [Bundle(bundle_config[b]) for b in bundle_config]
-    print("Using bundles: %s", ", ".join(b.key for b in bundles_list))
+    logger.info("Using bundles: %s", ", ".join(b.key for b in bundles_list))
     return bundles_list
 
 

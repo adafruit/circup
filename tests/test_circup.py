@@ -38,7 +38,10 @@ import requests
 import circup
 
 
-TEST_BUNDLE_NAME = "adafruit/Adafruit_CircuitPython_Bundle"
+TEST_BUNDLE_CONFIG_JSON = "tests/test_bundle_config.json"
+with open(TEST_BUNDLE_CONFIG_JSON) as tbc:
+    test_bundle_data = json.load(tbc)
+TEST_BUNDLE_NAME = test_bundle_data["test_bundle"]
 
 
 def test_Bundle_init():
@@ -119,9 +122,9 @@ def test_Bundle_latest_tag():
 
 def test_get_bundles_list():
     """
-    Check we are getting the bundles list from BUNDLES_DEFAULT_LIST.
+    Check we are getting the bundles list from BUNDLE_CONFIG_FILE.
     """
-    with mock.patch("circup.BUNDLES_DEFAULT_LIST", [TEST_BUNDLE_NAME]):
+    with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON):
         bundles_list = circup.get_bundles_list()
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         assert repr(bundles_list) == repr([bundle])

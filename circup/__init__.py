@@ -20,6 +20,7 @@ import zipfile
 import appdirs
 import click
 import findimports
+import pkg_resources
 import requests
 from semver import VersionInfo
 
@@ -29,6 +30,10 @@ from semver import VersionInfo
 VERBOSE = False
 #: The location of data files used by circup (following OS conventions).
 DATA_DIR = appdirs.user_data_dir(appname="circup", appauthor="adafruit")
+#: The path to the JSON file containing the metadata about the bundles.
+BUNDLE_CONFIG_FILE = pkg_resources.resource_filename(
+    "circup", "config/bundle_config.json"
+)
 #: The path to the JSON file containing the metadata about the bundles.
 BUNDLE_DATA = os.path.join(DATA_DIR, "circup.json")
 #: The directory containing the utility's log file.
@@ -45,14 +50,6 @@ NOT_MCU_LIBRARIES = [
 ]
 #: The version of CircuitPython found on the connected device.
 CPY_VERSION = ""
-#: Adafruit bundle repository
-BUNDLE_ADAFRUIT = "adafruit/Adafruit_CircuitPython_Bundle"
-#: Community bundle repository
-BUNDLE_COMMUNITY = "adafruit/CircuitPython_Community_Bundle"
-#: CircuitPython Organization bundle repository
-BUNDLE_CIRCUITPYTHON_ORG = "circuitpython/CircuitPython_Org_Bundle"
-#: Default bundle repository list
-BUNDLES_DEFAULT_LIST = [BUNDLE_ADAFRUIT, BUNDLE_COMMUNITY, BUNDLE_CIRCUITPYTHON_ORG]
 #: Module formats list (and the other form used in github files)
 PLATFORMS = {"py": "py", "6mpy": "6.x-mpy", "7mpy": "7.x-mpy"}
 #: Commands that do not require an attached board
@@ -707,15 +704,14 @@ def get_bundle_versions(bundles_list, avoid_download=False):
 
 def get_bundles_list():
     """
-    Retrieve the list of bundles. Currently uses the fixed list.
-    The goal is to implement reading from a configuration file.
-    https://github.com/adafruit/circup/issues/82#issuecomment-843368130
+    Retrieve the list of bundles as listed BUNDLE_CONFIG_FILE (JSON)
 
     :return: List of supported bundles as Bundle objects.
     """
-    bundles_list = [Bundle(b) for b in BUNDLES_DEFAULT_LIST]
-    logger.info("Using bundles: %s", ", ".join([b.key for b in bundles_list]))
-    # TODO: this is were we retrieve the bundles list from json
+    with open(BUNDLE_CONFIG_FILE) as bundle_config_json:
+        bundle_config = json.load(bundle_config_json)
+    bundles_list = [Bundle(bundle_config[b]) for b in bundle_config]
+    logger.info("Using bundles: %s", ", ".join(b.key for b in bundles_list))
     return bundles_list
 
 

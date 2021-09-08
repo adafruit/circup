@@ -95,5 +95,6 @@ setup(
     keywords="adafruit, blinka, circuitpython, micropython, libraries",
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
-    py_modules=["circup"],
+    packages=["circup"],
+    package_data={"circup": ["config/bundle_config.json"]},
 )

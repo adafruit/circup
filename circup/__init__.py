@@ -34,6 +34,8 @@ DATA_DIR = appdirs.user_data_dir(appname="circup", appauthor="adafruit")
 BUNDLE_CONFIG_FILE = pkg_resources.resource_filename(
     "circup", "config/bundle_config.json"
 )
+#: The path to the JSON file containing the local list of bundles.
+BUNDLE_CONFIG_LOCAL = os.path.join(DATA_DIR, "bundle_config.json")
 #: The path to the JSON file containing the metadata about the bundles.
 BUNDLE_DATA = os.path.join(DATA_DIR, "circup.json")
 #: The directory containing the utility's log file.
@@ -53,7 +55,7 @@ CPY_VERSION = ""
 #: Module formats list (and the other form used in github files)
 PLATFORMS = {"py": "py", "6mpy": "6.x-mpy", "7mpy": "7.x-mpy"}
 #: Commands that do not require an attached board
-BOARDLESS_COMMANDS = ["show"]
+BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 
 # Ensure DATA_DIR / LOG_DIR related directories and files exist.
 if not os.path.exists(DATA_DIR):  # pragma: no cover
@@ -169,6 +171,26 @@ class Bundle:
         if self._latest is None:
             self._latest = get_latest_release_from_url(self.url + "/releases/latest")
         return self._latest
+
+    def validate(self):
+        """
+        Test the existence of the expected URLs (not their content)
+        """
+        tag = self.latest_tag
+        if not tag or tag == "releases":
+            if VERBOSE:
+                click.secho(f'  Invalid tag "{tag}"', fg="red")
+            return False
+        for platform in PLATFORMS.values():
+            url = self.url_format.format(platform=platform, tag=tag)
+            r = requests.get(url, stream=True)
+            # pylint: disable=no-member
+            if r.status_code != requests.codes.ok:
+                if VERBOSE:
+                    click.secho(f"  Unable to find {os.path.split(url)[1]}", fg="red")
+                return False
+            # pylint: enable=no-member
+        return True
 
     def __repr__(self):
         """
@@ -702,14 +724,44 @@ def get_bundle_versions(bundles_list, avoid_download=False):
     return all_the_modules
 
 
+def get_bundles_dict():
+    """
+    Retrieve the dict from BUNDLE_CONFIG_FILE (JSON).
+    Put the local dictionary in front, so it gets priority.
+
+    :return: Raw dictionary from the built-in config file.
+    """
+    bundle_dict = get_bundles_local_dict()
+    with open(BUNDLE_CONFIG_FILE) as bundle_config_json:
+        bundle_config = json.load(bundle_config_json)
+    bundle_dict.update(bundle_config)
+    return bundle_dict
+
+
+def get_bundles_local_dict():
+    """
+    Retrieve the local bundles from BUNDLE_CONFIG_LOCAL (JSON).
+
+    :return: Raw dictionary from the config file(s).
+    """
+    try:
+        with open(BUNDLE_CONFIG_LOCAL) as bundle_config_json:
+            bundle_config = json.load(bundle_config_json)
+        if not isinstance(bundle_config, dict) or not bundle_config:
+            logger.error("Local bundle list invalid. Skipped.")
+            raise FileNotFoundError("Bad local bundle list")
+        return bundle_config
+    except (FileNotFoundError, json.decoder.JSONDecodeError):
+        return dict()
+
+
 def get_bundles_list():
     """
-    Retrieve the list of bundles as listed BUNDLE_CONFIG_FILE (JSON)
+    Retrieve the list of bundles from the config dictionary.
 
     :return: List of supported bundles as Bundle objects.
     """
-    with open(BUNDLE_CONFIG_FILE) as bundle_config_json:
-        bundle_config = json.load(bundle_config_json)
+    bundle_config = get_bundles_dict()
     bundles_list = [Bundle(bundle_config[b]) for b in bundle_config]
     logger.info("Using bundles: %s", ", ".join(b.key for b in bundles_list))
     return bundles_list
@@ -979,6 +1031,51 @@ def libraries_from_requirements(requirements):
     return libraries
 
 
+def save_local_bundles(bundles_data):
+    """
+    Save the list of local bundles to the settings.
+
+    :param str key: The bundle's identifier/key.
+    """
+    if len(bundles_data) > 0:
+        with open(BUNDLE_CONFIG_LOCAL, "w", encoding="utf-8") as data:
+            json.dump(bundles_data, data)
+    else:
+        if os.path.isfile(BUNDLE_CONFIG_LOCAL):
+            os.unlink(BUNDLE_CONFIG_LOCAL)
+
+
+def show_bundles_info(show_modules=False):
+    """
+    Show the list of bundles, default and local, with URL, current version
+    and latest version retrieved from the web.
+    """
+    locals = get_bundles_local_dict().values()
+    bundles = get_bundles_list()
+    available_modules = get_bundle_versions(bundles)
+
+    def show_this(bundle_list):
+        for bundle in bundle_list:
+            click.secho(bundle.key, fg="green")
+            click.echo("    " + bundle.url)
+            click.echo("    current = " + bundle.current_tag)
+            click.echo("     latest = " + bundle.latest_tag)
+            if show_modules:
+                click.echo("Modules:")
+                for name, mod in sorted(available_modules.items()):
+                    if mod["bundle"] == bundle:
+                        click.echo(f"   {name} ({mod.get('__version__', '-')})")
+
+    list_buitlins = [x for x in bundles if x.key not in locals]
+    if list_buitlins:
+        click.secho("Built-in Bundles Information:", fg="yellow")
+        show_this(list_buitlins)
+    list_locals = [x for x in bundles if x.key in locals]
+    if list_locals:
+        click.secho("Local Bundles Information:", fg="yellow")
+        show_this(list_locals)
+
+
 def tags_data_load():
     """
     Load the list of the version tags of the bundles on disk.
@@ -1053,6 +1150,9 @@ def main(ctx, verbose, path):  # pragma: no cover
         logger.addHandler(verbose_handler)
         click.echo("Logging to {}\n".format(LOGFILE))
     logger.info("### Started Circup ###")
+    # stop early if the command is boardless
+    if ctx.invoked_subcommand in BOARDLESS_COMMANDS:
+        return
     if path:
         device_path = path
     else:
@@ -1062,14 +1162,7 @@ def main(ctx, verbose, path):  # pragma: no cover
         "https://github.com/adafruit/circuitpython/releases/latest"
     )
     global CPY_VERSION
-    if device_path is None and ctx.invoked_subcommand in BOARDLESS_COMMANDS:
-        CPY_VERSION = latest_version
-        click.echo(
-            "No CircuitPython device detected.  Using CircuitPython {}.".format(
-                CPY_VERSION
-            )
-        )
-    elif device_path is None:
+    if device_path is None:
         click.secho("Could not find a connected CircuitPython device.", fg="red")
         sys.exit(1)
     else:
@@ -1125,9 +1218,9 @@ def freeze(ctx, requirement):  # pragma: no cover
         click.echo("No modules found on the device.")
 
 
-@main.command()
+@main.command("list")
 @click.pass_context
-def list(ctx):  # pragma: no cover
+def list_cli(ctx):  # pragma: no cover
     """
     Lists all out of date modules found on the connected CIRCUITPYTHON device.
     """
@@ -1348,6 +1441,94 @@ def update(ctx, all):  # pragma: no cover
                 # pylint: enable=broad-except
         return
     click.echo("None of the modules found on the device need an update.")
+
+
+@main.command("bundle-show")
+@click.option("--modules", is_flag=True, help="List all the modules per bundle.")
+def bundle_show(modules):
+    """
+    Show out the list of bundles, their URLs and version.
+    """
+    show_bundles_info(modules)
+
+
+@main.command("bundle-add")
+@click.argument("bundle", nargs=-1)
+def bundle_add(bundle):
+    """
+    Add bundles to the local bundles list, by "user/repo" github string.
+    A series of tests to validate that the bundle exists and at least looks
+    like a bundle are done before validating it. There might still be errors
+    when the bundle is downloaded for the first time.
+    """
+    bundles_dict = get_bundles_local_dict()
+    modified = False
+    for bun in bundle:
+        if bun in bundles_dict.values():
+            click.secho("Bundle already in list.", fg="yellow")
+            click.secho("    " + bun, fg="yellow")
+            continue
+        try:
+            bb = Bundle(bun)
+        except ValueError:
+            click.secho(
+                "Bundle string invalid, expecting: `user/repository` from the github URL.",
+                fg="red",
+            )
+            click.secho("    " + bun, fg="red")
+            continue
+        result = requests.get("https://github.com/" + bun)
+        # pylint: disable=no-member
+        if result.status_code == requests.codes.NOT_FOUND:
+            click.secho("Bundle invalid, the repository doesn't exist (404).", fg="red")
+            click.secho("    " + bun, fg="red")
+            continue
+        # pylint: enable=no-member
+        if not bb.validate():
+            click.secho(
+                "Bundle invalid, is the repository a valid circup bundle ?", fg="red"
+            )
+            click.secho("    " + bun, fg="red")
+            continue
+        # note: use bun as the dictionary key for uniqueness
+        bundles_dict[bun] = bun
+        modified = True
+        click.echo("Added " + bun)
+        click.echo("    " + bb.url)
+    if modified:
+        # save the bundles list
+        save_local_bundles(bundles_dict)
+        # update and get the new bundles for the first time
+        get_bundle_versions(get_bundles_list())
+
+
+@main.command("bundle-remove")
+@click.argument("bundle", nargs=-1)
+def bundle_remove(bundle):
+    """
+    Remove one or more bundles from the local bundles list.
+    """
+    bundles_dict = get_bundles_local_dict()
+    modified = False
+    for bun in bundle:
+        found = False
+        for name, repo in list(bundles_dict.items()):
+            if bun in (name, repo):
+                found = True
+                click.secho(f"Bundle {repo}")
+                do_it = click.confirm("Do you want to remove that bundle ?")
+                if do_it:
+                    click.secho("Removing the bundle from the local list", fg="yellow")
+                    click.secho(f"    {bun}", fg="yellow")
+                    modified = True
+                    del bundles_dict[name]
+        if not found:
+            click.secho(
+                "Bundle not found in the local list, nothing removed:" "\n    " + bun,
+                fg="red",
+            )
+    if modified:
+        save_local_bundles(bundles_dict)
 
 
 # Allows execution via `python -m circup ...`

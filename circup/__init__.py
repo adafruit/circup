@@ -1432,26 +1432,18 @@ def bundle_show(modules):
     bundles = get_bundles_list()
     available_modules = get_bundle_versions(bundles)
 
-    def show_this(bundle_list):
-        for bundle in bundle_list:
+    for bundle in bundles:
+        if bundle.key in locals:
+            click.secho(bundle.key, fg="yellow")
+        else:
             click.secho(bundle.key, fg="green")
-            click.echo("    " + bundle.url)
-            click.echo("    current = " + bundle.current_tag)
-            click.echo("     latest = " + bundle.latest_tag)
-            if modules:
-                click.echo("Modules:")
-                for name, mod in sorted(available_modules.items()):
-                    if mod["bundle"] == bundle:
-                        click.echo(f"   {name} ({mod.get('__version__', '-')})")
-
-    list_buitlins = [x for x in bundles if x.key not in locals]
-    if list_buitlins:
-        click.secho("Built-in Bundles Information:", fg="yellow")
-        show_this(list_buitlins)
-    list_locals = [x for x in bundles if x.key in locals]
-    if list_locals:
-        click.secho("Local Bundles Information:", fg="yellow")
-        show_this(list_locals)
+        click.echo("    " + bundle.url)
+        click.echo("    version = " + bundle.current_tag)
+        if modules:
+            click.echo("Modules:")
+            for name, mod in sorted(available_modules.items()):
+                if mod["bundle"] == bundle:
+                    click.echo(f"   {name} ({mod.get('__version__', '-')})")
 
 
 @main.command("bundle-add")

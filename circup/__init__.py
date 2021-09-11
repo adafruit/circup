@@ -1508,13 +1508,14 @@ def bundle_remove(bundle, reset):
     if reset:
         save_local_bundles({})
         return
-    bundles_dict = get_bundles_local_dict()
+    bundle_config = list(get_bundles_dict().values())
+    bundles_local_dict = get_bundles_local_dict()
     modified = False
     for bun in bundle:
         # cleanup in case seombody pastes the URL to the repo/releases
         bun = re.sub(r"https?://github.com/([^/]+/[^/]+)(/.*)?", r"\1", bun)
         found = False
-        for name, repo in list(bundles_dict.items()):
+        for name, repo in list(bundles_local_dict.items()):
             if bun in (name, repo):
                 found = True
                 click.secho(f"Bundle {repo}")
@@ -1523,14 +1524,18 @@ def bundle_remove(bundle, reset):
                     click.secho("Removing the bundle from the local list", fg="yellow")
                     click.secho(f"    {bun}", fg="yellow")
                     modified = True
-                    del bundles_dict[name]
+                    del bundles_local_dict[name]
         if not found:
-            click.secho(
-                "Bundle not found in the local list, nothing removed:" "\n    " + bun,
-                fg="red",
-            )
+            if bun in bundle_config:
+                click.secho("Cannot remove built-in module:" "\n    " + bun, fg="red")
+            else:
+                click.secho(
+                    "Bundle not found in the local list, nothing removed:"
+                    "\n    " + bun,
+                    fg="red",
+                )
     if modified:
-        save_local_bundles(bundles_dict)
+        save_local_bundles(bundles_local_dict)
 
 
 # Allows execution via `python -m circup ...`

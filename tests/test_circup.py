@@ -197,7 +197,9 @@ def test_save_local_bundles_reset():
     """
     with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON), mock.patch(
         "circup.BUNDLE_CONFIG_LOCAL", "test/NOTEXISTS"
-    ), mock.patch("circup.os.unlink") as mock_unlink, mock.patch(
+    ), mock.patch("circup.os.path.isfile", return_value=True), mock.patch(
+        "circup.os.unlink"
+    ) as mock_unlink, mock.patch(
         "circup.json.load", return_value=TEST_BUNDLE_DATA
     ), mock.patch(
         "circup.open", mock.mock_open()

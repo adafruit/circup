@@ -34,8 +34,10 @@ DATA_DIR = appdirs.user_data_dir(appname="circup", appauthor="adafruit")
 BUNDLE_CONFIG_FILE = pkg_resources.resource_filename(
     "circup", "config/bundle_config.json"
 )
+#: Overwrite the bundles list with this file (only done manually)
+BUNDLE_CONFIG_OVERWRITE = os.path.join(DATA_DIR, "bundle_config.json")
 #: The path to the JSON file containing the local list of bundles.
-BUNDLE_CONFIG_LOCAL = os.path.join(DATA_DIR, "bundle_config.json")
+BUNDLE_CONFIG_LOCAL = os.path.join(DATA_DIR, "bundle_config_local.json")
 #: The path to the JSON file containing the metadata about the bundles.
 BUNDLE_DATA = os.path.join(DATA_DIR, "circup.json")
 #: The directory containing the utility's log file.
@@ -732,9 +734,14 @@ def get_bundles_dict():
     :return: Raw dictionary from the built-in config file.
     """
     bundle_dict = get_bundles_local_dict()
-    with open(BUNDLE_CONFIG_FILE) as bundle_config_json:
-        bundle_config = json.load(bundle_config_json)
-    bundle_dict.update(bundle_config)
+    try:
+        with open(BUNDLE_CONFIG_OVERWRITE) as bundle_config_json:
+            bundle_config = json.load(bundle_config_json)
+        bundle_dict.update(bundle_config)
+    except (FileNotFoundError, json.decoder.JSONDecodeError):
+        with open(BUNDLE_CONFIG_FILE) as bundle_config_json:
+            bundle_config = json.load(bundle_config_json)
+        bundle_dict.update(bundle_config)
     return bundle_dict
 
 

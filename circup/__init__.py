@@ -1289,8 +1289,8 @@ def install(ctx, modules, py, requirement, auto, auto_file):  # pragma: no cover
 # pylint: enable=too-many-arguments,too-many-locals
 
 
-@click.argument("match", required=False, nargs=1)
 @main.command()
+@click.argument("match", required=False, nargs=1)
 def show(match):  # pragma: no cover
     """
     Show a list of available modules in the bundle. These are modules which
@@ -1508,10 +1508,14 @@ def bundle_add(bundle):
 
 @main.command("bundle-remove")
 @click.argument("bundle", nargs=-1)
-def bundle_remove(bundle):
+@click.option("--reset", is_flag=True, help="Remove all local bundles.")
+def bundle_remove(bundle, reset):
     """
     Remove one or more bundles from the local bundles list.
     """
+    if reset:
+        save_local_bundles({})
+        return
     bundles_dict = get_bundles_local_dict()
     modified = False
     for bun in bundle:

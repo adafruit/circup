@@ -1052,37 +1052,6 @@ def save_local_bundles(bundles_data):
             os.unlink(BUNDLE_CONFIG_LOCAL)
 
 
-def show_bundles_info(show_modules=False):
-    """
-    Show the list of bundles, default and local, with URL, current version
-    and latest version retrieved from the web.
-    """
-    locals = get_bundles_local_dict().values()
-    bundles = get_bundles_list()
-    available_modules = get_bundle_versions(bundles)
-
-    def show_this(bundle_list):
-        for bundle in bundle_list:
-            click.secho(bundle.key, fg="green")
-            click.echo("    " + bundle.url)
-            click.echo("    current = " + bundle.current_tag)
-            click.echo("     latest = " + bundle.latest_tag)
-            if show_modules:
-                click.echo("Modules:")
-                for name, mod in sorted(available_modules.items()):
-                    if mod["bundle"] == bundle:
-                        click.echo(f"   {name} ({mod.get('__version__', '-')})")
-
-    list_buitlins = [x for x in bundles if x.key not in locals]
-    if list_buitlins:
-        click.secho("Built-in Bundles Information:", fg="yellow")
-        show_this(list_buitlins)
-    list_locals = [x for x in bundles if x.key in locals]
-    if list_locals:
-        click.secho("Local Bundles Information:", fg="yellow")
-        show_this(list_locals)
-
-
 def tags_data_load():
     """
     Load the list of the version tags of the bundles on disk.
@@ -1454,9 +1423,33 @@ def update(ctx, all):  # pragma: no cover
 @click.option("--modules", is_flag=True, help="List all the modules per bundle.")
 def bundle_show(modules):
     """
-    Show out the list of bundles, their URLs and version.
+    Show the list of bundles, default and local, with URL, current version
+    and latest version retrieved from the web.
     """
-    show_bundles_info(modules)
+    locals = get_bundles_local_dict().values()
+    bundles = get_bundles_list()
+    available_modules = get_bundle_versions(bundles)
+
+    def show_this(bundle_list):
+        for bundle in bundle_list:
+            click.secho(bundle.key, fg="green")
+            click.echo("    " + bundle.url)
+            click.echo("    current = " + bundle.current_tag)
+            click.echo("     latest = " + bundle.latest_tag)
+            if modules:
+                click.echo("Modules:")
+                for name, mod in sorted(available_modules.items()):
+                    if mod["bundle"] == bundle:
+                        click.echo(f"   {name} ({mod.get('__version__', '-')})")
+
+    list_buitlins = [x for x in bundles if x.key not in locals]
+    if list_buitlins:
+        click.secho("Built-in Bundles Information:", fg="yellow")
+        show_this(list_buitlins)
+    list_locals = [x for x in bundles if x.key in locals]
+    if list_locals:
+        click.secho("Local Bundles Information:", fg="yellow")
+        show_this(list_locals)
 
 
 @main.command("bundle-add")

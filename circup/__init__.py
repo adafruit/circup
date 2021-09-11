@@ -728,20 +728,22 @@ def get_bundle_versions(bundles_list, avoid_download=False):
 
 def get_bundles_dict():
     """
-    Retrieve the dict from BUNDLE_CONFIG_FILE (JSON).
+    Retrieve the dictionary from BUNDLE_CONFIG_FILE (JSON).
     Put the local dictionary in front, so it gets priority.
+    It's a dictionary of bundle string identifiers.
 
-    :return: Raw dictionary from the built-in config file.
+    :return: Combined dictionaries from the config files.
     """
     bundle_dict = get_bundles_local_dict()
     try:
         with open(BUNDLE_CONFIG_OVERWRITE) as bundle_config_json:
             bundle_config = json.load(bundle_config_json)
-        bundle_dict.update(bundle_config)
     except (FileNotFoundError, json.decoder.JSONDecodeError):
         with open(BUNDLE_CONFIG_FILE) as bundle_config_json:
             bundle_config = json.load(bundle_config_json)
-        bundle_dict.update(bundle_config)
+    for name, bundle in bundle_config.items():
+        if bundle not in bundle_dict.values():
+            bundle_dict[name] = bundle
     return bundle_dict
 
 

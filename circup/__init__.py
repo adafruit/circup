@@ -1464,6 +1464,8 @@ def bundle_add(bundle):
     bundles_dict = get_bundles_local_dict()
     modified = False
     for bun in bundle:
+        # cleanup in case seombody pastes the URL to the repo/releases
+        bun = re.sub(r"https?://github.com/([^/]+/[^/]+)(/.*)?", r"\1", bun)
         if bun in bundles_dict.values():
             click.secho("Bundle already in list.", fg="yellow")
             click.secho("    " + bun, fg="yellow")
@@ -1472,7 +1474,7 @@ def bundle_add(bundle):
             bb = Bundle(bun)
         except ValueError:
             click.secho(
-                "Bundle string invalid, expecting: `user/repository` from the github URL.",
+                "Bundle string invalid, expecting github URL or `user/repository` string.",
                 fg="red",
             )
             click.secho("    " + bun, fg="red")
@@ -1511,6 +1513,8 @@ def bundle_remove(bundle):
     bundles_dict = get_bundles_local_dict()
     modified = False
     for bun in bundle:
+        # cleanup in case seombody pastes the URL to the repo/releases
+        bun = re.sub(r"https?://github.com/([^/]+/[^/]+)(/.*)?", r"\1", bun)
         found = False
         for name, repo in list(bundles_dict.items()):
             if bun in (name, repo):

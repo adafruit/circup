@@ -40,8 +40,12 @@ import circup
 
 TEST_BUNDLE_CONFIG_JSON = "tests/test_bundle_config.json"
 with open(TEST_BUNDLE_CONFIG_JSON) as tbc:
-    test_bundle_data = json.load(tbc)
-TEST_BUNDLE_NAME = test_bundle_data["test_bundle"]
+    TEST_BUNDLE_DATA = json.load(tbc)
+TEST_BUNDLE_NAME = TEST_BUNDLE_DATA["test_bundle"]
+
+TEST_BUNDLE_CONFIG_LOCAL_JSON = "tests/test_bundle_config_local.json"
+with open(TEST_BUNDLE_CONFIG_LOCAL_JSON) as tbc:
+    TEST_BUNDLE_LOCAL_DATA = json.load(tbc)
 
 
 def test_Bundle_init():
@@ -120,14 +124,89 @@ def test_Bundle_latest_tag():
         assert bundle.latest_tag == "BESTESTTAG"
 
 
+def test_get_bundles_dict():
+    """
+    Check we are getting the bundles list from BUNDLE_CONFIG_FILE.
+    """
+    with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON), mock.patch(
+        "circup.BUNDLE_CONFIG_LOCAL", ""
+    ):
+        bundles_dict = circup.get_bundles_dict()
+        assert bundles_dict == TEST_BUNDLE_DATA
+
+    with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON), mock.patch(
+        "circup.BUNDLE_CONFIG_LOCAL", TEST_BUNDLE_CONFIG_LOCAL_JSON
+    ):
+        bundles_dict = circup.get_bundles_dict()
+        expected_dict = {**TEST_BUNDLE_LOCAL_DATA, **TEST_BUNDLE_DATA}
+        assert bundles_dict == expected_dict
+
+
+def test_get_bundles_local_dict():
+    """
+    Check we are getting the bundles list from BUNDLE_CONFIG_LOCAL.
+    """
+    with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON), mock.patch(
+        "circup.BUNDLE_CONFIG_LOCAL", ""
+    ):
+        bundles_dict = circup.get_bundles_dict()
+        assert bundles_dict == TEST_BUNDLE_DATA
+
+    with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON), mock.patch(
+        "circup.BUNDLE_CONFIG_LOCAL", TEST_BUNDLE_CONFIG_LOCAL_JSON
+    ):
+        bundles_dict = circup.get_bundles_dict()
+        expected_dict = {**TEST_BUNDLE_LOCAL_DATA, **TEST_BUNDLE_DATA}
+        assert bundles_dict == expected_dict
+
+
 def test_get_bundles_list():
     """
     Check we are getting the bundles list from BUNDLE_CONFIG_FILE.
     """
-    with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON):
+    with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON), mock.patch(
+        "circup.BUNDLE_CONFIG_LOCAL", ""
+    ):
         bundles_list = circup.get_bundles_list()
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         assert repr(bundles_list) == repr([bundle])
+
+
+def test_save_local_bundles():
+    """
+    Pretend to save local bundles.
+    """
+    with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON), mock.patch(
+        "circup.BUNDLE_CONFIG_LOCAL", ""
+    ), mock.patch("circup.os.unlink") as mock_unlink, mock.patch(
+        "circup.json.dump"
+    ) as mock_dump, mock.patch(
+        "circup.json.load", return_value=TEST_BUNDLE_DATA
+    ), mock.patch(
+        "circup.open", mock.mock_open()
+    ) as mock_open:
+        final_data = {**TEST_BUNDLE_DATA, **TEST_BUNDLE_LOCAL_DATA}
+        circup.save_local_bundles(final_data)
+        mock_dump.assert_called_once_with(final_data, mock_open())
+        mock_unlink.assert_not_called()
+
+
+def test_save_local_bundles_reset():
+    """
+    Pretend to reset the local bundles.
+    """
+    with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON), mock.patch(
+        "circup.BUNDLE_CONFIG_LOCAL", "test/NOTEXISTS"
+    ), mock.patch("circup.os.path.isfile", return_value=True), mock.patch(
+        "circup.os.unlink"
+    ) as mock_unlink, mock.patch(
+        "circup.json.load", return_value=TEST_BUNDLE_DATA
+    ), mock.patch(
+        "circup.open", mock.mock_open()
+    ) as mock_open:
+        circup.save_local_bundles({})
+        mock_open().write.assert_not_called()
+        mock_unlink.assert_called_once_with("test/NOTEXISTS")
 
 
 def test_Module_init_file_module():

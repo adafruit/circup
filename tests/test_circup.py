@@ -94,11 +94,6 @@ def test_Bundle_lib_dir():
             "adafruit/adafruit-circuitpython-bundle-py/"
             "adafruit-circuitpython-bundle-py-TESTTAG/lib"
         )
-        assert bundle.lib_dir("6mpy") == (
-            "DATA_DIR/"
-            "adafruit/adafruit-circuitpython-bundle-6mpy/"
-            "adafruit-circuitpython-bundle-6.x-mpy-TESTTAG/lib"
-        )
         assert bundle.lib_dir("7mpy") == (
             "DATA_DIR/"
             "adafruit/adafruit-circuitpython-bundle-7mpy/"
@@ -315,7 +310,7 @@ def test_Module_mpy_mismatch():
     """
     path = os.path.join("foo", "bar", "baz", "module.mpy")
     repo = "https://github.com/adafruit/SomeLibrary.git"
-    with mock.patch("circup.CPY_VERSION", "6.1.2"):
+    with mock.patch("circup.CPY_VERSION", "7.0.0"):
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         m1 = circup.Module(path, repo, "1.2.3", "1.2.3", True, bundle, (None, None))
         m2 = circup.Module(
@@ -369,7 +364,7 @@ def test_Module_row():
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     with mock.patch("circup.os.path.isfile", return_value=True), mock.patch(
-        "circup.CPY_VERSION", "6.1.2"
+        "circup.CPY_VERSION", "7.0.0"
     ):
         m = circup.Module(path, repo, "1.2.3", None, False, bundle, (None, None))
         assert m.row == ("module", "1.2.3", "unknown", "Major Version")
@@ -935,11 +930,13 @@ def test_get_bundle():
         tag = "12345"
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         circup.get_bundle(bundle, tag)
-        assert mock_requests.get.call_count == 3
-        assert mock_open.call_count == 3
-        assert mock_shutil.rmtree.call_count == 3
-        assert mock_zipfile.ZipFile.call_count == 3
-        assert mock_zipfile.ZipFile().__enter__().extractall.call_count == 3
+        # how many bundles currently supported. i.e. 6x.mpy, 7x.mpy, py = 3 bundles
+        _bundle_count = 2
+        assert mock_requests.get.call_count == _bundle_count
+        assert mock_open.call_count == _bundle_count
+        assert mock_shutil.rmtree.call_count == _bundle_count
+        assert mock_zipfile.ZipFile.call_count == _bundle_count
+        assert mock_zipfile.ZipFile().__enter__().extractall.call_count == _bundle_count
 
 
 def test_get_bundle_network_error():

@@ -23,6 +23,7 @@ import findimports
 import pkg_resources
 import requests
 from semver import VersionInfo
+import update_checker
 
 
 # Useful constants.
@@ -811,6 +812,24 @@ def get_circuitpython_version(device_path):
     return (circuit_python, board_id)
 
 
+def get_circup_version():
+    """Return the version of circup that is running. If not available, return None.
+
+    :return: Current version of circup, or None.
+    """
+    try:
+        from importlib import metadata  # pylint: disable=import-outside-toplevel
+    except ImportError:
+        try:
+            import importlib_metadata as metadata  # pylint: disable=import-outside-toplevel
+        except ImportError:
+            return None
+    try:
+        return metadata.version("circup")
+    except metadata.PackageNotFoundError:
+        return None
+
+
 def get_dependencies(*requested_libraries, mod_names, to_install=()):
     """
     Return a list of other CircuitPython libraries
@@ -1128,6 +1147,13 @@ def main(ctx, verbose, path):  # pragma: no cover
         logger.addHandler(verbose_handler)
         click.echo("Logging to {}\n".format(LOGFILE))
     logger.info("### Started Circup ###")
+
+    # If a newer version of circup is available, print a message.
+    logger.info("Checking for a newer version of circup")
+    version = get_circup_version()
+    if version:
+        update_checker.update_check("circup", version)
+
     # stop early if the command is boardless
     if ctx.invoked_subcommand in BOARDLESS_COMMANDS:
         return

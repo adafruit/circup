@@ -30,6 +30,7 @@ install_requires = [
     "findimports>=2.1.0",
     # importlib_metadata is only available for 3.7, and is not needed for 3.8 and up.
     "importlib_metadata; python_version == '3.7'",
+    "update_checker",
 ]
 
 extras_require = {

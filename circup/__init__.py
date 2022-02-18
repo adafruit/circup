@@ -51,6 +51,8 @@ NOT_MCU_LIBRARIES = [
     "adafruit-blinka",
     "adafruit-blinka-bleio",
     "adafruit-blinka-displayio",
+    "adafruit-circuitpython-typing",
+    "circuitpython_typing",
     "pyserial",
 ]
 #: The version of CircuitPython found on the connected device.
@@ -848,19 +850,23 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
         # If nothing is requested, we're done
         return _to_install
 
-    for l in _rl:
-        # Convert tuple to list and force all to lowercase, Clean the names
-        l = clean_library_name(l.lower())
-        if l in NOT_MCU_LIBRARIES:
-            logger.info("Skipping %s. It is not for microcontroller installs.", l)
+    for lib_name in _rl:
+        lower_lib_name = lib_name.lower()
+        if lower_lib_name in NOT_MCU_LIBRARIES:
+            logger.info(
+                "Skipping %s. It is not for microcontroller installs.", lib_name
+            )
         else:
+            # Canonicalize, with some exceptions:
+            # adafruit-circuitpython-something => adafruit_something
+            canonical_lib_name = clean_library_name(lower_lib_name)
             try:
                 # Don't process any names we can't find in mod_names
-                mod_names[l]  # pylint: disable=pointless-statement
-                _requested_libraries.append(l)
+                mod_names[canonical_lib_name]  # pylint: disable=pointless-statement
+                _requested_libraries.append(canonical_lib_name)
             except KeyError:
                 click.secho(
-                    f"WARNING:\n\t{l} is not a known CircuitPython library.",
+                    f"WARNING:\n\t{canonical_lib_name} is not a known CircuitPython library.",
                     fg="yellow",
                 )
 

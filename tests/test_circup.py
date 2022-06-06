@@ -931,7 +931,7 @@ def test_get_bundle():
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         circup.get_bundle(bundle, tag)
         # how many bundles currently supported. i.e. 6x.mpy, 7x.mpy, py = 3 bundles
-        _bundle_count = 2
+        _bundle_count = 3
         assert mock_requests.get.call_count == _bundle_count
         assert mock_open.call_count == _bundle_count
         assert mock_shutil.rmtree.call_count == _bundle_count

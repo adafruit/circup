@@ -512,7 +512,7 @@ def extract_metadata(path):
         with open(path, encoding="utf-8") as source_file:
             content = source_file.read()
         #: The regex used to extract ``__version__`` and ``__repo__`` assignments.
-        dunder_key_val = r"""(__\w+__)\s*=\s*(?:['"]|\(\s)(.+)['"]"""
+        dunder_key_val = r"""(__\w+__)(?:\s*:\s*\w+)?\s*=\s*(?:['"]|\(\s)(.+)['"]"""
         for match in re.findall(dunder_key_val, content):
             result[match[0]] = str(match[1])
         if result:

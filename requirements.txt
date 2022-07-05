@@ -15,7 +15,7 @@ docutils==0.15.2
 findimports==2.1.0
 idna==2.8
 imagesize==1.1.0
-importlib_metadata==4.12.0
+importlib-metadata==4.12.0
 isort==5.9.3
 Jinja2==2.11.3
 lazy-object-proxy==1.6.0

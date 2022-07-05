@@ -62,7 +62,7 @@ PLATFORMS = {"py": "py", "7mpy": "7.x-mpy", "8mpy": "7.x-mpy"}
 #: Commands that do not require an attached board
 BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 #: Version identifier for a bad MPY file format
-BAD_FILE_FORMAT = "Bad format"
+BAD_FILE_FORMAT = "Invalid"
 
 # Ensure DATA_DIR / LOG_DIR related directories and files exist.
 if not os.path.exists(DATA_DIR):  # pragma: no cover
@@ -1439,7 +1439,7 @@ def update(ctx, all):  # pragma: no cover
                 if module.bad_format:
                     click.secho(
                         f"WARNING: '{module.name}': module corrupted or in an"
-                        "unknown mpy format. Updating is required.",
+                        " unknown mpy format. Updating is required.",
                         fg="yellow",
                     )
                     update_flag = click.confirm("Do you want to update?")

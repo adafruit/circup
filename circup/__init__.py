@@ -1058,9 +1058,8 @@ def libraries_from_requirements(requirements):
             # skip comments
             pass
         else:
-            if any(operators in line for operators in [">", "<", "="]):
-                # Remove everything after any pip style version specifiers
-                line = re.split("[<|>|=|]", line)[0]
+            # Remove everything after any pip style version specifiers
+            line = re.split("[<>=~[;]", line)[0].strip()
             libraries = libraries + (line,)
     return libraries
 

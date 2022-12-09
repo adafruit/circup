@@ -61,6 +61,8 @@ CPY_VERSION = ""
 PLATFORMS = {"py": "py", "7mpy": "7.x-mpy", "8mpy": "7.x-mpy"}
 #: Commands that do not require an attached board
 BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
+#: Version identifier for a bad MPY file format
+BAD_FILE_FORMAT = "Invalid"
 
 # Ensure DATA_DIR / LOG_DIR related directories and files exist.
 if not os.path.exists(DATA_DIR):  # pragma: no cover
@@ -297,6 +299,11 @@ class Module:
         return True  # Assume out of date to try to update.
 
     @property
+    def bad_format(self):
+        """A boolean indicating that the mpy file format could not be identified"""
+        return self.mpy and self.device_version == BAD_FILE_FORMAT
+
+    @property
     def mpy_mismatch(self):
         """
         Returns a boolean to indicate if this module's MPY version is compatible
@@ -524,6 +531,7 @@ def extract_metadata(path):
         # Track the MPY version number
         mpy_version = content[0:2]
         compatibility = None
+        loc = -1
         # Find the start location of the __version__
         if mpy_version == b"M\x03":
             # One byte for the length of "__version__"
@@ -546,11 +554,14 @@ def extract_metadata(path):
                     end = loc  # Up to the start of the __version__.
                     version = content[start:end]  # Slice the version number.
                     # Create a string version as metadata in the result.
-                    result = {"__version__": version.decode("utf-8"), "mpy": True}
+                    result["__version__"] = version.decode("utf-8")
                     break  # Nothing more to do.
                 offset += 1  # ...and again but backtrack by one.
         if compatibility:
             result["compatibility"] = compatibility
+        else:
+            # not a valid MPY file
+            result["__version__"] = BAD_FILE_FORMAT
     return result
 
 
@@ -946,19 +957,20 @@ def get_modules(path):
         result[os.path.basename(sfm).replace(".py", "").replace(".mpy", "")] = metadata
     for dm in directory_mods:
         name = os.path.basename(os.path.dirname(dm))
-        metadata = {}
         py_files = glob.glob(os.path.join(dm, "*.py"))
         mpy_files = glob.glob(os.path.join(dm, "*.mpy"))
         all_files = py_files + mpy_files
+        # default value
+        result[name] = {"path": dm, "mpy": bool(mpy_files)}
+        # explore all the submodules to detect bad ones
         for source in [f for f in all_files if not os.path.basename(f).startswith(".")]:
             metadata = extract_metadata(source)
             if "__version__" in metadata:
                 metadata["path"] = dm
                 result[name] = metadata
-                break
-        else:
-            # No version metadata found.
-            result[name] = {"path": dm, "mpy": bool(mpy_files)}
+                # break now if any of the submodules has a bad format
+                if metadata["__version__"] == BAD_FILE_FORMAT:
+                    break
     return result
 
 
@@ -1375,6 +1387,9 @@ def uninstall(ctx, module):  # pragma: no cover
             click.echo("Module '{}' not found on device.".format(name))
 
 
+# pylint: disable=too-many-branches
+
+
 @main.command(
     short_help=(
         "Update modules on the device. "
@@ -1421,7 +1436,14 @@ def update(ctx, all):  # pragma: no cover
                 if module.repo:
                     click.secho(f"\t{module.repo}", fg="yellow")
             if not update_flag:
-                if module.mpy_mismatch:
+                if module.bad_format:
+                    click.secho(
+                        f"WARNING: '{module.name}': module corrupted or in an"
+                        " unknown mpy format. Updating is required.",
+                        fg="yellow",
+                    )
+                    update_flag = click.confirm("Do you want to update?")
+                elif module.mpy_mismatch:
                     click.secho(
                         f"WARNING: '{module.name}': mpy format doesn't match the"
                         " device's Circuitpython version. Updating is required.",
@@ -1450,6 +1472,9 @@ def update(ctx, all):  # pragma: no cover
                 # pylint: enable=broad-except
         return
     click.echo("None of the modules found on the device need an update.")
+
+
+# pylint: enable=too-many-branches
 
 
 @main.command("bundle-show")

@@ -1056,7 +1056,15 @@ def libraries_from_imports(code_py, mod_names):
     :param str code_py: Full path of the code.py file
     :return: sequence of library names
     """
-    imports = [info.name.split(".", 1)[0] for info in findimports.find_imports(code_py)]
+    # pylint: disable=broad-except
+    try:
+        found_imports = findimports.find_imports(code_py)
+    except Exception as ex:  # broad exception because anything could go wrong
+        logger.exception(ex)
+        click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
+        sys.exit(2)
+    # pylint: enable=broad-except
+    imports = [info.name.split(".", 1)[0] for info in found_imports]
     return [r for r in imports if r in mod_names]
 
 
@@ -1293,7 +1301,7 @@ def list_cli(ctx):  # pragma: no cover
 @click.option("pyext", "--py", is_flag=True)
 @click.option("-r", "--requirement", type=click.Path(exists=True, dir_okay=False))
 @click.option("--auto/--no-auto", "-a/-A")
-@click.option("--auto-file", default="code.py")
+@click.option("--auto-file", default=None)
 @click.pass_context
 def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no cover
     """
@@ -1317,8 +1325,14 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
         with open(requirement, "r", encoding="utf-8") as rfile:
             requirements_txt = rfile.read()
         requested_installs = libraries_from_requirements(requirements_txt)
-    elif auto:
-        auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file)
+    elif auto or auto_file:
+        if auto_file is None:
+            auto_file = "code.py"
+        if not os.path.isabs(auto_file) and not auto_file[:2] == "./":
+            auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file or "code.py")
+        if not os.path.isfile(auto_file):
+            click.secho(f"Auto file not found: {auto_file}", fg="red")
+            sys.exit(1)
         requested_installs = libraries_from_imports(auto_file, mod_names)
     else:
         requested_installs = modules

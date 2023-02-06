@@ -1298,23 +1298,32 @@ def list_cli(ctx):  # pragma: no cover
 @click.argument(
     "modules", required=False, nargs=-1, shell_complete=completion_for_install
 )
-@click.option("pyext", "--py", is_flag=True)
-@click.option("-r", "--requirement", type=click.Path(exists=True, dir_okay=False))
-@click.option("--auto/--no-auto", "-a/-A")
-@click.option("--auto-file", default=None)
+@click.option(
+    "--py",
+    is_flag=True,
+    help="Install the .py version of the module(s) instead of the mpy version.",
+)
+@click.option(
+    "pyext",
+    "-r",
+    "--requirement",
+    type=click.Path(exists=True, dir_okay=False),
+    help="specify a text file to install all modules listed in the text file."
+    " Typically requirements.txt.",
+)
+@click.option("--auto", "-a", help="Install the modules imported in code.py.")
+@click.option(
+    "--auto-file",
+    default=None,
+    help="Specify the name of a file on the board to read for auto install."
+    " Also accepts an absolute path or a local ./ path.",
+)
 @click.pass_context
 def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no cover
     """
     Install a named module(s) onto the device. Multiple modules
     can be installed at once by providing more than one module name, each
     separated by a space.
-
-    Option --py installs .py version of module(s).
-
-    Option -r allows specifying a text file to install all modules listed in
-    the text file.
-
-    Option -a installs based on the modules imported by code.py
     """
     # TODO: Ensure there's enough space on the device
     available_modules = get_bundle_versions(get_bundles_list())

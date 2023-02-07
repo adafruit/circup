@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2019 Nicholas Tollervey, written for Adafruit Industries
 #
 # SPDX-License-Identifier: MIT
+# pylint: disable=too-many-lines,use-implicit-booleaness-not-comparison
+# pylint: disable=invalid-name,unnecessary-dunder-call
 """
 Unit tests for the circup module.
 
@@ -39,12 +41,12 @@ import circup
 
 
 TEST_BUNDLE_CONFIG_JSON = "tests/test_bundle_config.json"
-with open(TEST_BUNDLE_CONFIG_JSON) as tbc:
+with open(TEST_BUNDLE_CONFIG_JSON, "rb") as tbc:
     TEST_BUNDLE_DATA = json.load(tbc)
 TEST_BUNDLE_NAME = TEST_BUNDLE_DATA["test_bundle"]
 
 TEST_BUNDLE_CONFIG_LOCAL_JSON = "tests/test_bundle_config_local.json"
-with open(TEST_BUNDLE_CONFIG_LOCAL_JSON) as tbc:
+with open(TEST_BUNDLE_CONFIG_LOCAL_JSON, "rb") as tbc:
     TEST_BUNDLE_LOCAL_DATA = json.load(tbc)
 
 
@@ -546,7 +548,7 @@ def test_get_latest_release_from_url():
     with mock.patch("circup.requests.head", return_value=response) as mock_get:
         result = circup.get_latest_release_from_url(expected_url)
         assert result == "20190903"
-        mock_get.assert_called_once_with(expected_url)
+        mock_get.assert_called_once_with(expected_url, timeout=mock.ANY)
 
 
 def test_extract_metadata_python():
@@ -563,7 +565,7 @@ def test_extract_metadata_python():
     path = "foo.py"
     with mock.patch("builtins.open", mock.mock_open(read_data=code)) as mock_open:
         result = circup.extract_metadata(path)
-        mock_open.assert_called_once_with(path, encoding="utf-8")
+        mock_open.assert_called_once_with(path, "r", encoding="utf-8")
     assert len(result) == 3
     assert result["__version__"] == "1.1.4"
     assert result["__repo__"] == "https://github.com/adafruit/SomeLibrary.git"
@@ -598,9 +600,9 @@ def test_find_modules():
     Ensure that the expected list of Module instances is returned given the
     metadata dictionary fixtures for device and bundle modules.
     """
-    with open("tests/device.json") as f:
+    with open("tests/device.json", "rb") as f:
         device_modules = json.load(f)
-    with open("tests/bundle.json") as f:
+    with open("tests/bundle.json", "rb") as f:
         bundle_modules = json.load(f)
     with mock.patch(
         "circup.get_device_versions", return_value=device_modules
@@ -698,7 +700,9 @@ def test_get_circuitpython_version():
     )
     with mock.patch("builtins.open", mock.mock_open(read_data=data_no_id)) as mock_open:
         assert circup.get_circuitpython_version(device_path) == ("4.1.0", "")
-        mock_open.assert_called_once_with(os.path.join(device_path, "boot_out.txt"))
+        mock_open.assert_called_once_with(
+            os.path.join(device_path, "boot_out.txt"), "r", encoding="utf-8"
+        )
     data_with_id = data_no_id + "\r\n" "Board ID:this_is_a_board"
     with mock.patch(
         "builtins.open", mock.mock_open(read_data=data_with_id)
@@ -707,7 +711,9 @@ def test_get_circuitpython_version():
             "4.1.0",
             "this_is_a_board",
         )
-        mock_open.assert_called_once_with(os.path.join(device_path, "boot_out.txt"))
+        mock_open.assert_called_once_with(
+            os.path.join(device_path, "boot_out.txt"), "r", encoding="utf-8"
+        )
 
 
 def test_get_device_versions():
@@ -961,7 +967,7 @@ def test_get_bundle_network_error():
             "https://github.com/" + TEST_BUNDLE_NAME + "/releases/download"
             "/{tag}/adafruit-circuitpython-bundle-py-{tag}.zip".format(tag=tag)
         )
-        mock_requests.get.assert_called_once_with(url, stream=True)
+        mock_requests.get.assert_called_once_with(url, stream=True, timeout=mock.ANY)
         assert mock_logger.warning.call_count == 1
         mock_requests.get().raise_for_status.assert_called_once_with()
 
@@ -971,11 +977,11 @@ def test_show_command():
     test_show_command
     """
     runner = CliRunner()
-    TEST_BUNDLE_MODULES = ["one.py", "two.py", "three.py"]
-    with mock.patch("circup.get_bundle_versions", return_value=TEST_BUNDLE_MODULES):
+    test_bundle_modules = ["one.py", "two.py", "three.py"]
+    with mock.patch("circup.get_bundle_versions", return_value=test_bundle_modules):
         result = runner.invoke(circup.show)
     assert result.exit_code == 0
-    assert all([m.replace(".py", "") in result.output for m in TEST_BUNDLE_MODULES])
+    assert all(m.replace(".py", "") in result.output for m in test_bundle_modules)
 
 
 def test_show_match_command():
@@ -983,8 +989,8 @@ def test_show_match_command():
     test_show_match_command
     """
     runner = CliRunner()
-    TEST_BUNDLE_MODULES = ["one.py", "two.py", "three.py"]
-    with mock.patch("circup.get_bundle_versions", return_value=TEST_BUNDLE_MODULES):
+    test_bundle_modules = ["one.py", "two.py", "three.py"]
+    with mock.patch("circup.get_bundle_versions", return_value=test_bundle_modules):
         result = runner.invoke(circup.show, ["t"])
     assert result.exit_code == 0
     assert "one" not in result.output
@@ -995,8 +1001,8 @@ def test_show_match_py_command():
     Check that py does not match the .py extention in the module names
     """
     runner = CliRunner()
-    TEST_BUNDLE_MODULES = ["one.py", "two.py", "three.py"]
-    with mock.patch("circup.get_bundle_versions", return_value=TEST_BUNDLE_MODULES):
+    test_bundle_modules = ["one.py", "two.py", "three.py"]
+    with mock.patch("circup.get_bundle_versions", return_value=test_bundle_modules):
         result = runner.invoke(circup.show, ["py"])
     assert result.exit_code == 0
     assert "0 shown" in result.output

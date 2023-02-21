@@ -63,6 +63,8 @@ PLATFORMS = {"py": "py", "7mpy": "7.x-mpy", "8mpy": "7.x-mpy"}
 BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 #: Version identifier for a bad MPY file format
 BAD_FILE_FORMAT = "Invalid"
+#: Timeout for requests calls like get()
+REQUESTS_TIMEOUT = 30
 
 # Ensure DATA_DIR / LOG_DIR related directories and files exist.
 if not os.path.exists(DATA_DIR):  # pragma: no cover
@@ -143,7 +145,7 @@ class Bundle:
             "requirements.txt",
         )
         if os.path.isfile(requirements_txt):
-            with open(requirements_txt, "r") as read_this:
+            with open(requirements_txt, "r", encoding="utf-8") as read_this:
                 return read_this.read()
         return None
 
@@ -190,7 +192,7 @@ class Bundle:
             return False
         for platform in PLATFORMS.values():
             url = self.url_format.format(platform=platform, tag=tag)
-            r = requests.get(url, stream=True)
+            r = requests.get(url, stream=True, timeout=REQUESTS_TIMEOUT)
             # pylint: disable=no-member
             if r.status_code != requests.codes.ok:
                 if VERBOSE:
@@ -438,7 +440,7 @@ def clean_library_name(assumed_library_name):
             .replace("_circuitpython_", "_")
             .replace("-", "_")
         )
-    if assumed_library_name in not_standard_names.keys():
+    if assumed_library_name in not_standard_names:
         return not_standard_names[assumed_library_name]
     return assumed_library_name
 
@@ -516,7 +518,7 @@ def extract_metadata(path):
     logger.info("%s", path)
     if path.endswith(".py"):
         result["mpy"] = False
-        with open(path, encoding="utf-8") as source_file:
+        with open(path, "r", encoding="utf-8") as source_file:
             content = source_file.read()
         #: The regex used to extract ``__version__`` and ``__repo__`` assignments.
         dunder_key_val = r"""(__\w+__)(?:\s*:\s*\w+)?\s*=\s*(?:['"]|\(\s)(.+)['"]"""
@@ -692,7 +694,7 @@ def get_bundle(bundle, tag):
     for platform, github_string in PLATFORMS.items():
         url = bundle.url_format.format(platform=github_string, tag=tag)
         logger.info("Downloading bundle: %s", url)
-        r = requests.get(url, stream=True)
+        r = requests.get(url, stream=True, timeout=REQUESTS_TIMEOUT)
         # pylint: disable=no-member
         if r.status_code != requests.codes.ok:
             logger.warning("Unable to connect to %s", url)
@@ -702,9 +704,9 @@ def get_bundle(bundle, tag):
         temp_zip = bundle.zip.format(platform=platform)
         with click.progressbar(r.iter_content(1024), length=total_size) as pbar, open(
             temp_zip, "wb"
-        ) as f:
+        ) as zip_fp:
             for chunk in pbar:
-                f.write(chunk)
+                zip_fp.write(chunk)
                 pbar.update(len(chunk))
         logger.info("Saved to %s", temp_zip)
         temp_dir = bundle.dir.format(platform=platform)
@@ -750,10 +752,10 @@ def get_bundles_dict():
     """
     bundle_dict = get_bundles_local_dict()
     try:
-        with open(BUNDLE_CONFIG_OVERWRITE) as bundle_config_json:
+        with open(BUNDLE_CONFIG_OVERWRITE, "rb") as bundle_config_json:
             bundle_config = json.load(bundle_config_json)
     except (FileNotFoundError, json.decoder.JSONDecodeError):
-        with open(BUNDLE_CONFIG_FILE) as bundle_config_json:
+        with open(BUNDLE_CONFIG_FILE, "rb") as bundle_config_json:
             bundle_config = json.load(bundle_config_json)
     for name, bundle in bundle_config.items():
         if bundle not in bundle_dict.values():
@@ -768,7 +770,7 @@ def get_bundles_local_dict():
     :return: Raw dictionary from the config file(s).
     """
     try:
-        with open(BUNDLE_CONFIG_LOCAL) as bundle_config_json:
+        with open(BUNDLE_CONFIG_LOCAL, "rb") as bundle_config_json:
             bundle_config = json.load(bundle_config_json)
         if not isinstance(bundle_config, dict) or not bundle_config:
             logger.error("Local bundle list invalid. Skipped.")
@@ -807,7 +809,9 @@ def get_circuitpython_version(device_path):
     :return: A tuple with the version string for CircuitPython and the board ID string.
     """
     try:
-        with open(os.path.join(device_path, "boot_out.txt")) as boot:
+        with open(
+            os.path.join(device_path, "boot_out.txt"), "r", encoding="utf-8"
+        ) as boot:
             version_line = boot.readline()
             circuit_python = version_line.split(";")[0].split(" ")[-3]
             board_line = boot.readline()
@@ -885,7 +889,7 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
         # If nothing is requested, we're done
         return _to_install
 
-    for library in _requested_libraries:
+    for library in list(_requested_libraries):
         if library not in _to_install:
             _to_install = _to_install + (library,)
             # get the requirements.txt from bundle
@@ -923,7 +927,7 @@ def get_latest_release_from_url(url):
     """
 
     logger.info("Requesting redirect information: %s", url)
-    response = requests.head(url)
+    response = requests.head(url, timeout=REQUESTS_TIMEOUT)
     responseurl = response.url
     if response.is_redirect:
         responseurl = response.headers["Location"]
@@ -945,7 +949,7 @@ def get_modules(path):
         return result
     single_file_py_mods = glob.glob(os.path.join(path, "*.py"))
     single_file_mpy_mods = glob.glob(os.path.join(path, "*.mpy"))
-    directory_mods = [
+    package_dir_mods = [
         d
         for d in glob.glob(os.path.join(path, "*", ""))
         if not os.path.basename(os.path.normpath(d)).startswith(".")
@@ -955,18 +959,18 @@ def get_modules(path):
         metadata = extract_metadata(sfm)
         metadata["path"] = sfm
         result[os.path.basename(sfm).replace(".py", "").replace(".mpy", "")] = metadata
-    for dm in directory_mods:
-        name = os.path.basename(os.path.dirname(dm))
-        py_files = glob.glob(os.path.join(dm, "*.py"))
-        mpy_files = glob.glob(os.path.join(dm, "*.mpy"))
+    for package_path in package_dir_mods:
+        name = os.path.basename(os.path.dirname(package_path))
+        py_files = glob.glob(os.path.join(package_path, "*.py"))
+        mpy_files = glob.glob(os.path.join(package_path, "*.mpy"))
         all_files = py_files + mpy_files
         # default value
-        result[name] = {"path": dm, "mpy": bool(mpy_files)}
+        result[name] = {"path": package_path, "mpy": bool(mpy_files)}
         # explore all the submodules to detect bad ones
         for source in [f for f in all_files if not os.path.basename(f).startswith(".")]:
             metadata = extract_metadata(source)
             if "__version__" in metadata:
-                metadata["path"] = dm
+                metadata["path"] = package_path
                 result[name] = metadata
                 # break now if any of the submodules has a bad format
                 if metadata["__version__"] == BAD_FILE_FORMAT:
@@ -976,7 +980,7 @@ def get_modules(path):
 
 # pylint: disable=too-many-locals,too-many-branches
 def install_module(
-    device_path, device_modules, name, py, mod_names
+    device_path, device_modules, name, pyext, mod_names
 ):  # pragma: no cover
     """
     Finds a connected device and installs a given module name if it
@@ -987,7 +991,7 @@ def install_module(
     :param str device_path: The path to the connected board.
     :param list(dict) device_modules: List of module metadata from the device.
     :param str name: Name of module to install
-    :param bool py: Boolean to specify if the module should be installed from
+    :param bool pyext: Boolean to specify if the module should be installed from
                     source or from a pre-compiled module
     :param mod_names: Dictionary of metadata from modules that can be generated
                        with get_bundle_versions()
@@ -1004,7 +1008,7 @@ def install_module(
         if name in device_modules:
             click.echo("'{}' is already installed.".format(name))
             return
-        if py:
+        if pyext:
             # Use Python source for module.
             source_path = metadata["path"]  # Path to Python source version.
             if os.path.isdir(source_path):
@@ -1232,7 +1236,9 @@ def freeze(ctx, requirement):  # pragma: no cover
             cwd = os.path.abspath(os.getcwd())
             for i, module in enumerate(output):
                 output[i] += "\n"
-            with open(cwd + "/" + "requirements.txt", "w", newline="\n") as file:
+            with open(
+                cwd + "/" + "requirements.txt", "w", newline="\n", encoding="utf-8"
+            ) as file:
                 file.truncate(0)
                 file.writelines(output)
     else:
@@ -1284,12 +1290,12 @@ def list_cli(ctx):  # pragma: no cover
 @click.argument(
     "modules", required=False, nargs=-1, shell_complete=completion_for_install
 )
-@click.option("--py", is_flag=True)
+@click.option("pyext", "--py", is_flag=True)
 @click.option("-r", "--requirement", type=click.Path(exists=True, dir_okay=False))
 @click.option("--auto/--no-auto", "-a/-A")
 @click.option("--auto-file", default="code.py")
 @click.pass_context
-def install(ctx, modules, py, requirement, auto, auto_file):  # pragma: no cover
+def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no cover
     """
     Install a named module(s) onto the device. Multiple modules
     can be installed at once by providing more than one module name, each
@@ -1308,8 +1314,8 @@ def install(ctx, modules, py, requirement, auto, auto_file):  # pragma: no cover
     for module, metadata in available_modules.items():
         mod_names[module.replace(".py", "").lower()] = metadata
     if requirement:
-        with open(requirement, "r") as fp:
-            requirements_txt = fp.read()
+        with open(requirement, "r", encoding="utf-8") as rfile:
+            requirements_txt = rfile.read()
         requested_installs = libraries_from_requirements(requirements_txt)
     elif auto:
         auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file)
@@ -1325,7 +1331,7 @@ def install(ctx, modules, py, requirement, auto, auto_file):  # pragma: no cover
         click.echo(f"Ready to install: {to_install}\n")
         for library in to_install:
             install_module(
-                ctx.obj["DEVICE_PATH"], device_modules, library, py, mod_names
+                ctx.obj["DEVICE_PATH"], device_modules, library, pyext, mod_names
             )
 
 
@@ -1397,10 +1403,13 @@ def uninstall(ctx, module):  # pragma: no cover
     )
 )
 @click.option(
-    "--all", is_flag=True, help="Update all modules without Major Version warnings."
+    "update_all",
+    "--all",
+    is_flag=True,
+    help="Update all modules without Major Version warnings.",
 )
 @click.pass_context
-def update(ctx, all):  # pragma: no cover
+def update(ctx, update_all):  # pragma: no cover
     """
     Checks for out-of-date modules on the connected CIRCUITPYTHON device, and
     prompts the user to confirm updating such modules.
@@ -1414,10 +1423,10 @@ def update(ctx, all):  # pragma: no cover
     ]
     if modules:
         click.echo("Found {} module[s] needing update.".format(len(modules)))
-        if not all:
+        if not update_all:
             click.echo("Please indicate which modules you wish to update:\n")
         for module in modules:
-            update_flag = all
+            update_flag = update_all
             if VERBOSE:
                 click.echo(
                     "Device version: {}, Bundle version: {}".format(
@@ -1484,12 +1493,12 @@ def bundle_show(modules):
     Show the list of bundles, default and local, with URL, current version
     and latest version retrieved from the web.
     """
-    locals = get_bundles_local_dict().values()
+    local_bundles = get_bundles_local_dict().values()
     bundles = get_bundles_list()
     available_modules = get_bundle_versions(bundles)
 
     for bundle in bundles:
-        if bundle.key in locals:
+        if bundle.key in local_bundles:
             click.secho(bundle.key, fg="yellow")
         else:
             click.secho(bundle.key, fg="green")
@@ -1513,40 +1522,44 @@ def bundle_add(bundle):
     """
     bundles_dict = get_bundles_local_dict()
     modified = False
-    for bun in bundle:
+    for bundle_repo in bundle:
         # cleanup in case seombody pastes the URL to the repo/releases
-        bun = re.sub(r"https?://github.com/([^/]+/[^/]+)(/.*)?", r"\1", bun)
-        if bun in bundles_dict.values():
+        bundle_repo = re.sub(
+            r"https?://github.com/([^/]+/[^/]+)(/.*)?", r"\1", bundle_repo
+        )
+        if bundle_repo in bundles_dict.values():
             click.secho("Bundle already in list.", fg="yellow")
-            click.secho("    " + bun, fg="yellow")
+            click.secho("    " + bundle_repo, fg="yellow")
             continue
         try:
-            bb = Bundle(bun)
+            bundle_added = Bundle(bundle_repo)
         except ValueError:
             click.secho(
                 "Bundle string invalid, expecting github URL or `user/repository` string.",
                 fg="red",
             )
-            click.secho("    " + bun, fg="red")
+            click.secho("    " + bundle_repo, fg="red")
             continue
-        result = requests.get("https://github.com/" + bun)
+        result = requests.get(
+            "https://github.com/" + bundle_repo, timeout=REQUESTS_TIMEOUT
+        )
         # pylint: disable=no-member
         if result.status_code == requests.codes.NOT_FOUND:
             click.secho("Bundle invalid, the repository doesn't exist (404).", fg="red")
-            click.secho("    " + bun, fg="red")
+            click.secho("    " + bundle_repo, fg="red")
             continue
         # pylint: enable=no-member
-        if not bb.validate():
+        if not bundle_added.validate():
             click.secho(
                 "Bundle invalid, is the repository a valid circup bundle ?", fg="red"
             )
-            click.secho("    " + bun, fg="red")
+            click.secho("    " + bundle_repo, fg="red")
             continue
         # note: use bun as the dictionary key for uniqueness
-        bundles_dict[bun] = bun
+        bundles_dict[bundle_repo] = bundle_repo
         modified = True
-        click.echo("Added " + bun)
-        click.echo("    " + bb.url)
+        click.echo("Added " + bundle_repo)
+        click.echo("    " + bundle_added.url)
     if modified:
         # save the bundles list
         save_local_bundles(bundles_dict)

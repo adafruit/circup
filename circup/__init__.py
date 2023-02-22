@@ -472,12 +472,14 @@ def install_dir_http(source, target):
     auth = HTTPBasicAuth("", url.password)
 
     # Create the top level directory.
-    r = requests.put(target, auth=auth)
+    r = requests.put(target + "/", auth=auth)
     r.raise_for_status()
 
     # Traverse the directory structure and create the directories/files.
     for root, dirs, files in os.walk(source):
         rel_path = os.path.relpath(root, source)
+        if rel_path == ".":
+            rel_path = ""
         for name in files:
             with open(os.path.join(root, name), "rb") as fp:
                 r = requests.put(target + rel_path + "/" + name, fp.read(), auth=auth)

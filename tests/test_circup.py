@@ -647,7 +647,7 @@ def test_get_bundle_versions():
     Ensure ensure_latest_bundle is called even if lib_dir exists.
     """
     with mock.patch("circup.ensure_latest_bundle") as mock_elb, mock.patch(
-        "circup.get_modules", return_value={"ok": {"name": "ok"}}
+        "circup._get_modules_file", return_value={"ok": {"name": "ok"}}
     ) as mock_gm, mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
         "circup.Bundle.lib_dir", return_value="foo/bar/lib"
     ), mock.patch(
@@ -668,7 +668,7 @@ def test_get_bundle_versions_avoid_download():
     Testing both cases: lib_dir exists and lib_dir doesn't exists.
     """
     with mock.patch("circup.ensure_latest_bundle") as mock_elb, mock.patch(
-        "circup.get_modules", return_value={"ok": {"name": "ok"}}
+        "circup._get_modules_file", return_value={"ok": {"name": "ok"}}
     ) as mock_gm, mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
         "circup.Bundle.lib_dir", return_value="foo/bar/lib"
     ):

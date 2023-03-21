@@ -961,8 +961,8 @@ def get_modules(path):
         result[os.path.basename(sfm).replace(".py", "").replace(".mpy", "")] = metadata
     for package_path in package_dir_mods:
         name = os.path.basename(os.path.dirname(package_path))
-        py_files = glob.glob(os.path.join(package_path, "*.py"))
-        mpy_files = glob.glob(os.path.join(package_path, "*.mpy"))
+        py_files = glob.glob(os.path.join(package_path, "**/*.py"), recursive=True)
+        mpy_files = glob.glob(os.path.join(package_path, "**/*.mpy"), recursive=True)
         all_files = py_files + mpy_files
         # default value
         result[name] = {"path": package_path, "mpy": bool(mpy_files)}

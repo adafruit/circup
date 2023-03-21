@@ -1299,12 +1299,12 @@ def list_cli(ctx):  # pragma: no cover
     "modules", required=False, nargs=-1, shell_complete=completion_for_install
 )
 @click.option(
+    "pyext",
     "--py",
     is_flag=True,
     help="Install the .py version of the module(s) instead of the mpy version.",
 )
 @click.option(
-    "pyext",
     "-r",
     "--requirement",
     type=click.Path(exists=True, dir_okay=False),

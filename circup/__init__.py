@@ -1338,7 +1338,7 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
         if auto_file is None:
             auto_file = "code.py"
         # pass a local file with "./" or "../"
-        is_relative = auto_file.startswith("." + os.sep) or auto_file.startswith(".." + os.sep)
+        is_relative = auto_file.split(os.sep)[0] in [os.path.curdir, os.path.pardir]
         if not os.path.isabs(auto_file) and not is_relative:
             auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file or "code.py")
         if not os.path.isfile(auto_file):

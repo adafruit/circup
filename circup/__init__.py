@@ -1056,7 +1056,15 @@ def libraries_from_imports(code_py, mod_names):
     :param str code_py: Full path of the code.py file
     :return: sequence of library names
     """
-    imports = [info.name.split(".", 1)[0] for info in findimports.find_imports(code_py)]
+    # pylint: disable=broad-except
+    try:
+        found_imports = findimports.find_imports(code_py)
+    except Exception as ex:  # broad exception because anything could go wrong
+        logger.exception(ex)
+        click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
+        sys.exit(2)
+    # pylint: enable=broad-except
+    imports = [info.name.split(".", 1)[0] for info in found_imports]
     return [r for r in imports if r in mod_names]
 
 
@@ -1290,23 +1298,32 @@ def list_cli(ctx):  # pragma: no cover
 @click.argument(
     "modules", required=False, nargs=-1, shell_complete=completion_for_install
 )
-@click.option("pyext", "--py", is_flag=True)
-@click.option("-r", "--requirement", type=click.Path(exists=True, dir_okay=False))
-@click.option("--auto/--no-auto", "-a/-A")
-@click.option("--auto-file", default="code.py")
+@click.option(
+    "pyext",
+    "--py",
+    is_flag=True,
+    help="Install the .py version of the module(s) instead of the mpy version.",
+)
+@click.option(
+    "-r",
+    "--requirement",
+    type=click.Path(exists=True, dir_okay=False),
+    help="specify a text file to install all modules listed in the text file."
+    " Typically requirements.txt.",
+)
+@click.option("--auto", "-a", help="Install the modules imported in code.py.")
+@click.option(
+    "--auto-file",
+    default=None,
+    help="Specify the name of a file on the board to read for auto install."
+    " Also accepts an absolute path or a local ./ path.",
+)
 @click.pass_context
 def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no cover
     """
     Install a named module(s) onto the device. Multiple modules
     can be installed at once by providing more than one module name, each
     separated by a space.
-
-    Option --py installs .py version of module(s).
-
-    Option -r allows specifying a text file to install all modules listed in
-    the text file.
-
-    Option -a installs based on the modules imported by code.py
     """
     # TODO: Ensure there's enough space on the device
     available_modules = get_bundle_versions(get_bundles_list())
@@ -1317,8 +1334,16 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
         with open(requirement, "r", encoding="utf-8") as rfile:
             requirements_txt = rfile.read()
         requested_installs = libraries_from_requirements(requirements_txt)
-    elif auto:
-        auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file)
+    elif auto or auto_file:
+        if auto_file is None:
+            auto_file = "code.py"
+        # pass a local file with "./" or "../"
+        is_relative = auto_file.split(os.sep)[0] in [os.path.curdir, os.path.pardir]
+        if not os.path.isabs(auto_file) and not is_relative:
+            auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file or "code.py")
+        if not os.path.isfile(auto_file):
+            click.secho(f"Auto file not found: {auto_file}", fg="red")
+            sys.exit(1)
         requested_installs = libraries_from_imports(auto_file, mod_names)
     else:
         requested_installs = modules

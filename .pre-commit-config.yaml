@@ -15,11 +15,12 @@ repos:
     -   id: pylint
         name: lint (code)
         types: [python]
-        exclude: "^(docs/|examples/|setup.py$)"
+        exclude: "^(docs/|examples/|setup.py$|tests/bad_python.py$)"
 -   repo: https://github.com/python/black
     rev: 22.3.0
     hooks:
-    - id: black
+    -   id: black
+        exclude: "^tests/bad_python.py$"
 -   repo: https://github.com/fsfe/reuse-tool
     rev: v0.14.0
     hooks:

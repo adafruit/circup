@@ -1030,3 +1030,12 @@ def test_libraries_from_imports():
         "adafruit_esp32spi",
         "adafruit_hid",
     ]
+
+
+def test_libraries_from_imports_bad():
+    """Ensure that we catch an import error"""
+    TEST_BUNDLE_MODULES = {"one.py": {}, "two.py": {}, "three.py": {}}
+    runner = CliRunner()
+    with mock.patch("circup.get_bundle_versions", return_value=TEST_BUNDLE_MODULES):
+        result = runner.invoke(circup.install, ["--auto-file", "./tests/bad_python.py"])
+    assert result.exit_code == 2

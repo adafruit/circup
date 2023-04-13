@@ -1311,7 +1311,9 @@ def list_cli(ctx):  # pragma: no cover
     help="specify a text file to install all modules listed in the text file."
     " Typically requirements.txt.",
 )
-@click.option("--auto", "-a", help="Install the modules imported in code.py.")
+@click.option(
+    "--auto", "-a", is_flag=True, help="Install the modules imported in code.py."
+)
 @click.option(
     "--auto-file",
     default=None,

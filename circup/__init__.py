@@ -426,13 +426,13 @@ def clean_library_name(assumed_library_name):
     not_standard_names = {
         # Assumed Name : Actual Name
         "adafruit_adafruitio": "adafruit_io",
+        "adafruit_asyncio": "asyncio",
         "adafruit_busdevice": "adafruit_bus_device",
         "adafruit_display_button": "adafruit_button",
         "adafruit_neopixel": "neopixel",
         "adafruit_sd": "adafruit_sdcard",
         "adafruit_simpleio": "simpleio",
         "pimoroni_ltr559": "pimoroni_circuitpython_ltr559",
-        "adafruit_asyncio": "asyncio",
     }
     if "circuitpython" in assumed_library_name:
         # convert repo or pypi name to common library name

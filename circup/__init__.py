@@ -426,6 +426,7 @@ def clean_library_name(assumed_library_name):
     not_standard_names = {
         # Assumed Name : Actual Name
         "adafruit_adafruitio": "adafruit_io",
+        "adafruit_asyncio": "asyncio",
         "adafruit_busdevice": "adafruit_bus_device",
         "adafruit_display_button": "adafruit_button",
         "adafruit_neopixel": "neopixel",

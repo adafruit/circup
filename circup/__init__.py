@@ -58,7 +58,7 @@ NOT_MCU_LIBRARIES = [
 #: The version of CircuitPython found on the connected device.
 CPY_VERSION = ""
 #: Module formats list (and the other form used in github files)
-PLATFORMS = {"py": "py", "7mpy": "7.x-mpy", "8mpy": "7.x-mpy"}
+PLATFORMS = {"py": "py", "8mpy": "8.x-mpy"}
 #: Commands that do not require an attached board
 BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 #: Version identifier for a bad MPY file format

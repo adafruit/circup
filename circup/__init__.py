@@ -1212,10 +1212,11 @@ def main(ctx, verbose, path, board_id, cpy_version):  # pragma: no cover
         click.secho("Could not find a connected CircuitPython device.", fg="red")
         sys.exit(1)
     else:
-        if board_id is not None and cpy_version is not None:
-            CPY_VERSION = cpy_version
-        else:
-            CPY_VERSION, board_id = get_circuitpython_version(device_path)
+        CPY_VERSION, board_id = (
+            get_circuitpython_version(device_path)
+            if board_id is None or cpy_version is None
+            else (cpy_version, board_id)
+        )
         click.echo(
             "Found device at {}, running CircuitPython {}.".format(
                 device_path, CPY_VERSION

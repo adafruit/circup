@@ -1160,14 +1160,14 @@ def tags_data_save_tag(key, tag):
 @click.option(
     "--board-id",
     default=None,
-    help="Manual Board ID of the CircuitPython device. If provided in combination "  \
-         "with --cpy-version, it overrides the detected board ID.",
+    help="Manual Board ID of the CircuitPython device. If provided in combination "
+    "with --cpy-version, it overrides the detected board ID.",
 )
 @click.option(
     "--cpy-version",
     default=None,
-    help="Manual CircuitPython version. If provided in combination " \
-         "with --board-id, it overrides the detected CPy version.",
+    help="Manual CircuitPython version. If provided in combination "
+    "with --board-id, it overrides the detected CPy version.",
 )
 @click.version_option(
     prog_name="CircUp",

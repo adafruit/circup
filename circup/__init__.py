@@ -1157,12 +1157,24 @@ def tags_data_save_tag(key, tag):
     type=click.Path(exists=True, file_okay=False),
     help="Path to CircuitPython directory. Overrides automatic path detection.",
 )
+@click.option(
+    "--board-id",
+    default=None,
+    help="Manual Board ID of the CircuitPython device. If provided in combination "
+    "with --cpy-version, it overrides the detected board ID.",
+)
+@click.option(
+    "--cpy-version",
+    default=None,
+    help="Manual CircuitPython version. If provided in combination "
+    "with --board-id, it overrides the detected CPy version.",
+)
 @click.version_option(
     prog_name="CircUp",
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )
 @click.pass_context
-def main(ctx, verbose, path):  # pragma: no cover
+def main(ctx, verbose, path, board_id, cpy_version):  # pragma: no cover
     """
     A tool to manage and update libraries on a CircuitPython device.
     """
@@ -1200,7 +1212,11 @@ def main(ctx, verbose, path):  # pragma: no cover
         click.secho("Could not find a connected CircuitPython device.", fg="red")
         sys.exit(1)
     else:
-        CPY_VERSION, board_id = get_circuitpython_version(device_path)
+        CPY_VERSION, board_id = (
+            get_circuitpython_version(device_path)
+            if board_id is None or cpy_version is None
+            else (cpy_version, board_id)
+        )
         click.echo(
             "Found device at {}, running CircuitPython {}.".format(
                 device_path, CPY_VERSION

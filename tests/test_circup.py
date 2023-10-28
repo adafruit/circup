@@ -96,10 +96,10 @@ def test_Bundle_lib_dir():
             "adafruit/adafruit-circuitpython-bundle-py/"
             "adafruit-circuitpython-bundle-py-TESTTAG/lib"
         )
-        assert bundle.lib_dir("7mpy") == (
+        assert bundle.lib_dir("8mpy") == (
             "DATA_DIR/"
-            "adafruit/adafruit-circuitpython-bundle-7mpy/"
-            "adafruit-circuitpython-bundle-7.x-mpy-TESTTAG/lib"
+            "adafruit/adafruit-circuitpython-bundle-8mpy/"
+            "adafruit-circuitpython-bundle-8.x-mpy-TESTTAG/lib"
         )
 
 
@@ -312,7 +312,7 @@ def test_Module_mpy_mismatch():
     """
     path = os.path.join("foo", "bar", "baz", "module.mpy")
     repo = "https://github.com/adafruit/SomeLibrary.git"
-    with mock.patch("circup.CPY_VERSION", "7.0.0"):
+    with mock.patch("circup.CPY_VERSION", "8.0.0"):
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         m1 = circup.Module(path, repo, "1.2.3", "1.2.3", True, bundle, (None, None))
         m2 = circup.Module(
@@ -328,7 +328,7 @@ def test_Module_mpy_mismatch():
         assert m2.outofdate is True
         assert m3.mpy_mismatch is False
         assert m3.outofdate is False
-    with mock.patch("circup.CPY_VERSION", "7.0.0"):
+    with mock.patch("circup.CPY_VERSION", "8.0.0"):
         assert m1.mpy_mismatch is False
         assert m1.outofdate is False
         assert m2.mpy_mismatch is False
@@ -366,7 +366,7 @@ def test_Module_row():
     path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     with mock.patch("circup.os.path.isfile", return_value=True), mock.patch(
-        "circup.CPY_VERSION", "7.0.0"
+        "circup.CPY_VERSION", "8.0.0"
     ):
         m = circup.Module(path, repo, "1.2.3", None, False, bundle, (None, None))
         assert m.row == ("module", "1.2.3", "unknown", "Major Version")
@@ -1030,3 +1030,12 @@ def test_libraries_from_imports():
         "adafruit_esp32spi",
         "adafruit_hid",
     ]
+
+
+def test_libraries_from_imports_bad():
+    """Ensure that we catch an import error"""
+    TEST_BUNDLE_MODULES = {"one.py": {}, "two.py": {}, "three.py": {}}
+    runner = CliRunner()
+    with mock.patch("circup.get_bundle_versions", return_value=TEST_BUNDLE_MODULES):
+        result = runner.invoke(circup.install, ["--auto-file", "./tests/bad_python.py"])
+    assert result.exit_code == 2

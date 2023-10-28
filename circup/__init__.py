@@ -1454,7 +1454,8 @@ def tags_data_save_tag(key, tag):
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )
 @click.pass_context
-def main(ctx, verbose, path, host, password,  board_id, cpy_version):  # pragma: no cover
+def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: no cover
+    # pylint: disable=too-many-arguments
     """
     A tool to manage and update libraries on a CircuitPython device.
     """

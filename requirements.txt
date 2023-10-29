@@ -37,7 +37,7 @@ pytz==2019.2
 readme-renderer==24.0
 requests==2.31.0
 requests-toolbelt==0.9.1
-semver==2.13.0
+semver==3.0.1
 six==1.12.0
 snowballstemmer==1.9.0
 Sphinx==2.2.0

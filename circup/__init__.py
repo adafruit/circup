@@ -58,7 +58,7 @@ NOT_MCU_LIBRARIES = [
 #: The version of CircuitPython found on the connected device.
 CPY_VERSION = ""
 #: Module formats list (and the other form used in github files)
-PLATFORMS = {"py": "py", "8mpy": "8.x-mpy"}
+PLATFORMS = {"py": "py", "8mpy": "8.x-mpy", "9mpy": "9.x-mpy"}
 #: Commands that do not require an attached board
 BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 #: Version identifier for a bad MPY file format
@@ -486,13 +486,12 @@ def ensure_latest_bundle(bundle):
             # See #20 for reason for this
             click.secho(
                 (
-                    "There was a problem downloading the bundle. "
-                    "Please try again in a moment."
+                    "There was a problem downloading that platform bundle. "
+                    "Skipping and using existing download if available."
                 ),
                 fg="red",
             )
             logger.exception(ex)
-            sys.exit(1)
     else:
         logger.info("Current bundle up to date %s.", tag)
 
@@ -691,8 +690,10 @@ def get_bundle(bundle, tag):
     :param Bundle bundle: the target Bundle object.
     :param str tag: The GIT tag to use to download the bundle.
     """
-    click.echo("Downloading latest version for {}.\n".format(bundle.key))
+    click.echo(f"Downloading latest bundles for {bundle.key} ({tag}).")
     for platform, github_string in PLATFORMS.items():
+        # Report the platform: "8.x-mpy", etc.
+        click.echo(f"{github_string}:")
         url = bundle.url_format.format(platform=github_string, tag=tag)
         logger.info("Downloading bundle: %s", url)
         r = requests.get(url, stream=True, timeout=REQUESTS_TIMEOUT)
@@ -703,9 +704,9 @@ def get_bundle(bundle, tag):
         # pylint: enable=no-member
         total_size = int(r.headers.get("Content-Length"))
         temp_zip = bundle.zip.format(platform=platform)
-        with click.progressbar(r.iter_content(1024), length=total_size) as pbar, open(
-            temp_zip, "wb"
-        ) as zip_fp:
+        with click.progressbar(
+            r.iter_content(1024), label="Extracting:", length=total_size
+        ) as pbar, open(temp_zip, "wb") as zip_fp:
             for chunk in pbar:
                 zip_fp.write(chunk)
                 pbar.update(len(chunk))

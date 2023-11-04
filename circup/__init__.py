@@ -917,7 +917,15 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
 
 def get_circup_dependencies(bundle, library):
     """
-    something
+    Get the list of circup dependencies from pyproject.toml
+    e.g.
+    [circup]
+    circup_dependencies = ["dependency_name_here"]
+
+    :param bundle: The Bundle to look within
+    :param library: The Library to find pyproject.toml for and get dependencies from
+
+    :return: The list of dependency libraries that were found
     """
     try:
         pyproj_toml = bundle.requirements_for(library, toml_file=True)

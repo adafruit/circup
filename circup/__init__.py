@@ -145,7 +145,6 @@ class Bundle:
             library_name,
             "requirements.txt" if not toml_file else "pyproject.toml",
         )
-        print(f"found_file: {found_file}")
         if os.path.isfile(found_file):
             with open(found_file, "r", encoding="utf-8") as read_this:
                 return read_this.read()

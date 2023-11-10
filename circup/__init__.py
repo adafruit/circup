@@ -48,6 +48,9 @@ BUNDLE_DATA = os.path.join(DATA_DIR, "circup.json")
 LOG_DIR = appdirs.user_log_dir(appname="circup", appauthor="adafruit")
 #: The location of the log file for the utility.
 LOGFILE = os.path.join(LOG_DIR, "circup.log")
+#: The localtion to store a local copy of code.py for use with --auto and
+#  web workflow
+LOCAL_CODE_PY_COPY = os.path.join(DATA_DIR, "code.tmp.py")
 #:  The libraries (and blank lines) which don't go on devices
 NOT_MCU_LIBRARIES = [
     "",
@@ -1323,7 +1326,7 @@ def _install_module_py(library_path, metadata):
 # pylint: enable=too-many-locals,too-many-branches
 
 
-def libraries_from_imports(code_py, mod_names):
+def libraries_from_imports(ctx, code_py, mod_names):
     """
     Parse the given code.py file and return the imported libraries
 
@@ -1331,6 +1334,17 @@ def libraries_from_imports(code_py, mod_names):
     :return: sequence of library names
     """
     # pylint: disable=broad-except
+    if ctx is not None:
+        using_webworkflow = "host" in ctx.parent.params.keys()
+        if using_webworkflow:
+            url = code_py
+            auth = HTTPBasicAuth("", ctx.parent.params["password"])
+            r = requests.get(url, auth=auth)
+            r.raise_for_status()
+            with open(LOCAL_CODE_PY_COPY, "w", encoding="utf-8") as f:
+                f.write(r.text)
+
+            code_py = LOCAL_CODE_PY_COPY
     try:
         found_imports = findimports.find_imports(code_py)
     except Exception as ex:  # broad exception because anything could go wrong
@@ -1654,6 +1668,7 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
     can be installed at once by providing more than one module name, each
     separated by a space.
     """
+    using_webworkflow = "host" in ctx.parent.params.keys()
     # TODO: Ensure there's enough space on the device
     available_modules = get_bundle_versions(get_bundles_list())
     mod_names = {}
@@ -1669,11 +1684,16 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
         # pass a local file with "./" or "../"
         is_relative = auto_file.split(os.sep)[0] in [os.path.curdir, os.path.pardir]
         if not os.path.isabs(auto_file) and not is_relative:
-            auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file or "code.py")
-        if not os.path.isfile(auto_file):
+            if not using_webworkflow:
+                auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file or "code.py")
+            else:
+                auto_file = os.path.join(
+                    ctx.obj["DEVICE_PATH"], "fs", auto_file or "code.py"
+                )
+        if not os.path.isfile(auto_file) and not using_webworkflow:
             click.secho(f"Auto file not found: {auto_file}", fg="red")
             sys.exit(1)
-        requested_installs = libraries_from_imports(auto_file, mod_names)
+        requested_installs = libraries_from_imports(ctx, auto_file, mod_names)
     else:
         requested_installs = modules
     requested_installs = sorted(set(requested_installs))

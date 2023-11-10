@@ -1022,7 +1022,7 @@ def test_libraries_from_imports():
         "adafruit_touchscreen",
     ]
     test_file = str(pathlib.Path(__file__).parent / "import_styles.py")
-    result = circup.libraries_from_imports(test_file, mod_names)
+    result = circup.libraries_from_imports(None, test_file, mod_names)
     print(result)
     assert result == [
         "adafruit_bus_device",

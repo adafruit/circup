@@ -26,7 +26,6 @@ import findimports
 import pkg_resources
 import requests
 import toml
-from semver import VersionInfo
 import update_checker
 from requests.auth import HTTPBasicAuth
 from semver import VersionInfo
@@ -891,7 +890,7 @@ def get_circuitpython_version(device_url):
     url = urlparse(device_url)
     if url.scheme == "http":
         return _get_circuitpython_version_http(device_url)
-    if url.scheme == "" or "file":
+    if url.scheme in ("", "file"):
         return _get_circuitpython_version_file(url.path)
 
     click.secho(f"Not supported URL scheme: {url.scheme}", fg="red")
@@ -1373,7 +1372,11 @@ def libraries_from_imports(ctx, code_py, mod_names):
     """
     # pylint: disable=broad-except
     if ctx is not None:
-        using_webworkflow = "host" in ctx.parent.params.keys() and ctx.parent.params['host'] is not None
+        using_webworkflow = (
+            ctx.parent is not None
+            and "host" in ctx.parent.params.keys()
+            and ctx.parent.params["host"] is not None
+        )
         if using_webworkflow:
             url = code_py
             auth = HTTPBasicAuth("", ctx.parent.params["password"])
@@ -1703,7 +1706,11 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
     can be installed at once by providing more than one module name, each
     separated by a space.
     """
-    using_webworkflow = "host" in ctx.parent.params.keys() and ctx.parent.params['host'] is not None
+    using_webworkflow = (
+        ctx.parent is not None
+        and "host" in ctx.parent.params.keys()
+        and ctx.parent.params["host"] is not None
+    )
     # TODO: Ensure there's enough space on the device
     available_modules = get_bundle_versions(get_bundles_list())
     mod_names = {}

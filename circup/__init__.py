@@ -25,6 +25,8 @@ import click
 import findimports
 import pkg_resources
 import requests
+import toml
+from semver import VersionInfo
 import update_checker
 from requests.auth import HTTPBasicAuth
 from semver import VersionInfo
@@ -64,7 +66,7 @@ NOT_MCU_LIBRARIES = [
 #: The version of CircuitPython found on the connected device.
 CPY_VERSION = ""
 #: Module formats list (and the other form used in github files)
-PLATFORMS = {"py": "py", "8mpy": "8.x-mpy"}
+PLATFORMS = {"py": "py", "8mpy": "8.x-mpy", "9mpy": "9.x-mpy"}
 #: Commands that do not require an attached board
 BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 #: Version identifier for a bad MPY file format
@@ -134,7 +136,7 @@ class Bundle:
             "lib",
         )
 
-    def requirements_for(self, library_name):
+    def requirements_for(self, library_name, toml_file=False):
         """
         The requirements file for this library.
 
@@ -143,15 +145,15 @@ class Bundle:
         """
         platform = "py"
         tag = self.current_tag
-        requirements_txt = os.path.join(
+        found_file = os.path.join(
             self.dir.format(platform=platform),
             self.basename.format(platform=PLATFORMS[platform], tag=tag),
             "requirements",
             library_name,
-            "requirements.txt",
+            "requirements.txt" if not toml_file else "pyproject.toml",
         )
-        if os.path.isfile(requirements_txt):
-            with open(requirements_txt, "r", encoding="utf-8") as read_this:
+        if os.path.isfile(found_file):
+            with open(found_file, "r", encoding="utf-8") as read_this:
                 return read_this.read()
         return None
 
@@ -570,13 +572,12 @@ def ensure_latest_bundle(bundle):
             # See #20 for reason for this
             click.secho(
                 (
-                    "There was a problem downloading the bundle. "
-                    "Please try again in a moment."
+                    "There was a problem downloading that platform bundle. "
+                    "Skipping and using existing download if available."
                 ),
                 fg="red",
             )
             logger.exception(ex)
-            sys.exit(1)
     else:
         logger.info("Current bundle up to date %s.", tag)
 
@@ -775,8 +776,10 @@ def get_bundle(bundle, tag):
     :param Bundle bundle: the target Bundle object.
     :param str tag: The GIT tag to use to download the bundle.
     """
-    click.echo("Downloading latest version for {}.\n".format(bundle.key))
+    click.echo(f"Downloading latest bundles for {bundle.key} ({tag}).")
     for platform, github_string in PLATFORMS.items():
+        # Report the platform: "8.x-mpy", etc.
+        click.echo(f"{github_string}:")
         url = bundle.url_format.format(platform=github_string, tag=tag)
         logger.info("Downloading bundle: %s", url)
         r = requests.get(url, stream=True, timeout=REQUESTS_TIMEOUT)
@@ -787,9 +790,9 @@ def get_bundle(bundle, tag):
         # pylint: enable=no-member
         total_size = int(r.headers.get("Content-Length"))
         temp_zip = bundle.zip.format(platform=platform)
-        with click.progressbar(r.iter_content(1024), length=total_size) as pbar, open(
-            temp_zip, "wb"
-        ) as zip_fp:
+        with click.progressbar(
+            r.iter_content(1024), label="Extracting:", length=total_size
+        ) as pbar, open(temp_zip, "wb") as zip_fp:
             for chunk in pbar:
                 zip_fp.write(chunk)
                 pbar.update(len(chunk))
@@ -1023,12 +1026,47 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
                 _requested_libraries.extend(
                     libraries_from_requirements(requirements_txt)
                 )
+
+            circup_dependencies = get_circup_dependencies(bundle, library)
+            for circup_dependency in circup_dependencies:
+                _requested_libraries.append(circup_dependency)
+
         # we've processed this library, remove it from the list
         _requested_libraries.remove(library)
 
         return get_dependencies(
             tuple(_requested_libraries), mod_names=mod_names, to_install=_to_install
         )
+
+
+def get_circup_dependencies(bundle, library):
+    """
+    Get the list of circup dependencies from pyproject.toml
+    e.g.
+    [circup]
+    circup_dependencies = ["dependency_name_here"]
+
+    :param bundle: The Bundle to look within
+    :param library: The Library to find pyproject.toml for and get dependencies from
+
+    :return: The list of dependency libraries that were found
+    """
+    try:
+        pyproj_toml = bundle.requirements_for(library, toml_file=True)
+        if pyproj_toml:
+            pyproj_toml_data = toml.loads(pyproj_toml)
+            dependencies = pyproj_toml_data["circup"]["circup_dependencies"]
+            if isinstance(dependencies, list):
+                return dependencies
+
+            if isinstance(dependencies, str):
+                return (dependencies,)
+
+        return tuple()
+
+    except KeyError:
+        # no circup_dependencies in pyproject.toml
+        return tuple()
 
 
 def get_device_versions(device_url):

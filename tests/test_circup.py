@@ -858,7 +858,7 @@ def test_ensure_latest_bundle_to_update():
 def test_ensure_latest_bundle_to_update_http_error():
     """
     If an HTTP error happens during a bundle update, print a friendly
-    error message and exit 1.
+    error message, and use existing bundle.
     """
     tags_data = {TEST_BUNDLE_NAME: "12345"}
     with mock.patch("circup.Bundle.latest_tag", "54321"), mock.patch(
@@ -872,9 +872,7 @@ def test_ensure_latest_bundle_to_update_http_error():
         "circup.json"
     ) as mock_json, mock.patch(
         "circup.click.secho"
-    ) as mock_click, mock.patch(
-        "circup.sys.exit"
-    ) as mock_exit:
+    ) as mock_click:
         circup.Bundle.tags_data = dict()
         mock_json.load.return_value = tags_data
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
@@ -882,7 +880,6 @@ def test_ensure_latest_bundle_to_update_http_error():
         mock_gb.assert_called_once_with(bundle, "54321")
         assert mock_json.dump.call_count == 0  # not saved.
         assert mock_click.call_count == 1  # friendly message.
-        mock_exit.assert_called_once_with(1)  # exit 1.
 
 
 def test_ensure_latest_bundle_no_update():

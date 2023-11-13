@@ -888,7 +888,7 @@ def get_circuitpython_version(device_url):
     url = urlparse(device_url)
     if url.scheme == "http":
         return _get_circuitpython_version_http(device_url)
-    if url.scheme == "":
+    if url.scheme == "" or "file":
         return _get_circuitpython_version_file(url.path)
 
     click.secho(f"Not supported URL scheme: {url.scheme}", fg="red")

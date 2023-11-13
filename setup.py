@@ -28,6 +28,7 @@ install_requires = [
     "appdirs>=1.4.3",
     "requests>=2.22.0",
     "findimports>=2.1.0",
+    "toml>=0.10.2",
     # importlib_metadata is only available for 3.7, and is not needed for 3.8 and up.
     "importlib_metadata; python_version == '3.7'",
     "update_checker",

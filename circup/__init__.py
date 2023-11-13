@@ -22,6 +22,7 @@ import click
 import findimports
 import pkg_resources
 import requests
+import toml
 from semver import VersionInfo
 import update_checker
 
@@ -128,7 +129,7 @@ class Bundle:
             "lib",
         )
 
-    def requirements_for(self, library_name):
+    def requirements_for(self, library_name, toml_file=False):
         """
         The requirements file for this library.
 
@@ -137,15 +138,15 @@ class Bundle:
         """
         platform = "py"
         tag = self.current_tag
-        requirements_txt = os.path.join(
+        found_file = os.path.join(
             self.dir.format(platform=platform),
             self.basename.format(platform=PLATFORMS[platform], tag=tag),
             "requirements",
             library_name,
-            "requirements.txt",
+            "requirements.txt" if not toml_file else "pyproject.toml",
         )
-        if os.path.isfile(requirements_txt):
-            with open(requirements_txt, "r", encoding="utf-8") as read_this:
+        if os.path.isfile(found_file):
+            with open(found_file, "r", encoding="utf-8") as read_this:
                 return read_this.read()
         return None
 
@@ -901,12 +902,47 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
                 _requested_libraries.extend(
                     libraries_from_requirements(requirements_txt)
                 )
+
+            circup_dependencies = get_circup_dependencies(bundle, library)
+            for circup_dependency in circup_dependencies:
+                _requested_libraries.append(circup_dependency)
+
         # we've processed this library, remove it from the list
         _requested_libraries.remove(library)
 
         return get_dependencies(
             tuple(_requested_libraries), mod_names=mod_names, to_install=_to_install
         )
+
+
+def get_circup_dependencies(bundle, library):
+    """
+    Get the list of circup dependencies from pyproject.toml
+    e.g.
+    [circup]
+    circup_dependencies = ["dependency_name_here"]
+
+    :param bundle: The Bundle to look within
+    :param library: The Library to find pyproject.toml for and get dependencies from
+
+    :return: The list of dependency libraries that were found
+    """
+    try:
+        pyproj_toml = bundle.requirements_for(library, toml_file=True)
+        if pyproj_toml:
+            pyproj_toml_data = toml.loads(pyproj_toml)
+            dependencies = pyproj_toml_data["circup"]["circup_dependencies"]
+            if isinstance(dependencies, list):
+                return dependencies
+
+            if isinstance(dependencies, str):
+                return (dependencies,)
+
+        return tuple()
+
+    except KeyError:
+        # no circup_dependencies in pyproject.toml
+        return tuple()
 
 
 def get_device_versions(device_path):

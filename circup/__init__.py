@@ -1373,7 +1373,7 @@ def libraries_from_imports(ctx, code_py, mod_names):
     """
     # pylint: disable=broad-except
     if ctx is not None:
-        using_webworkflow = "host" in ctx.parent.params.keys()
+        using_webworkflow = "host" in ctx.parent.params.keys() and ctx.parent.params['host'] is not None
         if using_webworkflow:
             url = code_py
             auth = HTTPBasicAuth("", ctx.parent.params["password"])
@@ -1596,9 +1596,6 @@ def get_device_path(host, password, path):
         device_path = f"http://:{password}@" + host
     else:
         device_path = find_device()
-        if device_path is not None:
-            device_path = "file:///" + device_path
-
     return device_path
 
 
@@ -1706,7 +1703,7 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
     can be installed at once by providing more than one module name, each
     separated by a space.
     """
-    using_webworkflow = "host" in ctx.parent.params.keys()
+    using_webworkflow = "host" in ctx.parent.params.keys() and ctx.parent.params['host'] is not None
     # TODO: Ensure there's enough space on the device
     available_modules = get_bundle_versions(get_bundles_list())
     mod_names = {}

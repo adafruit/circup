@@ -452,47 +452,567 @@ class Module:
         )
 
 
-def install_file_http(source, target):
-    """
-    Install file to device using web workflow.
-    :param source source file.
-    :param target destination URL. Should have password embedded.
-    """
-    url = urlparse(target)
-    auth = HTTPBasicAuth("", url.password)
+class WebBackend:
+    def __init__(self):
+        pass
 
-    with open(source, "rb") as fp:
-        r = requests.put(target, fp.read(), auth=auth)
-        r.raise_for_status()
+    def install_file_http(self, source, target):
+        """
+        Install file to device using web workflow.
+        :param source source file.
+        :param target destination URL. Should have password embedded.
+        """
+        url = urlparse(target)
+        auth = HTTPBasicAuth("", url.password)
 
-
-def install_dir_http(source, target):
-    """
-    Install directory to device using web workflow.
-    :param source source directory.
-    :param target destination URL. Should have password embedded.
-    """
-    url = urlparse(target)
-    auth = HTTPBasicAuth("", url.password)
-
-    # Create the top level directory.
-    r = requests.put(target + "/", auth=auth)
-    r.raise_for_status()
-
-    # Traverse the directory structure and create the directories/files.
-    for root, dirs, files in os.walk(source):
-        rel_path = os.path.relpath(root, source)
-        if rel_path == ".":
-            rel_path = ""
-        for name in files:
-            with open(os.path.join(root, name), "rb") as fp:
-                r = requests.put(target + rel_path + "/" + name, fp.read(), auth=auth)
-                r.raise_for_status()
-        for name in dirs:
-            r = requests.put(target + rel_path + "/" + name, auth=auth)
+        with open(source, "rb") as fp:
+            r = requests.put(target, fp.read(), auth=auth)
             r.raise_for_status()
 
+    def install_dir_http(self, source, target):
+        """
+        Install directory to device using web workflow.
+        :param source source directory.
+        :param target destination URL. Should have password embedded.
+        """
+        url = urlparse(target)
+        auth = HTTPBasicAuth("", url.password)
 
+        # Create the top level directory.
+        r = requests.put(target + "/", auth=auth)
+        r.raise_for_status()
+
+        # Traverse the directory structure and create the directories/files.
+        for root, dirs, files in os.walk(source):
+            rel_path = os.path.relpath(root, source)
+            if rel_path == ".":
+                rel_path = ""
+            for name in files:
+                with open(os.path.join(root, name), "rb") as fp:
+                    r = requests.put(target + rel_path + "/" + name, fp.read(), auth=auth)
+                    r.raise_for_status()
+            for name in dirs:
+                r = requests.put(target + rel_path + "/" + name, auth=auth)
+                r.raise_for_status()
+
+    def get_circuitpython_version(self, device_url):
+        """
+        Returns the version number of CircuitPython running on the board connected
+        via ``device_path``, along with the board ID.
+
+        :param str device_url: http based device URL.
+        :return: A tuple with the version string for CircuitPython and the board ID string.
+        """
+        url = urlparse(device_url)
+        return self._get_circuitpython_version_http(device_url)
+
+    def _get_circuitpython_version(self, url):
+        """
+        Returns the version number of CircuitPython running on the board connected
+        via ``device_path``, along with the board ID. This is obtained using
+        RESTful API from the /cp/version.json URL.
+
+        :param str url: board URL.
+        :return: A tuple with the version string for CircuitPython and the board ID string.
+        """
+        r = requests.get(url + "/cp/version.json")
+        # pylint: disable=no-member
+        if r.status_code != requests.codes.ok:
+            click.secho(f"  Unable to get version from {url}: {r.status_code}", fg="red")
+            sys.exit(1)
+        # pylint: enable=no-member
+        ver_json = r.json()
+        return ver_json.get("version"), ver_json.get("board_id")
+
+    def get_device_versions(self, device_url):
+        """
+        Returns a dictionary of metadata from modules on the connected device.
+
+        :param str device_url: URL for the device.
+        :return: A dictionary of metadata about the modules available on the
+                 connected device.
+        """
+        url = urlparse(device_url)
+        return self.get_modules(device_url + "/fs/lib/")
+
+    def get_modules(self, device_url):
+        """
+        Get a dictionary containing metadata about all the Python modules found in
+        the referenced path.
+
+        :param str device_url: URL to be used to find modules.
+        :return: A dictionary containing metadata about the found modules.
+        """
+        url = urlparse(device_url)
+        return self._get_modules_http(device_url)
+
+    def _get_modules_http(self, url):
+        """
+        Get a dictionary containing metadata about all the Python modules found using
+        the referenced URL.
+
+        :param str url: URL for the modules.
+        :return: A dictionary containing metadata about the found modules.
+        """
+        result = {}
+        u = urlparse(url)
+        auth = HTTPBasicAuth("", u.password)
+        r = requests.get(url, auth=auth, headers={"Accept": "application/json"})
+        r.raise_for_status()
+
+        directory_mods = []
+        single_file_mods = []
+        for entry in r.json():
+            entry_name = entry.get("name")
+            if entry.get("directory"):
+                directory_mods.append(entry_name)
+            else:
+                if entry_name.endswith(".py") or entry_name.endswith(".mpy"):
+                    single_file_mods.append(entry_name)
+
+        self._get_modules_http_single_mods(auth, result, single_file_mods, url)
+        self._get_modules_http_dir_mods(auth, directory_mods, result, url)
+
+        return result
+
+    def _get_modules_http_dir_mods(self, auth, directory_mods, result, url):
+        """
+        #TODO describe what this does
+
+        :param auth HTTP authentication.
+        :param directory_mods list of modules.
+        :param result dictionary for the result.
+        :param url: URL of the device.
+        """
+        for dm in directory_mods:
+            dm_url = url + dm + "/"
+            r = requests.get(dm_url, auth=auth, headers={"Accept": "application/json"})
+            r.raise_for_status()
+            mpy = False
+            for entry in r.json():
+                entry_name = entry.get("name")
+                if not entry.get("directory") and (
+                        entry_name.endswith(".py") or entry_name.endswith(".mpy")
+                ):
+                    if entry_name.endswith(".mpy"):
+                        mpy = True
+                    r = requests.get(dm_url + entry_name, auth=auth)
+                    r.raise_for_status()
+                    idx = entry_name.rfind(".")
+                    with tempfile.NamedTemporaryFile(
+                            prefix=entry_name[:idx] + "-", suffix=entry_name[idx:], delete=False
+                    ) as fp:
+                        fp.write(r.content)
+                        tmp_name = fp.name
+                    metadata = extract_metadata(tmp_name)
+                    os.remove(tmp_name)
+                    if "__version__" in metadata:
+                        metadata["path"] = dm_url
+                        result[dm] = metadata
+                        # break now if any of the submodules has a bad format
+                        if metadata["__version__"] == BAD_FILE_FORMAT:
+                            break
+
+            if result.get(dm) is None:
+                result[dm] = {"path": dm_url, "mpy": mpy}
+
+    def _get_modules_http_single_mods(self, auth, result, single_file_mods, url):
+        """
+        :param auth HTTP authentication.
+        :param single_file_mods list of modules.
+        :param result dictionary for the result.
+        :param url: URL of the device.
+        """
+        for sfm in single_file_mods:
+            sfm_url = url + sfm
+            r = requests.get(sfm_url, auth=auth)
+            r.raise_for_status()
+            idx = sfm.rfind(".")
+            with tempfile.NamedTemporaryFile(
+                    prefix=sfm[:idx] + "-", suffix=sfm[idx:], delete=False
+            ) as fp:
+                fp.write(r.content)
+                tmp_name = fp.name
+            metadata = extract_metadata(tmp_name)
+            os.remove(tmp_name)
+            metadata["path"] = sfm_url
+            result[sfm[:idx]] = metadata
+
+    # pylint: disable=too-many-locals,too-many-branches
+    def install_module(
+            self, device_path, device_modules, name, pyext, mod_names
+    ):  # pragma: no cover
+        """
+        Finds a connected device and installs a given module name if it
+        is available in the current module bundle and is not already
+        installed on the device.
+        TODO: There is currently no check for the version.
+
+        :param str device_path: The path to the connected board.
+        :param list(dict) device_modules: List of module metadata from the device.
+        :param str name: Name of module to install
+        :param bool pyext: Boolean to specify if the module should be installed from
+                        source or from a pre-compiled module
+        :param mod_names: Dictionary of metadata from modules that can be generated
+                           with get_bundle_versions()
+        """
+        if not name:
+            click.echo("No module name(s) provided.")
+        elif name in mod_names:
+            # Grab device modules to check if module already installed
+            if name in device_modules:
+                click.echo("'{}' is already installed.".format(name))
+                return
+
+            # Create the library directory first.
+            url = urlparse(device_path)
+
+            library_path = device_path + "/fs/lib/"
+            auth = HTTPBasicAuth("", url.password)
+            r = requests.put(library_path, auth=auth)
+            r.raise_for_status()
+
+            metadata = mod_names[name]
+            bundle = metadata["bundle"]
+            if pyext:
+                # Use Python source for module.
+                _install_module_py(library_path, metadata)
+            else:
+                # Use pre-compiled mpy modules.
+                self._install_module_mpy(bundle, library_path, metadata)
+            click.echo("Installed '{}'.".format(name))
+        else:
+            click.echo("Unknown module named, '{}'.".format(name))
+
+    def _install_module_mpy(self, bundle, library_path, metadata):
+        """
+        :param bundle library bundle.
+        :param library_path library path
+        :param metadata dictionary.
+        """
+        url = urlparse(library_path)
+        module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
+        if not module_name:
+            # Must be a directory based module.
+            module_name = os.path.basename(os.path.dirname(metadata["path"]))
+        major_version = CPY_VERSION.split(".")[0]
+        bundle_platform = "{}mpy".format(major_version)
+        bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
+        if os.path.isdir(bundle_path):
+
+            self.install_dir_http(bundle_path, library_path + module_name)
+
+        elif os.path.isfile(bundle_path):
+            target = os.path.basename(bundle_path)
+
+            self.install_file_http(bundle_path, library_path + target)
+
+        else:
+            raise IOError("Cannot find compiled version of module.")
+
+    # pylint: enable=too-many-locals,too-many-branches
+    def _install_module_py(self, library_path, metadata):
+        """
+        :param library_path library path
+        :param metadata dictionary.
+        """
+        url = urlparse(library_path)
+        source_path = metadata["path"]  # Path to Python source version.
+        if os.path.isdir(source_path):
+            target = os.path.basename(os.path.dirname(source_path))
+
+            self.install_dir_http(source_path, library_path + target)
+
+        else:
+            target = os.path.basename(source_path)
+            self.install_file_http(source_path, library_path + target)
+
+    def libraries_from_imports(self, ctx, code_py, mod_names):
+        """
+        Parse the given code.py file and return the imported libraries
+
+        :param str code_py: Full path of the code.py file
+        :return: sequence of library names
+        """
+        # pylint: disable=broad-except
+
+
+        url = code_py
+        auth = HTTPBasicAuth("", ctx.parent.params["password"])
+        r = requests.get(url, auth=auth)
+        r.raise_for_status()
+        with open(LOCAL_CODE_PY_COPY, "w", encoding="utf-8") as f:
+            f.write(r.text)
+
+        code_py = LOCAL_CODE_PY_COPY
+        
+        try:
+            found_imports = findimports.find_imports(code_py)
+        except Exception as ex:  # broad exception because anything could go wrong
+            logger.exception(ex)
+            click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
+            sys.exit(2)
+        # pylint: enable=broad-except
+        imports = [info.name.split(".", 1)[0] for info in found_imports]
+        return [r for r in imports if r in mod_names]
+
+    def _uninstall(self, device_path, module_path):
+        """
+        Uninstall given module on device using REST API.
+        """
+        url = urlparse(device_path)
+        auth = HTTPBasicAuth("", url.password)
+        r = requests.delete(module_path, auth=auth)
+        r.raise_for_status()
+
+class USBBackend:
+    def __init__(self):
+        pass
+    
+    
+    def get_circuitpython_version(self, device_url):
+        """
+        Returns the version number of CircuitPython running on the board connected
+        via ``device_path``, along with the board ID.
+
+        :param str device_url: device URL. filepath to the device
+        :return: A tuple with the version string for CircuitPython and the board ID string.
+        """
+        url = urlparse(device_url)
+        return self._get_circuitpython_version_file(url.path)
+
+    def _get_circuitpython_version_file(self, device_path):
+        """
+        Returns the version number of CircuitPython running on the board connected
+        via ``device_path``, along with the board ID. This is obtained from the
+        ``boot_out.txt`` file on the device, whose first line will start with
+        something like this::
+
+            Adafruit CircuitPython 4.1.0 on 2019-08-02;
+
+        While the second line is::
+
+            Board ID:raspberry_pi_pico
+
+        :param str device_path: The path to the connected board.
+        :return: A tuple with the version string for CircuitPython and the board ID string.
+        """
+
+        try:
+            with open(
+                    os.path.join(device_path, "boot_out.txt"), "r", encoding="utf-8"
+            ) as boot:
+                version_line = boot.readline()
+                circuit_python = version_line.split(";")[0].split(" ")[-3]
+                board_line = boot.readline()
+                if board_line.startswith("Board ID:"):
+                    board_id = board_line[9:].strip()
+                else:
+                    board_id = ""
+        except FileNotFoundError:
+            click.secho(
+                "Missing file boot_out.txt on the device: wrong path or drive corrupted.",
+                fg="red",
+            )
+            logger.error("boot_out.txt not found.")
+            sys.exit(1)
+
+        return circuit_python, board_id
+
+    def get_device_versions(self, device_url):
+        """
+        Returns a dictionary of metadata from modules on the connected device.
+
+        :param str device_url: URL for the device.
+        :return: A dictionary of metadata about the modules available on the
+                 connected device.
+        """
+        url = urlparse(device_url)
+        return self.get_modules(os.path.join(url.path, "lib"))
+
+    def get_modules(self, device_url):
+        """
+        Get a dictionary containing metadata about all the Python modules found in
+        the referenced path.
+
+        :param str device_url: URL to be used to find modules.
+        :return: A dictionary containing metadata about the found modules.
+        """
+        url = urlparse(device_url)
+        return self._get_modules_file(device_url)
+
+    def _get_modules_file(self, path):
+        """
+        Get a dictionary containing metadata about all the Python modules found in
+        the referenced file system path.
+
+        :param str path: The directory in which to find modules.
+        :return: A dictionary containing metadata about the found modules.
+        """
+        result = {}
+        if not path:
+            return result
+        single_file_py_mods = glob.glob(os.path.join(path, "*.py"))
+        single_file_mpy_mods = glob.glob(os.path.join(path, "*.mpy"))
+        package_dir_mods = [
+            d
+            for d in glob.glob(os.path.join(path, "*", ""))
+            if not os.path.basename(os.path.normpath(d)).startswith(".")
+        ]
+        single_file_mods = single_file_py_mods + single_file_mpy_mods
+        for sfm in [f for f in single_file_mods if not os.path.basename(f).startswith(".")]:
+            metadata = extract_metadata(sfm)
+            metadata["path"] = sfm
+            result[os.path.basename(sfm).replace(".py", "").replace(".mpy", "")] = metadata
+        for package_path in package_dir_mods:
+            name = os.path.basename(os.path.dirname(package_path))
+            py_files = glob.glob(os.path.join(package_path, "**/*.py"), recursive=True)
+            mpy_files = glob.glob(os.path.join(package_path, "**/*.mpy"), recursive=True)
+            all_files = py_files + mpy_files
+            # default value
+            result[name] = {"path": package_path, "mpy": bool(mpy_files)}
+            # explore all the submodules to detect bad ones
+            for source in [f for f in all_files if not os.path.basename(f).startswith(".")]:
+                metadata = extract_metadata(source)
+                if "__version__" in metadata:
+                    metadata["path"] = package_path
+                    result[name] = metadata
+                    # break now if any of the submodules has a bad format
+                    if metadata["__version__"] == BAD_FILE_FORMAT:
+                        break
+        return result
+
+    # pylint: disable=too-many-locals,too-many-branches
+    def install_module(
+            self, device_path, device_modules, name, pyext, mod_names
+    ):  # pragma: no cover
+        """
+        Finds a connected device and installs a given module name if it
+        is available in the current module bundle and is not already
+        installed on the device.
+        TODO: There is currently no check for the version.
+
+        :param str device_path: The path to the connected board.
+        :param list(dict) device_modules: List of module metadata from the device.
+        :param str name: Name of module to install
+        :param bool pyext: Boolean to specify if the module should be installed from
+                        source or from a pre-compiled module
+        :param mod_names: Dictionary of metadata from modules that can be generated
+                           with get_bundle_versions()
+        """
+        if not name:
+            click.echo("No module name(s) provided.")
+        elif name in mod_names:
+            # Grab device modules to check if module already installed
+            if name in device_modules:
+                click.echo("'{}' is already installed.".format(name))
+                return
+
+            # Create the library directory first.
+            url = urlparse(device_path)
+
+            library_path = os.path.join(device_path, "lib")
+            if not os.path.exists(library_path):  # pragma: no cover
+                os.makedirs(library_path)
+
+            metadata = mod_names[name]
+            bundle = metadata["bundle"]
+            if pyext:
+                # Use Python source for module.
+                _install_module_py(library_path, metadata)
+            else:
+                # Use pre-compiled mpy modules.
+                _install_module_mpy(bundle, library_path, metadata)
+            click.echo("Installed '{}'.".format(name))
+        else:
+            click.echo("Unknown module named, '{}'.".format(name))
+
+    def _install_module_mpy(self, bundle, library_path, metadata):
+        """
+        :param bundle library bundle.
+        :param library_path library path
+        :param metadata dictionary.
+        """
+        url = urlparse(library_path)
+        module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
+        if not module_name:
+            # Must be a directory based module.
+            module_name = os.path.basename(os.path.dirname(metadata["path"]))
+        major_version = CPY_VERSION.split(".")[0]
+        bundle_platform = "{}mpy".format(major_version)
+        bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
+        if os.path.isdir(bundle_path):
+            target_path = os.path.join(library_path, module_name)
+            # Copy the directory.
+            shutil.copytree(bundle_path, target_path)
+        elif os.path.isfile(bundle_path):
+            target = os.path.basename(bundle_path)
+            target_path = os.path.join(library_path, target)
+            # Copy file.
+            shutil.copyfile(bundle_path, target_path)
+        else:
+            raise IOError("Cannot find compiled version of module.")
+
+    # pylint: enable=too-many-locals,too-many-branches
+    def _install_module_py(self, library_path, metadata):
+        """
+        :param library_path library path
+        :param metadata dictionary.
+        """
+        url = urlparse(library_path)
+        source_path = metadata["path"]  # Path to Python source version.
+        if os.path.isdir(source_path):
+            target = os.path.basename(os.path.dirname(source_path))
+            target_path = os.path.join(library_path, target)
+            # Copy the directory.
+            shutil.copytree(source_path, target_path)
+        else:
+            target = os.path.basename(source_path)
+            target_path = os.path.join(library_path, target)
+            # Copy file.
+            shutil.copyfile(source_path, target_path)
+
+    def libraries_from_imports(ctx, code_py, mod_names):
+        """
+        Parse the given code.py file and return the imported libraries
+
+        :param str code_py: Full path of the code.py file
+        :return: sequence of library names
+        """
+        # pylint: disable=broad-except
+
+        # using_webworkflow = (
+        #         ctx.parent is not None
+        #         and "host" in ctx.parent.params.keys()
+        #         and ctx.parent.params["host"] is not None
+        # )
+
+        try:
+            found_imports = findimports.find_imports(code_py)
+        except Exception as ex:  # broad exception because anything could go wrong
+            logger.exception(ex)
+            click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
+            sys.exit(2)
+        # pylint: enable=broad-except
+        imports = [info.name.split(".", 1)[0] for info in found_imports]
+        return [r for r in imports if r in mod_names]
+
+    def _uninstall(device_path, module_path):
+        """
+        Uninstall module using local file system.
+        """
+        library_path = os.path.join(device_path, "lib")
+        if os.path.isdir(module_path):
+            target = os.path.basename(os.path.dirname(module_path))
+            target_path = os.path.join(library_path, target)
+            # Remove the directory.
+            shutil.rmtree(target_path)
+        else:
+            target = os.path.basename(module_path)
+            target_path = os.path.join(library_path, target)
+            # Remove file
+            os.remove(target_path)
+    
 def clean_library_name(assumed_library_name):
     """
     Most CP repos and library names are look like this:
@@ -583,7 +1103,7 @@ def ensure_latest_bundle(bundle):
 
 def extract_metadata(path):
     """
-    Given an file path, return a dictionary containing metadata extracted from
+    Given a file path, return a dictionary containing metadata extracted from
     dunder attributes found therein. Works with both .py and .mpy files.
 
     For Python source files, such metadata assignments should be simple and
@@ -734,7 +1254,7 @@ def find_modules(device_url, bundles_list):
     """
     # pylint: disable=broad-except,too-many-locals
     try:
-        device_modules = get_device_versions(device_url)
+        device_modules = backend.get_device_versions(device_url)
         bundle_modules = get_bundle_versions(bundles_list)
         result = []
         for name, device_metadata in device_modules.items():
@@ -879,82 +1399,6 @@ def get_bundles_list():
     return bundles_list
 
 
-def get_circuitpython_version(device_url):
-    """
-    Returns the version number of CircuitPython running on the board connected
-    via ``device_path``, along with the board ID.
-
-    :param str device_url: device URL. Can be either file or http based.
-    :return: A tuple with the version string for CircuitPython and the board ID string.
-    """
-    url = urlparse(device_url)
-    if url.scheme == "http":
-        return _get_circuitpython_version_http(device_url)
-    if url.scheme in ("", "file"):
-        return _get_circuitpython_version_file(url.path)
-
-    click.secho(f"Not supported URL scheme: {url.scheme}", fg="red")
-    sys.exit(1)
-
-
-def _get_circuitpython_version_http(url):
-    """
-    Returns the version number of CircuitPython running on the board connected
-    via ``device_path``, along with the board ID. This is obtained using
-    RESTful API from the /cp/version.json URL.
-
-    :param str url: board URL.
-    :return: A tuple with the version string for CircuitPython and the board ID string.
-    """
-    r = requests.get(url + "/cp/version.json")
-    # pylint: disable=no-member
-    if r.status_code != requests.codes.ok:
-        click.secho(f"  Unable to get version from {url}: {r.status_code}", fg="red")
-        sys.exit(1)
-    # pylint: enable=no-member
-    ver_json = r.json()
-    return ver_json.get("version"), ver_json.get("board_id")
-
-
-def _get_circuitpython_version_file(device_path):
-    """
-    Returns the version number of CircuitPython running on the board connected
-    via ``device_path``, along with the board ID. This is obtained from the
-    ``boot_out.txt`` file on the device, whose first line will start with
-    something like this::
-
-        Adafruit CircuitPython 4.1.0 on 2019-08-02;
-
-    While the second line is::
-
-        Board ID:raspberry_pi_pico
-
-    :param str device_path: The path to the connected board.
-    :return: A tuple with the version string for CircuitPython and the board ID string.
-    """
-
-    try:
-        with open(
-            os.path.join(device_path, "boot_out.txt"), "r", encoding="utf-8"
-        ) as boot:
-            version_line = boot.readline()
-            circuit_python = version_line.split(";")[0].split(" ")[-3]
-            board_line = boot.readline()
-            if board_line.startswith("Board ID:"):
-                board_id = board_line[9:].strip()
-            else:
-                board_id = ""
-    except FileNotFoundError:
-        click.secho(
-            "Missing file boot_out.txt on the device: wrong path or drive corrupted.",
-            fg="red",
-        )
-        logger.error("boot_out.txt not found.")
-        sys.exit(1)
-
-    return circuit_python, board_id
-
-
 def get_circup_version():
     """Return the version of circup that is running. If not available, return None.
 
@@ -975,7 +1419,8 @@ def get_circup_version():
 
 def get_dependencies(*requested_libraries, mod_names, to_install=()):
     """
-    Return a list of other CircuitPython libraries
+    Return a list of other CircuitPython libraries required by the given list
+    of libraries
 
     :param tuple requested_libraries: The libraries to search for dependencies
     :param object mod_names:  All the modules metadata from bundle
@@ -1068,36 +1513,6 @@ def get_circup_dependencies(bundle, library):
         return tuple()
 
 
-def get_device_versions(device_url):
-    """
-    Returns a dictionary of metadata from modules on the connected device.
-
-    :param str device_url: URL for the device.
-    :return: A dictionary of metadata about the modules available on the
-             connected device.
-    """
-    url = urlparse(device_url)
-    if url.scheme == "http":
-        return get_modules(device_url + "/fs/lib/")
-
-    return get_modules(os.path.join(url.path, "lib"))
-
-
-def get_modules(device_url):
-    """
-    Get a dictionary containing metadata about all the Python modules found in
-    the referenced path.
-
-    :param str device_url: URL to be used to find modules.
-    :return: A dictionary containing metadata about the found modules.
-    """
-    url = urlparse(device_url)
-    if url.scheme == "http":
-        return _get_modules_http(device_url)
-
-    return _get_modules_file(device_url)
-
-
 def get_latest_release_from_url(url):
     """
     Find the tag name of the latest release by using HTTP HEAD and decoding the redirect.
@@ -1114,287 +1529,6 @@ def get_latest_release_from_url(url):
     tag = responseurl.rsplit("/", 1)[-1]
     logger.info("Tag: '%s'", tag)
     return tag
-
-
-def _get_modules_http(url):
-    """
-    Get a dictionary containing metadata about all the Python modules found using
-    the referenced URL.
-
-    :param str url: URL for the modules.
-    :return: A dictionary containing metadata about the found modules.
-    """
-    result = {}
-    u = urlparse(url)
-    auth = HTTPBasicAuth("", u.password)
-    r = requests.get(url, auth=auth, headers={"Accept": "application/json"})
-    r.raise_for_status()
-
-    directory_mods = []
-    single_file_mods = []
-    for entry in r.json():
-        entry_name = entry.get("name")
-        if entry.get("directory"):
-            directory_mods.append(entry_name)
-        else:
-            if entry_name.endswith(".py") or entry_name.endswith(".mpy"):
-                single_file_mods.append(entry_name)
-
-    _get_modules_http_single_mods(auth, result, single_file_mods, url)
-    _get_modules_http_dir_mods(auth, directory_mods, result, url)
-
-    return result
-
-
-def _get_modules_http_dir_mods(auth, directory_mods, result, url):
-    """
-    :param auth HTTP authentication.
-    :param directory_mods list of modules.
-    :param result dictionary for the result.
-    :param url: URL of the device.
-    """
-    for dm in directory_mods:
-        dm_url = url + dm + "/"
-        r = requests.get(dm_url, auth=auth, headers={"Accept": "application/json"})
-        r.raise_for_status()
-        mpy = False
-        for entry in r.json():
-            entry_name = entry.get("name")
-            if not entry.get("directory") and (
-                entry_name.endswith(".py") or entry_name.endswith(".mpy")
-            ):
-                if entry_name.endswith(".mpy"):
-                    mpy = True
-                r = requests.get(dm_url + entry_name, auth=auth)
-                r.raise_for_status()
-                idx = entry_name.rfind(".")
-                with tempfile.NamedTemporaryFile(
-                    prefix=entry_name[:idx] + "-", suffix=entry_name[idx:], delete=False
-                ) as fp:
-                    fp.write(r.content)
-                    tmp_name = fp.name
-                metadata = extract_metadata(tmp_name)
-                os.remove(tmp_name)
-                if "__version__" in metadata:
-                    metadata["path"] = dm_url
-                    result[dm] = metadata
-                    # break now if any of the submodules has a bad format
-                    if metadata["__version__"] == BAD_FILE_FORMAT:
-                        break
-
-        if result.get(dm) is None:
-            result[dm] = {"path": dm_url, "mpy": mpy}
-
-
-def _get_modules_http_single_mods(auth, result, single_file_mods, url):
-    """
-    :param auth HTTP authentication.
-    :param single_file_mods list of modules.
-    :param result dictionary for the result.
-    :param url: URL of the device.
-    """
-    for sfm in single_file_mods:
-        sfm_url = url + sfm
-        r = requests.get(sfm_url, auth=auth)
-        r.raise_for_status()
-        idx = sfm.rfind(".")
-        with tempfile.NamedTemporaryFile(
-            prefix=sfm[:idx] + "-", suffix=sfm[idx:], delete=False
-        ) as fp:
-            fp.write(r.content)
-            tmp_name = fp.name
-        metadata = extract_metadata(tmp_name)
-        os.remove(tmp_name)
-        metadata["path"] = sfm_url
-        result[sfm[:idx]] = metadata
-
-
-def _get_modules_file(path):
-    """
-    Get a dictionary containing metadata about all the Python modules found in
-    the referenced file system path.
-
-    :param str path: The directory in which to find modules.
-    :return: A dictionary containing metadata about the found modules.
-    """
-    result = {}
-    if not path:
-        return result
-    single_file_py_mods = glob.glob(os.path.join(path, "*.py"))
-    single_file_mpy_mods = glob.glob(os.path.join(path, "*.mpy"))
-    package_dir_mods = [
-        d
-        for d in glob.glob(os.path.join(path, "*", ""))
-        if not os.path.basename(os.path.normpath(d)).startswith(".")
-    ]
-    single_file_mods = single_file_py_mods + single_file_mpy_mods
-    for sfm in [f for f in single_file_mods if not os.path.basename(f).startswith(".")]:
-        metadata = extract_metadata(sfm)
-        metadata["path"] = sfm
-        result[os.path.basename(sfm).replace(".py", "").replace(".mpy", "")] = metadata
-    for package_path in package_dir_mods:
-        name = os.path.basename(os.path.dirname(package_path))
-        py_files = glob.glob(os.path.join(package_path, "**/*.py"), recursive=True)
-        mpy_files = glob.glob(os.path.join(package_path, "**/*.mpy"), recursive=True)
-        all_files = py_files + mpy_files
-        # default value
-        result[name] = {"path": package_path, "mpy": bool(mpy_files)}
-        # explore all the submodules to detect bad ones
-        for source in [f for f in all_files if not os.path.basename(f).startswith(".")]:
-            metadata = extract_metadata(source)
-            if "__version__" in metadata:
-                metadata["path"] = package_path
-                result[name] = metadata
-                # break now if any of the submodules has a bad format
-                if metadata["__version__"] == BAD_FILE_FORMAT:
-                    break
-    return result
-
-
-# pylint: disable=too-many-locals,too-many-branches
-def install_module(
-    device_path, device_modules, name, pyext, mod_names
-):  # pragma: no cover
-    """
-    Finds a connected device and installs a given module name if it
-    is available in the current module bundle and is not already
-    installed on the device.
-    TODO: There is currently no check for the version.
-
-    :param str device_path: The path to the connected board.
-    :param list(dict) device_modules: List of module metadata from the device.
-    :param str name: Name of module to install
-    :param bool pyext: Boolean to specify if the module should be installed from
-                    source or from a pre-compiled module
-    :param mod_names: Dictionary of metadata from modules that can be generated
-                       with get_bundle_versions()
-    """
-    if not name:
-        click.echo("No module name(s) provided.")
-    elif name in mod_names:
-        # Grab device modules to check if module already installed
-        if name in device_modules:
-            click.echo("'{}' is already installed.".format(name))
-            return
-
-        # Create the library directory first.
-        url = urlparse(device_path)
-        if url.scheme == "http":
-            library_path = device_path + "/fs/lib/"
-            auth = HTTPBasicAuth("", url.password)
-            r = requests.put(library_path, auth=auth)
-            r.raise_for_status()
-        else:
-            library_path = os.path.join(device_path, "lib")
-            if not os.path.exists(library_path):  # pragma: no cover
-                os.makedirs(library_path)
-
-        metadata = mod_names[name]
-        bundle = metadata["bundle"]
-        if pyext:
-            # Use Python source for module.
-            _install_module_py(library_path, metadata)
-        else:
-            # Use pre-compiled mpy modules.
-            _install_module_mpy(bundle, library_path, metadata)
-        click.echo("Installed '{}'.".format(name))
-    else:
-        click.echo("Unknown module named, '{}'.".format(name))
-
-
-def _install_module_mpy(bundle, library_path, metadata):
-    """
-    :param bundle library bundle.
-    :param library_path library path
-    :param metadata dictionary.
-    """
-    url = urlparse(library_path)
-    module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
-    if not module_name:
-        # Must be a directory based module.
-        module_name = os.path.basename(os.path.dirname(metadata["path"]))
-    major_version = CPY_VERSION.split(".")[0]
-    bundle_platform = "{}mpy".format(major_version)
-    bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
-    if os.path.isdir(bundle_path):
-        if url.scheme == "http":
-            install_dir_http(bundle_path, library_path + module_name)
-        else:
-            target_path = os.path.join(library_path, module_name)
-            # Copy the directory.
-            shutil.copytree(bundle_path, target_path)
-    elif os.path.isfile(bundle_path):
-        target = os.path.basename(bundle_path)
-        if url.scheme == "http":
-            install_file_http(bundle_path, library_path + target)
-        else:
-            target_path = os.path.join(library_path, target)
-            # Copy file.
-            shutil.copyfile(bundle_path, target_path)
-    else:
-        raise IOError("Cannot find compiled version of module.")
-
-
-def _install_module_py(library_path, metadata):
-    """
-    :param library_path library path
-    :param metadata dictionary.
-    """
-    url = urlparse(library_path)
-    source_path = metadata["path"]  # Path to Python source version.
-    if os.path.isdir(source_path):
-        target = os.path.basename(os.path.dirname(source_path))
-        if url.scheme == "http":
-            install_dir_http(source_path, library_path + target)
-        else:
-            target_path = os.path.join(library_path, target)
-            # Copy the directory.
-            shutil.copytree(source_path, target_path)
-    else:
-        target = os.path.basename(source_path)
-        if url.scheme == "http":
-            install_file_http(source_path, library_path + target)
-        else:
-            target_path = os.path.join(library_path, target)
-            # Copy file.
-            shutil.copyfile(source_path, target_path)
-
-
-# pylint: enable=too-many-locals,too-many-branches
-
-
-def libraries_from_imports(ctx, code_py, mod_names):
-    """
-    Parse the given code.py file and return the imported libraries
-
-    :param str code_py: Full path of the code.py file
-    :return: sequence of library names
-    """
-    # pylint: disable=broad-except
-    if ctx is not None:
-        using_webworkflow = (
-            ctx.parent is not None
-            and "host" in ctx.parent.params.keys()
-            and ctx.parent.params["host"] is not None
-        )
-        if using_webworkflow:
-            url = code_py
-            auth = HTTPBasicAuth("", ctx.parent.params["password"])
-            r = requests.get(url, auth=auth)
-            r.raise_for_status()
-            with open(LOCAL_CODE_PY_COPY, "w", encoding="utf-8") as f:
-                f.write(r.text)
-
-            code_py = LOCAL_CODE_PY_COPY
-    try:
-        found_imports = findimports.find_imports(code_py)
-    except Exception as ex:  # broad exception because anything could go wrong
-        logger.exception(ex)
-        click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
-        sys.exit(2)
-    # pylint: enable=broad-except
-    imports = [info.name.split(".", 1)[0] for info in found_imports]
-    return [r for r in imports if r in mod_names]
 
 
 def libraries_from_requirements(requirements):
@@ -1515,6 +1649,7 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
     A tool to manage and update libraries on a CircuitPython device.
     """
     ctx.ensure_object(dict)
+    
     if verbose:
         # Configure additional logging to stdout.
         global VERBOSE
@@ -1795,41 +1930,14 @@ def uninstall(ctx, module):  # pragma: no cover
             metadata = mod_names[name]
             module_path = metadata["path"]
             url = urlparse(device_path)
-            if url.scheme == "http":
-                _uninstall_http(device_path, module_path)
-            else:
-                _uninstall_file(device_path, module_path)
+            backend._uninstall(device_path, module_path)
+            # if url.scheme == "http":
+            #     _uninstall_http(device_path, module_path)
+            # else:
+            #     _uninstall_file(device_path, module_path)
             click.echo("Uninstalled '{}'.".format(name))
         else:
             click.echo("Module '{}' not found on device.".format(name))
-
-
-def _uninstall_http(device_path, module_path):
-    """
-    Uninstall given module on device using REST API.
-    """
-    url = urlparse(device_path)
-    auth = HTTPBasicAuth("", url.password)
-    r = requests.delete(module_path, auth=auth)
-    r.raise_for_status()
-
-
-def _uninstall_file(device_path, module_path):
-    """
-    Uninstall module using local file system.
-    """
-    library_path = os.path.join(device_path, "lib")
-    if os.path.isdir(module_path):
-        target = os.path.basename(os.path.dirname(module_path))
-        target_path = os.path.join(library_path, target)
-        # Remove the directory.
-        shutil.rmtree(target_path)
-    else:
-        target = os.path.basename(module_path)
-        target_path = os.path.join(library_path, target)
-        # Remove file
-        os.remove(target_path)
-
 
 # pylint: disable=too-many-branches
 

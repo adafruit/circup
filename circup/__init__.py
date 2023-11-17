@@ -1871,7 +1871,7 @@ def update(ctx, update_all):  # pragma: no cover
                         module.device_version, module.bundle_version
                     )
                 )
-            if isinstance(module.bundle_version, str) and not VersionInfo.isvalid(
+            if isinstance(module.bundle_version, str) and not VersionInfo.is_valid(
                 module.bundle_version
             ):
                 click.secho(

@@ -676,7 +676,7 @@ class WebBackend:
             bundle = metadata["bundle"]
             if pyext:
                 # Use Python source for module.
-                _install_module_py(library_path, metadata)
+                self._install_module_py(library_path, metadata)
             else:
                 # Use pre-compiled mpy modules.
                 self._install_module_mpy(bundle, library_path, metadata)
@@ -919,10 +919,10 @@ class USBBackend:
             bundle = metadata["bundle"]
             if pyext:
                 # Use Python source for module.
-                _install_module_py(library_path, metadata)
+                self._install_module_py(library_path, metadata)
             else:
                 # Use pre-compiled mpy modules.
-                _install_module_mpy(bundle, library_path, metadata)
+                self._install_module_mpy(bundle, library_path, metadata)
             click.echo("Installed '{}'.".format(name))
         else:
             click.echo("Unknown module named, '{}'.".format(name))
@@ -1650,6 +1650,18 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
     """
     ctx.ensure_object(dict)
     
+    using_webworkflow = (
+        ctx.parent is not None
+        and "host" in ctx.parent.params.keys()
+        and ctx.parent.params["host"] is not None
+    )
+    
+    ctx.obj["using_webworkflow"] = using_webworkflow
+    if using_webworkflow:
+        ctx.obj["backend"] = WebBackend()
+    else:
+        ctx.obj["backend"] = USBBackend()
+
     if verbose:
         # Configure additional logging to stdout.
         global VERBOSE
@@ -1682,7 +1694,7 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
         sys.exit(1)
     else:
         CPY_VERSION, board_id = (
-            get_circuitpython_version(device_path)
+            ctx.obj["backend"].get_circuitpython_version(device_path)
             if board_id is None or cpy_version is None
             else (cpy_version, board_id)
         )
@@ -1841,11 +1853,11 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
     can be installed at once by providing more than one module name, each
     separated by a space.
     """
-    using_webworkflow = (
-        ctx.parent is not None
-        and "host" in ctx.parent.params.keys()
-        and ctx.parent.params["host"] is not None
-    )
+    # using_webworkflow = (
+    #     ctx.parent is not None
+    #     and "host" in ctx.parent.params.keys()
+    #     and ctx.parent.params["host"] is not None
+    # )
     # TODO: Ensure there's enough space on the device
     available_modules = get_bundle_versions(get_bundles_list())
     mod_names = {}
@@ -1861,27 +1873,27 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
         # pass a local file with "./" or "../"
         is_relative = auto_file.split(os.sep)[0] in [os.path.curdir, os.path.pardir]
         if not os.path.isabs(auto_file) and not is_relative:
-            if not using_webworkflow:
+            if not ctx.obj["using_webworkflow"]:
                 auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file or "code.py")
             else:
                 auto_file = os.path.join(
                     ctx.obj["DEVICE_PATH"], "fs", auto_file or "code.py"
                 )
-        if not os.path.isfile(auto_file) and not using_webworkflow:
+        if not os.path.isfile(auto_file) and not ctx.obj["using_webworkflow"]:
             click.secho(f"Auto file not found: {auto_file}", fg="red")
             sys.exit(1)
-        requested_installs = libraries_from_imports(ctx, auto_file, mod_names)
+        requested_installs = ctx.obj["backend"].libraries_from_imports(ctx, auto_file, mod_names)
     else:
         requested_installs = modules
     requested_installs = sorted(set(requested_installs))
     click.echo(f"Searching for dependencies for: {requested_installs}")
     to_install = get_dependencies(requested_installs, mod_names=mod_names)
-    device_modules = get_device_versions(ctx.obj["DEVICE_PATH"])
+    device_modules = ctx.obj["backend"].get_device_versions(ctx.obj["DEVICE_PATH"])
     if to_install is not None:
         to_install = sorted(to_install)
         click.echo(f"Ready to install: {to_install}\n")
         for library in to_install:
-            install_module(
+            ctx.obj["backend"].install_module(
                 ctx.obj["DEVICE_PATH"], device_modules, library, pyext, mod_names
             )
 
@@ -1921,7 +1933,7 @@ def uninstall(ctx, module):  # pragma: no cover
     """
     device_path = ctx.obj["DEVICE_PATH"]
     for name in module:
-        device_modules = get_device_versions(device_path)
+        device_modules = ctx.obj["backend"].get_device_versions(device_path)
         name = name.lower()
         mod_names = {}
         for module_item, metadata in device_modules.items():
@@ -1930,7 +1942,7 @@ def uninstall(ctx, module):  # pragma: no cover
             metadata = mod_names[name]
             module_path = metadata["path"]
             url = urlparse(device_path)
-            backend._uninstall(device_path, module_path)
+            ctx.obj["backend"]._uninstall(device_path, module_path)
             # if url.scheme == "http":
             #     _uninstall_http(device_path, module_path)
             # else:

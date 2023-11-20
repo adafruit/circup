@@ -972,12 +972,6 @@ class USBBackend:
         """
         # pylint: disable=broad-except
 
-        # using_webworkflow = (
-        #         ctx.parent is not None
-        #         and "host" in ctx.parent.params.keys()
-        #         and ctx.parent.params["host"] is not None
-        # )
-
         try:
             found_imports = findimports.find_imports(code_py)
         except Exception as ex:  # broad exception because anything could go wrong
@@ -1345,7 +1339,7 @@ def get_bundle_versions(bundles_list, avoid_download=False):
     of the library bundle. Uses the Python version (rather than the compiled
     version) of the library modules.
 
-    :param Bundle bundles_list: List of supported bundles as Bundle objects.
+    :param List[Bundle] bundles_list: List of supported bundles as Bundle objects.
     :param bool avoid_download: if True, download the bundle only if missing.
     :return: A dictionary of metadata about the modules available in the
              library bundle.
@@ -1743,7 +1737,7 @@ def get_device_path(host, password, path):
     :return device URL or None if the device cannot be found.
     """
     if path:
-        device_path = "file:///" + path
+        device_path = path
     elif host:
         if password is None:
             click.secho("--host needs --password", fg="red")
@@ -1871,11 +1865,7 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
     can be installed at once by providing more than one module name, each
     separated by a space.
     """
-    # using_webworkflow = (
-    #     ctx.parent is not None
-    #     and "host" in ctx.parent.params.keys()
-    #     and ctx.parent.params["host"] is not None
-    # )
+
     # TODO: Ensure there's enough space on the device
     available_modules = get_bundle_versions(get_bundles_list())
     mod_names = {}

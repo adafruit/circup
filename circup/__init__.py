@@ -442,7 +442,9 @@ class WebBackend:
         auth = HTTPBasicAuth("", url.password)
 
         # Create the top level directory.
+        print(f'target: {target + "/"}')
         r = requests.put(target + "/", auth=auth)
+        print(f"status: {r.status_code}")
         r.raise_for_status()
 
         # Traverse the directory structure and create the directories/files.
@@ -742,6 +744,7 @@ class WebBackend:
         """
         Update the module using web workflow.
         """
+        print(module.bundle_path)
         if module.file:
             # Copy the file (will overwrite).
             self.install_file_http(module.bundle_path, module.path)
@@ -749,9 +752,11 @@ class WebBackend:
             # Delete the directory (recursive) first.
             url = urlparse(module.path)
             auth = HTTPBasicAuth("", url.password)
-            r = requests.delete(module.path, auth=auth)
-            r.raise_for_status()
 
+            r = requests.delete(module.path, auth=auth)
+            
+            r.raise_for_status()
+            print(module.path)
             self.install_dir_http(module.bundle_path, module.path)
 
 
@@ -1659,9 +1664,8 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
     ctx.ensure_object(dict)
 
     using_webworkflow = (
-        ctx.parent is not None
-        and "host" in ctx.parent.params.keys()
-        and ctx.parent.params["host"] is not None
+        "host" in ctx.params.keys()
+        and ctx.params["host"] is not None
     )
 
     ctx.obj["using_webworkflow"] = using_webworkflow

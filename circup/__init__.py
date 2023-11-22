@@ -410,12 +410,164 @@ class Module:
         )
 
 
-class WebBackend:
+class Backend:
+    """
+    Backend parent class to be extended for workflow specific
+    implementations
+    """
+
+    def __init__(self):
+        self.LIB_DIR_PATH = None
+
+    def _get_circuitpython_version(self, device_location):
+        """
+        To be overridden by subclass
+        """
+        raise NotImplementedError
+
+    def get_circuitpython_version(self, device_location):
+        """
+        Returns the version number of CircuitPython running on the board connected
+        via ``device_url``, along with the board ID.
+
+        :param str device_location: http based device URL or local file path.
+        :return: A tuple with the version string for CircuitPython and the board ID string.
+        """
+        return self._get_circuitpython_version(device_location)
+
+    def _get_modules(self, device_lib_path):
+        """
+        To be overridden by subclass
+        """
+        raise NotImplementedError
+
+    def get_modules(self, device_url):
+        """
+        Get a dictionary containing metadata about all the Python modules found in
+        the referenced path.
+
+        :param str device_url: URL to be used to find modules.
+        :return: A dictionary containing metadata about the found modules.
+        """
+        return self._get_modules(device_url)
+
+    def get_device_versions(self, device_url):
+        """
+        Returns a dictionary of metadata from modules on the connected device.
+
+        :param str device_url: URL for the device.
+        :return: A dictionary of metadata about the modules available on the
+                 connected device.
+        """
+        # url = urlparse(device_url)
+        return self.get_modules(os.path.join(device_url, self.LIB_DIR_PATH))
+
+    def _create_library_directory(self, device_path, library_path):
+        """
+        To be overridden by subclass
+        """
+        raise NotImplementedError
+
+    def _install_module_py(self, library_path, metadata):
+        """
+        To be overridden by subclass
+        """
+        raise NotImplementedError
+
+    def _install_module_mpy(self, bundle, library_path, metadata):
+        """
+        To be overridden by subclass
+        """
+        raise NotImplementedError
+
+    # pylint: disable=too-many-locals,too-many-branches,too-many-arguments
+    def install_module(
+        self, device_path, device_modules, name, pyext, mod_names
+    ):  # pragma: no cover
+        """
+        Finds a connected device and installs a given module name if it
+        is available in the current module bundle and is not already
+        installed on the device.
+        TODO: There is currently no check for the version.
+
+        :param str device_path: The path to the connected board.
+        :param list(dict) device_modules: List of module metadata from the device.
+        :param str name: Name of module to install
+        :param bool pyext: Boolean to specify if the module should be installed from
+                        source or from a pre-compiled module
+        :param mod_names: Dictionary of metadata from modules that can be generated
+                           with get_bundle_versions()
+        """
+        if not name:
+            click.echo("No module name(s) provided.")
+        elif name in mod_names:
+            # Grab device modules to check if module already installed
+            if name in device_modules:
+                click.echo("'{}' is already installed.".format(name))
+                return
+
+            library_path = os.path.join(device_path, self.LIB_DIR_PATH)
+
+            # Create the library directory first.
+            self._create_library_directory(device_path, library_path)
+
+            metadata = mod_names[name]
+            bundle = metadata["bundle"]
+            if pyext:
+                # Use Python source for module.
+                self._install_module_py(library_path, metadata)
+            else:
+                # Use pre-compiled mpy modules.
+                self._install_module_mpy(bundle, library_path, metadata)
+            click.echo("Installed '{}'.".format(name))
+        else:
+            click.echo("Unknown module named, '{}'.".format(name))
+
+    def libraries_from_imports(self, code_py, mod_names):
+        """
+        To be overridden by subclass
+        """
+        raise NotImplementedError
+
+    def uninstall(self, device_path, module_path):
+        """
+        To be overridden by subclass
+        """
+        raise NotImplementedError
+
+    def update(self, module):
+        """
+        To be overridden by subclass
+        """
+        raise NotImplementedError
+
+    def libraries_from_code_py(self, code_py, mod_names):
+        """
+        Parse the given code.py file and return the imported libraries
+
+        :param str code_py: Full path of the code.py file
+        :return: sequence of library names
+        """
+        # pylint: disable=broad-except
+        try:
+            found_imports = findimports.find_imports(code_py)
+        except Exception as ex:  # broad exception because anything could go wrong
+            logger.exception(ex)
+            click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
+            sys.exit(2)
+        # pylint: enable=broad-except
+        imports = [info.name.split(".", 1)[0] for info in found_imports]
+        return [r for r in imports if r in mod_names]
+
+
+class WebBackend(Backend):
     """
     Backend for interacting with a device via Web Workflow
     """
 
     def __init__(self, host, password):
+        super().__init__()
+        self.LIB_DIR_PATH = "fs/lib/"
         self.host = host
         self.password = password
 
@@ -460,16 +612,6 @@ class WebBackend:
                 r = requests.put(target + rel_path + "/" + name, auth=auth)
                 r.raise_for_status()
 
-    def get_circuitpython_version(self, device_url):
-        """
-        Returns the version number of CircuitPython running on the board connected
-        via ``device_url``, along with the board ID.
-
-        :param str device_url: http based device URL.
-        :return: A tuple with the version string for CircuitPython and the board ID string.
-        """
-        return self._get_circuitpython_version(device_url)
-
     def _get_circuitpython_version(self, url):
         """
         Returns the version number of CircuitPython running on the board connected
@@ -479,6 +621,7 @@ class WebBackend:
         :param str url: board URL.
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
+        # pylint: disable=arguments-renamed
         r = requests.get(url + "/cp/version.json")
         # pylint: disable=no-member
         if r.status_code != requests.codes.ok:
@@ -490,25 +633,8 @@ class WebBackend:
         ver_json = r.json()
         return ver_json.get("version"), ver_json.get("board_id")
 
-    def get_device_versions(self, device_url):
-        """
-        Returns a dictionary of metadata from modules on the connected device.
-
-        :param str device_url: URL for the device.
-        :return: A dictionary of metadata about the modules available on the
-                 connected device.
-        """
-        return self.get_modules(device_url + "/fs/lib/")
-
-    def get_modules(self, device_url):
-        """
-        Get a dictionary containing metadata about all the Python modules found in
-        the referenced path.
-
-        :param str device_url: URL to be used to find modules.
-        :return: A dictionary containing metadata about the found modules.
-        """
-        return self._get_modules_http(device_url)
+    def _get_modules(self, device_lib_path):
+        return self._get_modules_http(device_lib_path)
 
     def _get_modules_http(self, url):
         """
@@ -604,51 +730,11 @@ class WebBackend:
             metadata["path"] = sfm_url
             result[sfm[:idx]] = metadata
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-arguments
-    def install_module(
-        self, device_path, device_modules, name, pyext, mod_names
-    ):  # pragma: no cover
-        """
-        Finds a connected device and installs a given module name if it
-        is available in the current module bundle and is not already
-        installed on the device.
-        TODO: There is currently no check for the version.
-
-        :param str device_path: The path to the connected board.
-        :param list(dict) device_modules: List of module metadata from the device.
-        :param str name: Name of module to install
-        :param bool pyext: Boolean to specify if the module should be installed from
-                        source or from a pre-compiled module
-        :param mod_names: Dictionary of metadata from modules that can be generated
-                           with get_bundle_versions()
-        """
-        if not name:
-            click.echo("No module name(s) provided.")
-        elif name in mod_names:
-            # Grab device modules to check if module already installed
-            if name in device_modules:
-                click.echo("'{}' is already installed.".format(name))
-                return
-
-            # Create the library directory first.
-            url = urlparse(device_path)
-
-            library_path = device_path + "/fs/lib/"
-            auth = HTTPBasicAuth("", url.password)
-            r = requests.put(library_path, auth=auth)
-            r.raise_for_status()
-
-            metadata = mod_names[name]
-            bundle = metadata["bundle"]
-            if pyext:
-                # Use Python source for module.
-                self._install_module_py(library_path, metadata)
-            else:
-                # Use pre-compiled mpy modules.
-                self._install_module_mpy(bundle, library_path, metadata)
-            click.echo("Installed '{}'.".format(name))
-        else:
-            click.echo("Unknown module named, '{}'.".format(name))
+    def _create_library_directory(self, device_path, library_path):
+        url = urlparse(device_path)
+        auth = HTTPBasicAuth("", url.password)
+        r = requests.put(library_path, auth=auth)
+        r.raise_for_status()
 
     def _install_module_mpy(self, bundle, library_path, metadata):
         """
@@ -697,26 +783,15 @@ class WebBackend:
         :param str code_py: Full path of the code.py file
         :return: sequence of library names
         """
-        # pylint: disable=broad-except
-
         url = code_py
         auth = HTTPBasicAuth("", self.password)
         r = requests.get(url, auth=auth)
         r.raise_for_status()
         with open(LOCAL_CODE_PY_COPY, "w", encoding="utf-8") as f:
             f.write(r.text)
-
         code_py = LOCAL_CODE_PY_COPY
 
-        try:
-            found_imports = findimports.find_imports(code_py)
-        except Exception as ex:  # broad exception because anything could go wrong
-            logger.exception(ex)
-            click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
-            sys.exit(2)
-        # pylint: enable=broad-except
-        imports = [info.name.split(".", 1)[0] for info in found_imports]
-        return [r for r in imports if r in mod_names]
+        return self.libraries_from_code_py(code_py, mod_names)
 
     def uninstall(self, device_path, module_path):
         """
@@ -734,9 +809,7 @@ class WebBackend:
 
         The caller is expected to handle any exceptions raised.
         """
-        url = urlparse(module.path)
-        if url.scheme == "http":
-            self._update_http(module)
+        self._update_http(module)
 
     def _update_http(self, module):
         """
@@ -752,17 +825,6 @@ class WebBackend:
             r = requests.delete(module.path, auth=auth)
             r.raise_for_status()
             self.install_dir_http(module.bundle_path, module.path)
-
-
-def get_modules(device_url):
-    """
-    Get a dictionary containing metadata about all the Python modules found in
-    the referenced path.
-
-    :param str device_url: URL to be used to find modules.
-    :return: A dictionary containing metadata about the found modules.
-    """
-    return _get_modules_file(device_url)
 
 
 def _get_modules_file(path):
@@ -807,26 +869,16 @@ def _get_modules_file(path):
     return result
 
 
-class USBBackend:
+class USBBackend(Backend):
     """
     Backend for interacting with a device via USB Workflow
     """
 
     def __init__(self):
-        pass
+        self.LIB_DIR_PATH = "lib"
+        super().__init__()
 
-    def get_circuitpython_version(self, device_url):
-        """
-        Returns the version number of CircuitPython running on the board connected
-        via ``device_path``, along with the board ID.
-
-        :param str device_url: device URL. filepath to the device
-        :return: A tuple with the version string for CircuitPython and the board ID string.
-        """
-        url = urlparse(device_url)
-        return self._get_circuitpython_version_file(url.path)
-
-    def _get_circuitpython_version_file(self, device_path):
+    def _get_circuitpython_version(self, device_location):
         """
         Returns the version number of CircuitPython running on the board connected
         via ``device_path``, along with the board ID. This is obtained from the
@@ -842,7 +894,7 @@ class USBBackend:
         :param str device_path: The path to the connected board.
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
-
+        device_path = urlparse(device_location).path
         try:
             with open(
                 os.path.join(device_path, "boot_out.txt"), "r", encoding="utf-8"
@@ -864,59 +916,19 @@ class USBBackend:
 
         return circuit_python, board_id
 
-    def get_device_versions(self, device_url):
+    def _get_modules(self, device_lib_path):
         """
-        Returns a dictionary of metadata from modules on the connected device.
+        Get a dictionary containing metadata about all the Python modules found in
+        the referenced path.
 
-        :param str device_url: URL for the device.
-        :return: A dictionary of metadata about the modules available on the
-                 connected device.
+        :param str device_lib_path: URL to be used to find modules.
+        :return: A dictionary containing metadata about the found modules.
         """
-        url = urlparse(device_url)
-        return get_modules(os.path.join(url.path, "lib"))
+        return _get_modules_file(device_lib_path)
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-arguments
-    def install_module(
-        self, device_path, device_modules, name, pyext, mod_names
-    ):  # pragma: no cover
-        """
-        Finds a connected device and installs a given module name if it
-        is available in the current module bundle and is not already
-        installed on the device.
-        TODO: There is currently no check for the version.
-
-        :param str device_path: The path to the connected board.
-        :param list(dict) device_modules: List of module metadata from the device.
-        :param str name: Name of module to install
-        :param bool pyext: Boolean to specify if the module should be installed from
-                        source or from a pre-compiled module
-        :param mod_names: Dictionary of metadata from modules that can be generated
-                           with get_bundle_versions()
-        """
-        if not name:
-            click.echo("No module name(s) provided.")
-        elif name in mod_names:
-            # Grab device modules to check if module already installed
-            if name in device_modules:
-                click.echo("'{}' is already installed.".format(name))
-                return
-
-            # Create the library directory first.
-            library_path = os.path.join(device_path, "lib")
-            if not os.path.exists(library_path):  # pragma: no cover
-                os.makedirs(library_path)
-
-            metadata = mod_names[name]
-            bundle = metadata["bundle"]
-            if pyext:
-                # Use Python source for module.
-                self._install_module_py(library_path, metadata)
-            else:
-                # Use pre-compiled mpy modules.
-                self._install_module_mpy(bundle, library_path, metadata)
-            click.echo("Installed '{}'.".format(name))
-        else:
-            click.echo("Unknown module named, '{}'.".format(name))
+    def _create_library_directory(self, device_path, library_path):
+        if not os.path.exists(library_path):  # pragma: no cover
+            os.makedirs(library_path)
 
     def _install_module_mpy(self, bundle, library_path, metadata):
         """
@@ -969,17 +981,7 @@ class USBBackend:
         :param str code_py: Full path of the code.py file
         :return: sequence of library names
         """
-        # pylint: disable=broad-except
-
-        try:
-            found_imports = findimports.find_imports(code_py)
-        except Exception as ex:  # broad exception because anything could go wrong
-            logger.exception(ex)
-            click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
-            sys.exit(2)
-        # pylint: enable=broad-except
-        imports = [info.name.split(".", 1)[0] for info in found_imports]
-        return [r for r in imports if r in mod_names]
+        return self.libraries_from_code_py(code_py, mod_names)
 
     def uninstall(self, device_path, module_path):
         """

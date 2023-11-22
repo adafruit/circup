@@ -1657,10 +1657,7 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
     """
     ctx.ensure_object(dict)
 
-    using_webworkflow = (
-        "host" in ctx.params.keys()
-        and ctx.params["host"] is not None
-    )
+    using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
 
     ctx.obj["using_webworkflow"] = using_webworkflow
     if using_webworkflow:

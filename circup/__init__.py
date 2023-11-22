@@ -459,9 +459,6 @@ class Backend:
         :return: A dictionary of metadata about the modules available on the
                  connected device.
         """
-        # url = urlparse(device_url)
-        print(f"device_url: {device_url}")
-        print(f"lib_dir: {self.LIB_DIR_PATH}")
         return self.get_modules(os.path.join(device_url, self.LIB_DIR_PATH))
 
     def _create_library_directory(self, device_path, library_path):
@@ -896,11 +893,6 @@ class USBBackend(Backend):
         :param str device_path: The path to the connected board.
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
-        print("device_location:")
-        print(device_location)
-        device_path = urlparse(device_location).path
-        print("device_path:")
-        print(device_path)
         try:
             with open(
                 os.path.join(device_location, "boot_out.txt"), "r", encoding="utf-8"

@@ -460,6 +460,8 @@ class Backend:
                  connected device.
         """
         # url = urlparse(device_url)
+        print(f"device_url: {device_url}")
+        print(f"lib_dir: {self.LIB_DIR_PATH}")
         return self.get_modules(os.path.join(device_url, self.LIB_DIR_PATH))
 
     def _create_library_directory(self, device_path, library_path):
@@ -875,8 +877,8 @@ class USBBackend(Backend):
     """
 
     def __init__(self):
-        self.LIB_DIR_PATH = "lib"
         super().__init__()
+        self.LIB_DIR_PATH = "lib"
 
     def _get_circuitpython_version(self, device_location):
         """
@@ -894,10 +896,14 @@ class USBBackend(Backend):
         :param str device_path: The path to the connected board.
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
+        print("device_location:")
+        print(device_location)
         device_path = urlparse(device_location).path
+        print("device_path:")
+        print(device_path)
         try:
             with open(
-                os.path.join(device_path, "boot_out.txt"), "r", encoding="utf-8"
+                os.path.join(device_location, "boot_out.txt"), "r", encoding="utf-8"
             ) as boot:
                 version_line = boot.readline()
                 circuit_python = version_line.split(";")[0].split(" ")[-3]

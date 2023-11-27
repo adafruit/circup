@@ -230,7 +230,7 @@ The ``--version`` flag will tell you the current version of the
     CircUp, A CircuitPython module updater. Version 0.0.1
 
 
-To use circup via the `Web Workflow <https://learn.adafruit.com/getting-started-with-web-workflow-using-the-code-editor>`_. on devices that support it. Use the ``--host`` and ``--password`` arguments before your circup command.`::
+To use circup via the `Web Workflow <https://learn.adafruit.com/getting-started-with-web-workflow-using-the-code-editor>`_. on devices that support it. Use the ``--host`` and ``--password`` arguments before your circup command.::
 
     $ circup --host 192.168.1.119 --password s3cr3t install adafruit_hid
     $ circup --host cpy-9573b2.local --password s3cr3t install adafruit_hid

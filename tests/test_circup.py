@@ -389,7 +389,7 @@ def test_Module_update_dir():
     m = circup.Module(
         path, repo, device_version, bundle_version, False, bundle, (None, None)
     )
-    backend = circup.USBBackend()
+    backend = circup.DiskBackend()
     with mock.patch("circup.shutil") as mock_shutil, mock.patch(
         "circup.os.path.isdir", return_value=True
     ):
@@ -411,7 +411,7 @@ def test_Module_update_file():
     m = circup.Module(
         path, repo, device_version, bundle_version, False, bundle, (None, None)
     )
-    backend = circup.USBBackend()
+    backend = circup.DiskBackend()
     with mock.patch("circup.shutil") as mock_shutil, mock.patch(
         "circup.os.remove"
     ) as mock_remove, mock.patch("circup.os.path.isdir", return_value=False):
@@ -614,7 +614,7 @@ def test_find_modules():
     ), mock.patch(
         "circup.os.path.isfile", return_value=True
     ):
-        backend = circup.USBBackend()
+        backend = circup.DiskBackend()
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         bundles_list = [bundle]
         for module in bundle_modules:
@@ -641,7 +641,7 @@ def test_find_modules_goes_bang():
     ) as mock_exit:
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         bundles_list = [bundle]
-        backend = circup.USBBackend()
+        backend = circup.DiskBackend()
         circup.find_modules(backend, "", bundles_list)
         assert mock_click.echo.call_count == 1
         mock_exit.assert_called_once_with(1)
@@ -705,7 +705,7 @@ def test_get_circuitpython_version():
         "Adafruit CircuitPlayground Express with samd21g18"
     )
     with mock.patch("builtins.open", mock.mock_open(read_data=data_no_id)) as mock_open:
-        backend = circup.USBBackend()
+        backend = circup.DiskBackend()
         assert backend.get_circuitpython_version(device_path) == ("4.1.0", "")
         mock_open.assert_called_once_with(
             os.path.join(device_path, "boot_out.txt"), "r", encoding="utf-8"
@@ -714,7 +714,7 @@ def test_get_circuitpython_version():
     with mock.patch(
         "builtins.open", mock.mock_open(read_data=data_with_id)
     ) as mock_open:
-        backend = circup.USBBackend()
+        backend = circup.DiskBackend()
         assert backend.get_circuitpython_version(device_path) == (
             "4.1.0",
             "this_is_a_board",
@@ -729,7 +729,7 @@ def test_get_device_versions():
     Ensure get_modules is called with the path for the attached device.
     """
     with mock.patch("circup.USBBackend.get_modules", return_value="ok") as mock_gm:
-        backend = circup.USBBackend()
+        backend = circup.DiskBackend()
         assert backend.get_device_versions("TESTDIR") == "ok"
         mock_gm.assert_called_once_with(os.path.join("TESTDIR", "lib"))
 
@@ -739,7 +739,7 @@ def test_get_modules_empty_path():
     Sometimes a path to a device or bundle may be empty. Ensure, if this is the
     case, an empty dictionary is returned.
     """
-    backend = circup.USBBackend()
+    backend = circup.DiskBackend()
     assert backend.get_modules("") == {}
 
 
@@ -754,7 +754,7 @@ def test_get_modules_that_are_files():
         os.path.join("tests", ".hidden_module.py"),
     ]
     with mock.patch("circup.glob.glob", side_effect=[mods, [], []]):
-        backend = circup.USBBackend()
+        backend = circup.DiskBackend()
         result = backend.get_modules(path)
         assert len(result) == 1  # Hidden files are ignored.
         assert "local_module" in result
@@ -778,7 +778,7 @@ def test_get_modules_that_are_directories():
     ]
     mod_files = ["tests/dir_module/my_module.py", "tests/dir_module/__init__.py"]
     with mock.patch("circup.glob.glob", side_effect=[[], [], mods, mod_files, []]):
-        backend = circup.USBBackend()
+        backend = circup.DiskBackend()
         result = backend.get_modules(path)
         assert len(result) == 1
         assert "dir_module" in result
@@ -797,7 +797,7 @@ def test_get_modules_that_are_directories_with_no_metadata():
     mods = [os.path.join("tests", "bad_module", "")]
     mod_files = ["tests/bad_module/my_module.py", "tests/bad_module/__init__.py"]
     with mock.patch("circup.glob.glob", side_effect=[[], [], mods, mod_files, []]):
-        backend = circup.USBBackend()
+        backend = circup.DiskBackend()
         result = backend.get_modules(path)
         assert len(result) == 1
         assert "bad_module" in result
@@ -1032,7 +1032,7 @@ def test_libraries_from_imports():
         "adafruit_touchscreen",
     ]
     test_file = str(pathlib.Path(__file__).parent / "import_styles.py")
-    backend = circup.USBBackend()
+    backend = circup.DiskBackend()
     result = backend.libraries_from_imports(test_file, mod_names)
     print(result)
     assert result == [

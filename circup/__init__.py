@@ -49,7 +49,7 @@ BUNDLE_DATA = os.path.join(DATA_DIR, "circup.json")
 LOG_DIR = appdirs.user_log_dir(appname="circup", appauthor="adafruit")
 #: The location of the log file for the utility.
 LOGFILE = os.path.join(LOG_DIR, "circup.log")
-#: The localtion to store a local copy of code.py for use with --auto and
+#: The location to store a local copy of code.py for use with --auto and
 #  web workflow
 LOCAL_CODE_PY_COPY = os.path.join(DATA_DIR, "code.tmp.py")
 #:  The libraries (and blank lines) which don't go on devices
@@ -419,21 +419,17 @@ class Backend:
     def __init__(self):
         self.LIB_DIR_PATH = None
 
-    def _get_circuitpython_version(self, device_location):
-        """
-        To be overridden by subclass
-        """
-        raise NotImplementedError
-
     def get_circuitpython_version(self, device_location):
         """
+        Must be overridden by subclass for implementation!
+
         Returns the version number of CircuitPython running on the board connected
         via ``device_url``, along with the board ID.
 
         :param str device_location: http based device URL or local file path.
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
-        return self._get_circuitpython_version(device_location)
+        raise NotImplementedError
 
     def _get_modules(self, device_lib_path):
         """
@@ -578,6 +574,7 @@ class WebBackend(Backend):
         """
         url = urlparse(target)
         auth = HTTPBasicAuth("", url.password)
+        print(f"target: {target}")
 
         with open(source, "rb") as fp:
             r = requests.put(target, fp.read(), auth=auth)
@@ -591,6 +588,7 @@ class WebBackend(Backend):
         """
         url = urlparse(target)
         auth = HTTPBasicAuth("", url.password)
+        print(f"target: {target}")
 
         # Create the top level directory.
         r = requests.put(target + ("/" if not target.endswith("/") else ""), auth=auth)
@@ -611,7 +609,7 @@ class WebBackend(Backend):
                 r = requests.put(target + rel_path + "/" + name, auth=auth)
                 r.raise_for_status()
 
-    def _get_circuitpython_version(self, url):
+    def get_circuitpython_version(self, url):
         """
         Returns the version number of CircuitPython running on the board connected
         via ``device_path``, along with the board ID. This is obtained using
@@ -868,7 +866,7 @@ def _get_modules_file(path):
     return result
 
 
-class USBBackend(Backend):
+class DiskBackend(Backend):
     """
     Backend for interacting with a device via USB Workflow
     """
@@ -877,7 +875,7 @@ class USBBackend(Backend):
         super().__init__()
         self.LIB_DIR_PATH = "lib"
 
-    def _get_circuitpython_version(self, device_location):
+    def get_circuitpython_version(self, device_location):
         """
         Returns the version number of CircuitPython running on the board connected
         via ``device_path``, along with the board ID. This is obtained from the
@@ -1663,7 +1661,7 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
     if using_webworkflow:
         ctx.obj["backend"] = WebBackend(host=host, password=password)
     else:
-        ctx.obj["backend"] = USBBackend()
+        ctx.obj["backend"] = DiskBackend()
 
     if verbose:
         # Configure additional logging to stdout.

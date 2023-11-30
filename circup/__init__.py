@@ -30,8 +30,11 @@ import update_checker
 from requests.auth import HTTPBasicAuth
 from semver import VersionInfo
 
-from circup.shared import DATA_DIR, BAD_FILE_FORMAT, extract_metadata, CPY_VERSION, _get_modules_file
+from circup.shared import DATA_DIR, BAD_FILE_FORMAT, extract_metadata, _get_modules_file
 from circup.backends import WebBackend, DiskBackend
+
+#: The version of CircuitPython found on the connected device.
+CPY_VERSION = ""
 
 # Useful constants.
 #: Flag to indicate if the command is being run in verbose mode.
@@ -410,13 +413,6 @@ class Module:
         )
 
 
-
-
-
-
-
-
-
 def clean_library_name(assumed_library_name):
     """
     Most CP repos and library names are look like this:
@@ -503,9 +499,6 @@ def ensure_latest_bundle(bundle):
             logger.exception(ex)
     else:
         logger.info("Current bundle up to date %s.", tag)
-
-
-
 
 
 def find_device():
@@ -936,6 +929,25 @@ def tags_data_save_tag(key, tag):
         json.dump(tags_data, data)
 
 
+def libraries_from_code_py(code_py, mod_names):
+    """
+    Parse the given code.py file and return the imported libraries
+
+    :param str code_py: Full path of the code.py file
+    :return: sequence of library names
+    """
+    # pylint: disable=broad-except
+    try:
+        found_imports = findimports.find_imports(code_py)
+    except Exception as ex:  # broad exception because anything could go wrong
+        self.logger.exception(ex)
+        click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
+        sys.exit(2)
+    # pylint: enable=broad-except
+    imports = [info.name.split(".", 1)[0] for info in found_imports]
+    return [r for r in imports if r in mod_names]
+
+
 # ----------- CLI command definitions  ----------- #
 
 # The following functions have IO side effects (for instance they emit to
@@ -1014,7 +1026,6 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
     if ctx.invoked_subcommand in BOARDLESS_COMMANDS:
         return
 
-    
     ctx.obj["DEVICE_PATH"] = device_path
     latest_version = get_latest_release_from_url(
         "https://github.com/adafruit/circuitpython/releases/latest"
@@ -1213,9 +1224,10 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
         if not os.path.isfile(auto_file) and not ctx.obj["using_webworkflow"]:
             click.secho(f"Auto file not found: {auto_file}", fg="red")
             sys.exit(1)
-        requested_installs = ctx.obj["backend"].libraries_from_imports(
-            auto_file, mod_names
-        )
+
+        auto_file_path = ctx.obj["backend"].get_auto_file_path(auto_file)
+
+        requested_installs = libraries_from_code_py(auto_file_path, mod_names)
     else:
         requested_installs = modules
     requested_installs = sorted(set(requested_installs))

@@ -10,9 +10,6 @@ BAD_FILE_FORMAT = "Invalid"
 #: The location of data files used by circup (following OS conventions).
 DATA_DIR = appdirs.user_data_dir(appname="circup", appauthor="adafruit")
 
-#: The version of CircuitPython found on the connected device.
-CPY_VERSION = ""
-
 
 def _get_modules_file(path, logger):
     """
@@ -54,6 +51,7 @@ def _get_modules_file(path, logger):
                 if metadata["__version__"] == BAD_FILE_FORMAT:
                     break
     return result
+
 
 def extract_metadata(path, logger):
     """

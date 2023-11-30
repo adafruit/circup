@@ -9,11 +9,12 @@ import findimports
 import requests
 from requests.auth import HTTPBasicAuth
 
-from circup.shared import DATA_DIR, BAD_FILE_FORMAT, extract_metadata, CPY_VERSION, _get_modules_file
+from circup.shared import DATA_DIR, BAD_FILE_FORMAT, extract_metadata, _get_modules_file
 
 #: The location to store a local copy of code.py for use with --auto and
 #  web workflow
 LOCAL_CODE_PY_COPY = os.path.join(DATA_DIR, "code.tmp.py")
+
 
 class Backend:
     """
@@ -142,23 +143,6 @@ class Backend:
         """
         raise NotImplementedError
 
-    def libraries_from_code_py(self, code_py, mod_names):
-        """
-        Parse the given code.py file and return the imported libraries
-
-        :param str code_py: Full path of the code.py file
-        :return: sequence of library names
-        """
-        # pylint: disable=broad-except
-        try:
-            found_imports = findimports.find_imports(code_py)
-        except Exception as ex:  # broad exception because anything could go wrong
-            self.logger.exception(ex)
-            click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
-            sys.exit(2)
-        # pylint: enable=broad-except
-        imports = [info.name.split(".", 1)[0] for info in found_imports]
-        return [r for r in imports if r in mod_names]
 
 class WebBackend(Backend):
     """
@@ -170,6 +154,7 @@ class WebBackend(Backend):
         self.LIB_DIR_PATH = "fs/lib/"
         self.host = host
         self.password = password
+        self.device_location = f"http://:{self.password}@{self.host}"
 
     def install_file_http(self, source, target):
         """
@@ -348,7 +333,9 @@ class WebBackend(Backend):
         if not module_name:
             # Must be a directory based module.
             module_name = os.path.basename(os.path.dirname(metadata["path"]))
-        major_version = CPY_VERSION.split(".")[0]
+        major_version = self.get_circuitpython_version(self.device_location)[0].split(
+            "."
+        )[0]
         bundle_platform = "{}mpy".format(major_version)
         bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
         if os.path.isdir(bundle_path):
@@ -377,6 +364,16 @@ class WebBackend(Backend):
         else:
             target = os.path.basename(source_path)
             self.install_file_http(source_path, library_path + target)
+
+    def get_auto_file_path(self, auto_file_path):
+        url = auto_file_path
+        auth = HTTPBasicAuth("", self.password)
+        r = requests.get(url, auth=auth)
+        r.raise_for_status()
+        with open(LOCAL_CODE_PY_COPY, "w", encoding="utf-8") as f:
+            f.write(r.text)
+        LOCAL_CODE_PY_COPY
+        return LOCAL_CODE_PY_COPY
 
     def libraries_from_imports(self, code_py, mod_names):
         """
@@ -427,6 +424,7 @@ class WebBackend(Backend):
             r = requests.delete(module.path, auth=auth)
             r.raise_for_status()
             self.install_dir_http(module.bundle_path, module.path)
+
 
 class DiskBackend(Backend):
     """
@@ -500,7 +498,9 @@ class DiskBackend(Backend):
             # Must be a directory based module.
             module_name = os.path.basename(os.path.dirname(metadata["path"]))
 
-        major_version = self.get_circuitpython_version(self.device_location)[0].split(".")[0]
+        major_version = self.get_circuitpython_version(self.device_location)[0].split(
+            "."
+        )[0]
         bundle_platform = "{}mpy".format(major_version)
         bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
         if os.path.isdir(bundle_path):
@@ -533,6 +533,9 @@ class DiskBackend(Backend):
             target_path = os.path.join(library_path, target)
             # Copy file.
             shutil.copyfile(source_path, target_path)
+
+    def get_auto_file_path(self, auto_file_path):
+        return auto_file_path
 
     def libraries_from_imports(self, code_py, mod_names):
         """

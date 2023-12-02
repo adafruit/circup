@@ -130,8 +130,6 @@ class Bundle:
         :return: The path to the lib directory for the platform.
         """
         tag = self.current_tag
-        print(platform)
-        print(PLATFORMS)
         return os.path.join(
             self.dir.format(platform=platform),
             self.basename.format(platform=PLATFORMS[platform], tag=tag),

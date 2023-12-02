@@ -70,13 +70,13 @@ class Backend:
         """
         raise NotImplementedError
 
-    def _install_module_py(self, library_path, metadata):
+    def _install_module_py(self, metadata):
         """
         To be overridden by subclass
         """
         raise NotImplementedError
 
-    def _install_module_mpy(self, bundle, library_path, metadata):
+    def _install_module_mpy(self, bundle, metadata):
         """
         To be overridden by subclass
         """
@@ -117,10 +117,10 @@ class Backend:
             bundle = metadata["bundle"]
             if pyext:
                 # Use Python source for module.
-                self._install_module_py(library_path, metadata)
+                self._install_module_py(metadata)
             else:
                 # Use pre-compiled mpy modules.
-                self._install_module_mpy(bundle, library_path, metadata)
+                self._install_module_mpy(bundle, metadata)
             click.echo("Installed '{}'.".format(name))
         else:
             click.echo("Unknown module named, '{}'.".format(name))
@@ -156,6 +156,8 @@ class WebBackend(Backend):
         self.password = password
         self.device_location = f"http://:{self.password}@{self.host}"
 
+        self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
+
     def install_file_http(self, source, target):
         """
         Install file to device using web workflow.
@@ -182,6 +184,7 @@ class WebBackend(Backend):
 
         # Create the top level directory.
         r = requests.put(target + ("/" if not target.endswith("/") else ""), auth=auth)
+        print(f"resp {r.content}")
         r.raise_for_status()
 
         # Traverse the directory structure and create the directories/files.
@@ -323,12 +326,14 @@ class WebBackend(Backend):
         r = requests.put(library_path, auth=auth)
         r.raise_for_status()
 
-    def _install_module_mpy(self, bundle, library_path, metadata):
+    def _install_module_mpy(self, bundle, metadata):
         """
         :param bundle library bundle.
         :param library_path library path
         :param metadata dictionary.
         """
+        library_path = self.library_path
+        print(f"metadata: {metadata}")
         module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
         if not module_name:
             # Must be a directory based module.
@@ -340,30 +345,35 @@ class WebBackend(Backend):
         bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
         if os.path.isdir(bundle_path):
 
+            print(f"456 library_path: {library_path}")
+            print(f"456 module_name: {module_name}")
+
             self.install_dir_http(bundle_path, library_path + module_name)
 
         elif os.path.isfile(bundle_path):
             target = os.path.basename(bundle_path)
-
+            print(f"123 library_path: {library_path}")
+            print(f"123 target: {target}")
             self.install_file_http(bundle_path, library_path + target)
 
         else:
             raise IOError("Cannot find compiled version of module.")
 
     # pylint: enable=too-many-locals,too-many-branches
-    def _install_module_py(self, library_path, metadata):
+    def _install_module_py(self, metadata):
         """
         :param library_path library path
         :param metadata dictionary.
         """
+
         source_path = metadata["path"]  # Path to Python source version.
         if os.path.isdir(source_path):
             target = os.path.basename(os.path.dirname(source_path))
-            self.install_dir_http(source_path, library_path + target)
+            self.install_dir_http(source_path, self.library_path + target)
 
         else:
             target = os.path.basename(source_path)
-            self.install_file_http(source_path, library_path + target)
+            self.install_file_http(source_path, self.library_path + target)
 
     def get_auto_file_path(self, auto_file_path):
         url = auto_file_path
@@ -374,23 +384,6 @@ class WebBackend(Backend):
             f.write(r.text)
         LOCAL_CODE_PY_COPY
         return LOCAL_CODE_PY_COPY
-
-    def libraries_from_imports(self, code_py, mod_names):
-        """
-        Parse the given code.py file and return the imported libraries
-
-        :param str code_py: Full path of the code.py file
-        :return: sequence of library names
-        """
-        url = code_py
-        auth = HTTPBasicAuth("", self.password)
-        r = requests.get(url, auth=auth)
-        r.raise_for_status()
-        with open(LOCAL_CODE_PY_COPY, "w", encoding="utf-8") as f:
-            f.write(r.text)
-        code_py = LOCAL_CODE_PY_COPY
-
-        return self.libraries_from_code_py(code_py, mod_names)
 
     def uninstall(self, device_path, module_path):
         """
@@ -435,6 +428,7 @@ class DiskBackend(Backend):
         super().__init__(logger)
         self.LIB_DIR_PATH = "lib"
         self.device_location = device_location
+        self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
 
     def get_circuitpython_version(self, device_location):
         """
@@ -487,7 +481,7 @@ class DiskBackend(Backend):
         if not os.path.exists(library_path):  # pragma: no cover
             os.makedirs(library_path)
 
-    def _install_module_mpy(self, bundle, library_path, metadata):
+    def _install_module_mpy(self, bundle, metadata):
         """
         :param bundle library bundle.
         :param library_path library path
@@ -504,19 +498,19 @@ class DiskBackend(Backend):
         bundle_platform = "{}mpy".format(major_version)
         bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
         if os.path.isdir(bundle_path):
-            target_path = os.path.join(library_path, module_name)
+            target_path = os.path.join(self.library_path, module_name)
             # Copy the directory.
             shutil.copytree(bundle_path, target_path)
         elif os.path.isfile(bundle_path):
             target = os.path.basename(bundle_path)
-            target_path = os.path.join(library_path, target)
+            target_path = os.path.join(self.library_path, target)
             # Copy file.
             shutil.copyfile(bundle_path, target_path)
         else:
             raise IOError("Cannot find compiled version of module.")
 
     # pylint: enable=too-many-locals,too-many-branches
-    def _install_module_py(self, library_path, metadata):
+    def _install_module_py(self, metadata):
         """
         :param library_path library path
         :param metadata dictionary.
@@ -525,26 +519,17 @@ class DiskBackend(Backend):
         source_path = metadata["path"]  # Path to Python source version.
         if os.path.isdir(source_path):
             target = os.path.basename(os.path.dirname(source_path))
-            target_path = os.path.join(library_path, target)
+            target_path = os.path.join(self.library_path, target)
             # Copy the directory.
             shutil.copytree(source_path, target_path)
         else:
             target = os.path.basename(source_path)
-            target_path = os.path.join(library_path, target)
+            target_path = os.path.join(self.library_path, target)
             # Copy file.
             shutil.copyfile(source_path, target_path)
 
     def get_auto_file_path(self, auto_file_path):
         return auto_file_path
-
-    def libraries_from_imports(self, code_py, mod_names):
-        """
-        Parse the given code.py file and return the imported libraries
-
-        :param str code_py: Full path of the code.py file
-        :return: sequence of library names
-        """
-        return self.libraries_from_code_py(code_py, mod_names)
 
     def uninstall(self, device_path, module_path):
         """

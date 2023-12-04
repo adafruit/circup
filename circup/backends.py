@@ -30,10 +30,11 @@ class Backend:
     """
 
     def __init__(self, logger):
+        self.device_location = None
         self.LIB_DIR_PATH = None
         self.logger = logger
 
-    def get_circuitpython_version(self, device_location):
+    def get_circuitpython_version(self):
         """
         Must be overridden by subclass for implementation!
 
@@ -61,7 +62,7 @@ class Backend:
         """
         return self._get_modules(device_url)
 
-    def get_device_versions(self, device_url):
+    def get_device_versions(self):
         """
         Returns a dictionary of metadata from modules on the connected device.
 
@@ -69,7 +70,7 @@ class Backend:
         :return: A dictionary of metadata about the modules available on the
                  connected device.
         """
-        return self.get_modules(os.path.join(device_url, self.LIB_DIR_PATH))
+        return self.get_modules(os.path.join(self.device_location, self.LIB_DIR_PATH))
 
     def _create_library_directory(self, device_path, library_path):
         """
@@ -150,6 +151,12 @@ class Backend:
         """
         raise NotImplementedError
 
+    def get_file_path(self, filename):
+        """
+        To be overridden by subclass
+        """
+        raise NotImplementedError
+
 
 class WebBackend(Backend):
     """
@@ -165,29 +172,42 @@ class WebBackend(Backend):
 
         self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
 
-    def install_file_http(self, source, target):
+    def install_file_http(self, source):
         """
         Install file to device using web workflow.
         :param source source file.
-        :param target destination URL. Should have password embedded.
         """
+
+        target = (
+            self.device_location
+            + "/"
+            + self.LIB_DIR_PATH
+            + source.split(os.path.sep)[-1]
+        )
         url = urlparse(target)
         auth = HTTPBasicAuth("", url.password)
         print(f"target: {target}")
+        print(f"source: {source}")
 
         with open(source, "rb") as fp:
             r = requests.put(target, fp.read(), auth=auth)
             r.raise_for_status()
 
-    def install_dir_http(self, source, target):
+    def install_dir_http(self, source):
         """
         Install directory to device using web workflow.
         :param source source directory.
-        :param target destination URL. Should have password embedded.
         """
+        target = (
+            self.device_location
+            + "/"
+            + self.LIB_DIR_PATH
+            + source.split(os.path.sep)[-1]
+        )
         url = urlparse(target)
         auth = HTTPBasicAuth("", url.password)
         print(f"target: {target}")
+        print(f"source: {source}")
 
         # Create the top level directory.
         r = requests.put(target + ("/" if not target.endswith("/") else ""), auth=auth)
@@ -209,21 +229,21 @@ class WebBackend(Backend):
                 r = requests.put(target + rel_path + "/" + name, auth=auth)
                 r.raise_for_status()
 
-    def get_circuitpython_version(self, url):
+    def get_circuitpython_version(self):
         """
         Returns the version number of CircuitPython running on the board connected
         via ``device_path``, along with the board ID. This is obtained using
         RESTful API from the /cp/version.json URL.
 
-        :param str url: board URL.
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
         # pylint: disable=arguments-renamed
-        r = requests.get(url + "/cp/version.json")
+        r = requests.get(self.device_location + "/cp/version.json")
         # pylint: disable=no-member
         if r.status_code != requests.codes.ok:
             click.secho(
-                f"  Unable to get version from {url}: {r.status_code}", fg="red"
+                f"  Unable to get version from {self.device_location}: {r.status_code}",
+                fg="red",
             )
             sys.exit(1)
         # pylint: enable=no-member
@@ -345,9 +365,7 @@ class WebBackend(Backend):
         if not module_name:
             # Must be a directory based module.
             module_name = os.path.basename(os.path.dirname(metadata["path"]))
-        major_version = self.get_circuitpython_version(self.device_location)[0].split(
-            "."
-        )[0]
+        major_version = self.get_circuitpython_version()[0].split(".")[0]
         bundle_platform = "{}mpy".format(major_version)
         bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
         if os.path.isdir(bundle_path):
@@ -355,13 +373,13 @@ class WebBackend(Backend):
             print(f"456 library_path: {library_path}")
             print(f"456 module_name: {module_name}")
 
-            self.install_dir_http(bundle_path, library_path + module_name)
+            self.install_dir_http(bundle_path)
 
         elif os.path.isfile(bundle_path):
             target = os.path.basename(bundle_path)
             print(f"123 library_path: {library_path}")
             print(f"123 target: {target}")
-            self.install_file_http(bundle_path, library_path + target)
+            self.install_file_http(bundle_path)
 
         else:
             raise IOError("Cannot find compiled version of module.")
@@ -376,11 +394,11 @@ class WebBackend(Backend):
         source_path = metadata["path"]  # Path to Python source version.
         if os.path.isdir(source_path):
             target = os.path.basename(os.path.dirname(source_path))
-            self.install_dir_http(source_path, self.library_path + target)
+            self.install_dir_http(source_path)
 
         else:
             target = os.path.basename(source_path)
-            self.install_file_http(source_path, self.library_path + target)
+            self.install_file_http(source_path)
 
     def get_auto_file_path(self, auto_file_path):
         url = auto_file_path
@@ -389,7 +407,6 @@ class WebBackend(Backend):
         r.raise_for_status()
         with open(LOCAL_CODE_PY_COPY, "w", encoding="utf-8") as f:
             f.write(r.text)
-        LOCAL_CODE_PY_COPY
         return LOCAL_CODE_PY_COPY
 
     def uninstall(self, device_path, module_path):
@@ -416,14 +433,20 @@ class WebBackend(Backend):
         """
         if module.file:
             # Copy the file (will overwrite).
-            self.install_file_http(module.bundle_path, module.path)
+            self.install_file_http(module.bundle_path)
         else:
             # Delete the directory (recursive) first.
             url = urlparse(module.path)
             auth = HTTPBasicAuth("", url.password)
             r = requests.delete(module.path, auth=auth)
             r.raise_for_status()
-            self.install_dir_http(module.bundle_path, module.path)
+            self.install_dir_http(module.bundle_path)
+
+    def get_file_path(self, filename):
+        """
+        retuns the full path on the device to a given file name.
+        """
+        return os.path.join(self.device_location, "fs", filename)
 
 
 class DiskBackend(Backend):
@@ -437,7 +460,7 @@ class DiskBackend(Backend):
         self.device_location = device_location
         self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
 
-    def get_circuitpython_version(self, device_location):
+    def get_circuitpython_version(self):
         """
         Returns the version number of CircuitPython running on the board connected
         via ``device_path``, along with the board ID. This is obtained from the
@@ -450,12 +473,13 @@ class DiskBackend(Backend):
 
             Board ID:raspberry_pi_pico
 
-        :param str device_path: The path to the connected board.
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
         try:
             with open(
-                os.path.join(device_location, "boot_out.txt"), "r", encoding="utf-8"
+                os.path.join(self.device_location, "boot_out.txt"),
+                "r",
+                encoding="utf-8",
             ) as boot:
                 version_line = boot.readline()
                 circuit_python = version_line.split(";")[0].split(" ")[-3]
@@ -499,9 +523,7 @@ class DiskBackend(Backend):
             # Must be a directory based module.
             module_name = os.path.basename(os.path.dirname(metadata["path"]))
 
-        major_version = self.get_circuitpython_version(self.device_location)[0].split(
-            "."
-        )[0]
+        major_version = self.get_circuitpython_version()[0].split(".")[0]
         bundle_platform = "{}mpy".format(major_version)
         bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
         if os.path.isdir(bundle_path):
@@ -575,3 +597,9 @@ class DiskBackend(Backend):
             # Delete and copy file.
             os.remove(module.path)
             shutil.copyfile(module.bundle_path, module.path)
+
+    def get_file_path(self, filename):
+        """
+        retuns the full path on the device to a given file name.
+        """
+        return os.path.join(self.device_location, filename)

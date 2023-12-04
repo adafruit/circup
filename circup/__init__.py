@@ -567,20 +567,20 @@ def find_device():
     return device_dir
 
 
-def find_modules(backend, device_url, bundles_list):
+def find_modules(backend, bundles_list):
     """
     Extracts metadata from the connected device and available bundles and
     returns this as a list of Module instances representing the modules on the
     device.
 
-    :param str device_url: The URL to the board.
+    :param Backend backend: Backend with the device connection.
     :param List[Bundle] bundles_list: List of supported bundles as Bundle objects.
     :return: A list of Module instances describing the current state of the
              modules on the connected device.
     """
     # pylint: disable=broad-except,too-many-locals
     try:
-        device_modules = backend.get_device_versions(device_url)
+        device_modules = backend.get_device_versions()
         bundle_modules = get_bundle_versions(bundles_list)
         result = []
         for name, device_metadata in device_modules.items():
@@ -997,7 +997,6 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
     device_path = get_device_path(host, password, path)
     using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
 
-    ctx.obj["using_webworkflow"] = using_webworkflow
     if using_webworkflow:
         ctx.obj["backend"] = WebBackend(host=host, password=password, logger=logger)
     else:
@@ -1034,7 +1033,7 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
         sys.exit(1)
     else:
         CPY_VERSION, board_id = (
-            ctx.obj["backend"].get_circuitpython_version(device_path)
+            ctx.obj["backend"].get_circuitpython_version()
             if board_id is None or cpy_version is None
             else (cpy_version, board_id)
         )
@@ -1098,9 +1097,7 @@ def freeze(ctx, requirement):  # pragma: no cover
     device. Option -r saves output to requirements.txt file
     """
     logger.info("Freeze")
-    modules = find_modules(
-        ctx.obj["backend"], ctx.obj["DEVICE_PATH"], get_bundles_list()
-    )
+    modules = find_modules(ctx.obj["backend"], get_bundles_list())
     if modules:
         output = []
         for module in modules:
@@ -1133,9 +1130,7 @@ def list_cli(ctx):  # pragma: no cover
 
     modules = [
         m.row
-        for m in find_modules(
-            ctx.obj["backend"], ctx.obj["DEVICE_PATH"], get_bundles_list()
-        )
+        for m in find_modules(ctx.obj["backend"], get_bundles_list())
         if m.outofdate
     ]
     if modules:
@@ -1213,17 +1208,13 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
         # pass a local file with "./" or "../"
         is_relative = auto_file.split(os.sep)[0] in [os.path.curdir, os.path.pardir]
         if not os.path.isabs(auto_file) and not is_relative:
-            if not ctx.obj["using_webworkflow"]:
-                auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file or "code.py")
-            else:
-                auto_file = os.path.join(
-                    ctx.obj["DEVICE_PATH"], "fs", auto_file or "code.py"
-                )
-        if not os.path.isfile(auto_file) and not ctx.obj["using_webworkflow"]:
-            click.secho(f"Auto file not found: {auto_file}", fg="red")
-            sys.exit(1)
+            auto_file = ctx.obj["backend"].get_file_path(auto_file or "code.py")
 
         auto_file_path = ctx.obj["backend"].get_auto_file_path(auto_file)
+
+        if not os.path.isfile(auto_file_path):
+            click.secho(f"Auto file not found: {auto_file}", fg="red")
+            sys.exit(1)
 
         requested_installs = libraries_from_code_py(auto_file_path, mod_names)
     else:
@@ -1231,7 +1222,7 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
     requested_installs = sorted(set(requested_installs))
     click.echo(f"Searching for dependencies for: {requested_installs}")
     to_install = get_dependencies(requested_installs, mod_names=mod_names)
-    device_modules = ctx.obj["backend"].get_device_versions(ctx.obj["DEVICE_PATH"])
+    device_modules = ctx.obj["backend"].get_device_versions()
     if to_install is not None:
         to_install = sorted(to_install)
         click.echo(f"Ready to install: {to_install}\n")
@@ -1276,7 +1267,7 @@ def uninstall(ctx, module):  # pragma: no cover
     """
     device_path = ctx.obj["DEVICE_PATH"]
     for name in module:
-        device_modules = ctx.obj["backend"].get_device_versions(device_path)
+        device_modules = ctx.obj["backend"].get_device_versions()
         name = name.lower()
         mod_names = {}
         for module_item, metadata in device_modules.items():
@@ -1314,11 +1305,7 @@ def update(ctx, update_all):  # pragma: no cover
     logger.info("Update")
     # Grab out of date modules.
     modules = [
-        m
-        for m in find_modules(
-            ctx.obj["backend"], ctx.obj["DEVICE_PATH"], get_bundles_list()
-        )
-        if m.outofdate
+        m for m in find_modules(ctx.obj["backend"], get_bundles_list()) if m.outofdate
     ]
     if modules:
         click.echo("Found {} module[s] needing update.".format(len(modules)))

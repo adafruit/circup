@@ -1,3 +1,10 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, written for Adafruit Industries
+# SPDX-FileCopyrightText: 2023 Tim Cocks, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
+"""
+Backend classes that represent interfaces to physical devices.
+"""
 import os
 import shutil
 import sys

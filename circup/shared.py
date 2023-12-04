@@ -1,3 +1,11 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, written for Adafruit Industries
+# SPDX-FileCopyrightText: 2023 Tim Cocks, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
+"""
+Utilities that are shared and used by both click CLI command functions
+and Backend class functions.
+"""
 import glob
 import os
 import re

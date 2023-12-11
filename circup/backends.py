@@ -454,11 +454,12 @@ class DiskBackend(Backend):
     Backend for interacting with a device via USB Workflow
     """
 
-    def __init__(self, device_location, logger):
+    def __init__(self, device_location, logger, version_info=None):
         super().__init__(logger)
         self.LIB_DIR_PATH = "lib"
         self.device_location = device_location
         self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
+        self.version_info = version_info
 
     def get_circuitpython_version(self):
         """
@@ -475,28 +476,31 @@ class DiskBackend(Backend):
 
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
-        try:
-            with open(
-                os.path.join(self.device_location, "boot_out.txt"),
-                "r",
-                encoding="utf-8",
-            ) as boot:
-                version_line = boot.readline()
-                circuit_python = version_line.split(";")[0].split(" ")[-3]
-                board_line = boot.readline()
-                if board_line.startswith("Board ID:"):
-                    board_id = board_line[9:].strip()
-                else:
-                    board_id = ""
-        except FileNotFoundError:
-            click.secho(
-                "Missing file boot_out.txt on the device: wrong path or drive corrupted.",
-                fg="red",
-            )
-            self.logger.error("boot_out.txt not found.")
-            sys.exit(1)
+        if not self.version_info:
+            try:
+                with open(
+                    os.path.join(self.device_location, "boot_out.txt"),
+                    "r",
+                    encoding="utf-8",
+                ) as boot:
+                    version_line = boot.readline()
+                    circuit_python = version_line.split(";")[0].split(" ")[-3]
+                    board_line = boot.readline()
+                    if board_line.startswith("Board ID:"):
+                        board_id = board_line[9:].strip()
+                    else:
+                        board_id = ""
+            except FileNotFoundError:
+                click.secho(
+                    "Missing file boot_out.txt on the device: wrong path or drive corrupted.",
+                    fg="red",
+                )
+                self.logger.error("boot_out.txt not found.")
+                sys.exit(1)
 
-        return circuit_python, board_id
+            return circuit_python, board_id
+        else:
+            return self.version_info
 
     def _get_modules(self, device_lib_path):
         """

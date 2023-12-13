@@ -157,6 +157,12 @@ class Backend:
         """
         raise NotImplementedError
 
+    def is_device_present(self):
+        """
+        To be overriden by subclass
+        """
+        raise NotImplementedError
+
 
 class WebBackend(Backend):
     """
@@ -455,6 +461,11 @@ class DiskBackend(Backend):
     """
 
     def __init__(self, device_location, logger, version_info=None):
+        if device_location is None:
+            raise ValueError(
+                "Auto locating USB Disk based device failed. Please specify --path argument or ensure your device "
+                "is connected and mounted under the name CIRCUITPY."
+            )
         super().__init__(logger)
         self.LIB_DIR_PATH = "lib"
         self.device_location = device_location
@@ -607,3 +618,9 @@ class DiskBackend(Backend):
         retuns the full path on the device to a given file name.
         """
         return os.path.join(self.device_location, filename)
+
+    def is_device_present(self):
+        """
+        To be overriden by subclass
+        """
+        return os.path.exists(self.device_location)

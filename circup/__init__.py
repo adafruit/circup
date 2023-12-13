@@ -237,7 +237,15 @@ class Module:
     # pylint: disable=too-many-arguments
 
     def __init__(
-        self, path, repo, device_version, bundle_version, mpy, bundle, compatibility
+        self,
+        name,
+        backend,
+        repo,
+        device_version,
+        bundle_version,
+        mpy,
+        bundle,
+        compatibility,
     ):
         """
         The ``self.file`` and ``self.name`` attributes are constructed from
@@ -245,8 +253,8 @@ class Module:
         resulting self.file value will be None, and the name will be the
         basename of the directory path.
 
-        :param str path: The path or URL to the module on the connected
-            CIRCUITPYTHON device.
+        :param str name: The file name of the module.
+        :param Backend backend: The backend that the module is on.
         :param str repo: The URL of the Git repository for this module.
         :param str device_version: The semver value for the version on device.
         :param str bundle_version: The semver value for the version in bundle.
@@ -254,8 +262,10 @@ class Module:
         :param Bundle bundle: Bundle object where the module is located.
         :param (str,str) compatibility: Min and max versions of CP compatible with the mpy.
         """
-        self.path = path
-        url = urlparse(path)
+        self.name = name
+        self.backend = backend
+        self.path = os.path.join(backend.library_path, name)
+        url = urlparse(self.path)
         if url.scheme == "http":
             if url.path.endswith(".py") or url.path.endswith(".mpy"):
                 self.file = os.path.basename(url.path)
@@ -268,7 +278,7 @@ class Module:
         else:
             if os.path.isfile(self.path):
                 # Single file module.
-                self.file = os.path.basename(path)
+                self.file = os.path.basename(self.path)
                 self.name = self.file.replace(".py", "").replace(".mpy", "")
             else:
                 # Directory based module.
@@ -593,8 +603,14 @@ def find_modules(backend, bundles_list):
                 bundle_version = bundle_metadata.get("__version__")
                 mpy = device_metadata["mpy"]
                 compatibility = device_metadata.get("compatibility", (None, None))
+                module_name = (
+                    path.split(os.sep)[-1]
+                    if not path.endswith(os.sep)
+                    else path[:-1].split(os.sep)[-1] + os.sep
+                )
                 m = Module(
-                    path,
+                    module_name,
+                    backend,
                     repo,
                     device_version,
                     bundle_version,
@@ -995,6 +1011,7 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
     """
     ctx.ensure_object(dict)
     device_path = get_device_path(host, password, path)
+
     using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
 
     if using_webworkflow:
@@ -1002,6 +1019,7 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
     else:
         ctx.obj["backend"] = DiskBackend(device_path, logger)
 
+    print(f'device is present ? {ctx.obj["backend"].is_device_present()}')
     if verbose:
         # Configure additional logging to stdout.
         global VERBOSE

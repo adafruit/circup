@@ -79,6 +79,7 @@ def extract_metadata(path, logger):
     :param str path: The path to the file containing the metadata.
     :return: The dunder based metadata found in the file, as a dictionary.
     """
+    # pylint: disable=too-many-locals
     result = {}
     logger.info("%s", path)
     if path.endswith(".py"):

@@ -954,7 +954,7 @@ def libraries_from_code_py(code_py, mod_names):
     try:
         found_imports = findimports.find_imports(code_py)
     except Exception as ex:  # broad exception because anything could go wrong
-        self.logger.exception(ex)
+        logger.exception(ex)
         click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
         sys.exit(2)
     # pylint: enable=broad-except
@@ -1017,9 +1017,11 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
     if using_webworkflow:
         ctx.obj["backend"] = WebBackend(host=host, password=password, logger=logger)
     else:
-        ctx.obj["backend"] = DiskBackend(device_path, logger)
+        try:
+            ctx.obj["backend"] = DiskBackend(device_path, logger)
+        except ValueError as e:
+            print(e)
 
-    print(f'device is present ? {ctx.obj["backend"].is_device_present()}')
     if verbose:
         # Configure additional logging to stdout.
         global VERBOSE
@@ -1046,7 +1048,7 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
         "https://github.com/adafruit/circuitpython/releases/latest"
     )
     global CPY_VERSION
-    if device_path is None:
+    if device_path is None or not ctx.obj["backend"].is_device_present():
         click.secho("Could not find a connected CircuitPython device.", fg="red")
         sys.exit(1)
     else:

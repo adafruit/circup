@@ -10,9 +10,7 @@ import shutil
 import sys
 import tempfile
 from urllib.parse import urlparse
-
 import click
-import findimports
 import requests
 from requests.auth import HTTPBasicAuth
 
@@ -133,11 +131,11 @@ class Backend:
         else:
             click.echo("Unknown module named, '{}'.".format(name))
 
-    def libraries_from_imports(self, code_py, mod_names):
-        """
-        To be overridden by subclass
-        """
-        raise NotImplementedError
+    # def libraries_from_imports(self, code_py, mod_names):
+    #     """
+    #     To be overridden by subclass
+    #     """
+    #     raise NotImplementedError
 
     def uninstall(self, device_path, module_path):
         """
@@ -399,14 +397,16 @@ class WebBackend(Backend):
 
         source_path = metadata["path"]  # Path to Python source version.
         if os.path.isdir(source_path):
-            target = os.path.basename(os.path.dirname(source_path))
             self.install_dir_http(source_path)
 
         else:
-            target = os.path.basename(source_path)
             self.install_file_http(source_path)
 
     def get_auto_file_path(self, auto_file_path):
+        """
+        Make a local temp copy of the --auto file from the device.
+        Returns the path to the local copy.
+        """
         url = auto_file_path
         auth = HTTPBasicAuth("", self.password)
         r = requests.get(url, auth=auth)
@@ -454,6 +454,16 @@ class WebBackend(Backend):
         """
         return os.path.join(self.device_location, "fs", filename)
 
+    def is_device_present(self):
+        """
+        returns True if the device is currently connected
+        """
+        try:
+            _ = self.get_device_versions()
+            return True
+        except requests.exceptions.ConnectionError:
+            return False
+
 
 class DiskBackend(Backend):
     """
@@ -463,7 +473,8 @@ class DiskBackend(Backend):
     def __init__(self, device_location, logger, version_info=None):
         if device_location is None:
             raise ValueError(
-                "Auto locating USB Disk based device failed. Please specify --path argument or ensure your device "
+                "Auto locating USB Disk based device failed. "
+                "Please specify --path argument or ensure your device "
                 "is connected and mounted under the name CIRCUITPY."
             )
         super().__init__(logger)
@@ -510,8 +521,8 @@ class DiskBackend(Backend):
                 sys.exit(1)
 
             return circuit_python, board_id
-        else:
-            return self.version_info
+
+        return self.version_info
 
     def _get_modules(self, device_lib_path):
         """
@@ -573,6 +584,9 @@ class DiskBackend(Backend):
             shutil.copyfile(source_path, target_path)
 
     def get_auto_file_path(self, auto_file_path):
+        """
+        Returns the path on the device to the file to be read for --auto.
+        """
         return auto_file_path
 
     def uninstall(self, device_path, module_path):
@@ -615,12 +629,12 @@ class DiskBackend(Backend):
 
     def get_file_path(self, filename):
         """
-        retuns the full path on the device to a given file name.
+        returns the full path on the device to a given file name.
         """
         return os.path.join(self.device_location, filename)
 
     def is_device_present(self):
         """
-        To be overriden by subclass
+        returns True if the device is currently connected
         """
         return os.path.exists(self.device_location)

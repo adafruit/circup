@@ -161,6 +161,22 @@ class Backend:
         """
         raise NotImplementedError
 
+    @staticmethod
+    def parse_boot_out_file(boot_out_contents):
+        """
+        Parse the contents of boot_out.txt
+        Returns: circuitpython version and board id
+        """
+        lines = boot_out_contents.split("\n")
+        version_line = lines[0]
+        circuit_python = version_line.split(";")[0].split(" ")[-3]
+        board_line = lines[1]
+        if board_line.startswith("Board ID:"):
+            board_id = board_line[9:].strip()
+        else:
+            board_id = ""
+        return circuit_python, board_id
+
 
 class WebBackend(Backend):
     """
@@ -468,9 +484,14 @@ class WebBackend(Backend):
 class DiskBackend(Backend):
     """
     Backend for interacting with a device via USB Workflow
+
+    :param String device_location: Path to the device
+    :param logger: logger to use for outputting messages
+    :param String boot_out: Optional mock contents of a boot_out.txt file
+        to use for version information.
     """
 
-    def __init__(self, device_location, logger, version_info=None):
+    def __init__(self, device_location, logger, boot_out=None):
         if device_location is None:
             raise ValueError(
                 "Auto locating USB Disk based device failed. "
@@ -481,7 +502,9 @@ class DiskBackend(Backend):
         self.LIB_DIR_PATH = "lib"
         self.device_location = device_location
         self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
-        self.version_info = version_info
+        self.version_info = None
+        if boot_out is not None:
+            self.version_info = self.parse_boot_out_file(boot_out)
 
     def get_circuitpython_version(self):
         """
@@ -505,13 +528,10 @@ class DiskBackend(Backend):
                     "r",
                     encoding="utf-8",
                 ) as boot:
-                    version_line = boot.readline()
-                    circuit_python = version_line.split(";")[0].split(" ")[-3]
-                    board_line = boot.readline()
-                    if board_line.startswith("Board ID:"):
-                        board_id = board_line[9:].strip()
-                    else:
-                        board_id = ""
+                    boot_out_contents = boot.read()
+                    circuit_python, board_id = self.parse_boot_out_file(
+                        boot_out_contents
+                    )
             except FileNotFoundError:
                 click.secho(
                     "Missing file boot_out.txt on the device: wrong path or drive corrupted.",
@@ -519,7 +539,7 @@ class DiskBackend(Backend):
                 )
                 self.logger.error("boot_out.txt not found.")
                 sys.exit(1)
-
+            print((circuit_python, board_id))
             return circuit_python, board_id
 
         return self.version_info

@@ -283,7 +283,7 @@ class Module:
             else:
                 # Directory based module.
                 self.file = None
-                self.name = os.path.basename(os.path.dirname(self.path))
+                self.path = os.path.join(backend.library_path, name, "")
         self.repo = repo
         self.device_version = device_version
         self.bundle_version = bundle_version

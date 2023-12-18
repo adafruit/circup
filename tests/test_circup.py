@@ -274,7 +274,6 @@ def test_Module_init_directory_module():
             bundle,
             (None, None),
         )
-        print(f"NAMENAME {m.name}")
         mock_logger.assert_called_once_with(m)
         assert m.path == path
         assert m.file is None
@@ -1128,7 +1127,6 @@ def test_libraries_from_imports():
     test_file = str(pathlib.Path(__file__).parent / "import_styles.py")
 
     result = circup.libraries_from_code_py(test_file, mod_names)
-    print(result)
     assert result == [
         "adafruit_bus_device",
         "adafruit_button",

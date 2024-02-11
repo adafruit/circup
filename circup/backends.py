@@ -9,7 +9,7 @@ import os
 import shutil
 import sys
 import tempfile
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 import click
 import requests
 from requests.auth import HTTPBasicAuth
@@ -114,7 +114,7 @@ class Backend:
                 click.echo("'{}' is already installed.".format(name))
                 return
 
-            library_path = os.path.join(device_path, self.LIB_DIR_PATH)
+            library_path = os.path.join(device_path, self.LIB_DIR_PATH) if not isinstance(self,WebBackend) else urljoin(device_path,self.LIB_DIR_PATH)
 
             # Create the library directory first.
             self._create_library_directory(device_path, library_path)
@@ -197,12 +197,13 @@ class WebBackend(Backend):
         Install file to device using web workflow.
         :param source source file.
         """
-
+        file_name = source.split(os.path.sep)
+        file_name = file_name[-2] if file_name[-1] == "" else file_name[-1]
         target = (
             self.device_location
             + "/"
             + self.LIB_DIR_PATH
-            + source.split(os.path.sep)[-1]
+            + file_name
         )
         url = urlparse(target)
         auth = HTTPBasicAuth("", url.password)
@@ -218,11 +219,13 @@ class WebBackend(Backend):
         Install directory to device using web workflow.
         :param source source directory.
         """
+        mod_name = source.split(os.path.sep)
+        mod_name = mod_name[-2] if mod_name[-1] == "" else mod_name[-1]
         target = (
             self.device_location
             + "/"
             + self.LIB_DIR_PATH
-            + source.split(os.path.sep)[-1]
+            + mod_name
         )
         url = urlparse(target)
         auth = HTTPBasicAuth("", url.password)
@@ -230,7 +233,7 @@ class WebBackend(Backend):
         print(f"source: {source}")
 
         # Create the top level directory.
-        r = requests.put(target + ("/" if not target.endswith("/") else ""), auth=auth)
+        r = requests.put((target + "/" if target[:-1]!="/" else target), auth=auth)
         print(f"resp {r.content}")
         r.raise_for_status()
 
@@ -241,12 +244,16 @@ class WebBackend(Backend):
                 rel_path = ""
             for name in files:
                 with open(os.path.join(root, name), "rb") as fp:
+                    path_to_create = urljoin( urljoin(target , rel_path + "/", allow_fragments=False) , name, allow_fragments=False) if rel_path != "" else urljoin(target , name, allow_fragments=False)
+                    # print(f"file_path_to_create: {path_to_create}")
                     r = requests.put(
-                        target + rel_path + "/" + name, fp.read(), auth=auth
+                        path_to_create, fp.read(), auth=auth
                     )
                     r.raise_for_status()
             for name in dirs:
-                r = requests.put(target + rel_path + "/" + name, auth=auth)
+                path_to_create = urljoin( urljoin(target , rel_path + "/", allow_fragments=False) , name, allow_fragments=False) if rel_path != "" else urljoin(target , name, allow_fragments=False)
+                # print(f"dir_path_to_create: {path_to_create}")
+                r = requests.put(path_to_create, auth=auth)
                 r.raise_for_status()
 
     def get_circuitpython_version(self):
@@ -312,7 +319,10 @@ class WebBackend(Backend):
         :param url: URL of the device.
         """
         for dm in directory_mods:
-            dm_url = url + dm + "/"
+            if not str(urlparse(dm).scheme).lower() in ("http", "https"):
+                dm_url = url + dm + "/"
+            else:
+                dm_url = dm
             r = requests.get(dm_url, auth=auth, headers={"Accept": "application/json"})
             r.raise_for_status()
             mpy = False
@@ -353,7 +363,10 @@ class WebBackend(Backend):
         :param url: URL of the device.
         """
         for sfm in single_file_mods:
-            sfm_url = url + sfm
+            if not str(urlparse(sfm).scheme).lower() in ("http", "https"):
+                sfm_url = url + sfm
+            else:
+                sfm_url = sfm
             r = requests.get(sfm_url, auth=auth)
             r.raise_for_status()
             idx = sfm.rfind(".")
@@ -468,7 +481,7 @@ class WebBackend(Backend):
         """
         retuns the full path on the device to a given file name.
         """
-        return os.path.join(self.device_location, "fs", filename)
+        return urljoin( urljoin(self.device_location, "fs/", allow_fragments=False), filename, allow_fragments=False)
 
     def is_device_present(self):
         """
@@ -480,6 +493,15 @@ class WebBackend(Backend):
         except requests.exceptions.ConnectionError:
             return False
 
+    def get_device_versions(self):
+        """
+        Returns a dictionary of metadata from modules on the connected device.
+
+        :param str device_url: URL for the device.
+        :return: A dictionary of metadata about the modules available on the
+                 connected device.
+        """
+        return self.get_modules(urljoin(self.device_location, self.LIB_DIR_PATH))
 
 class DiskBackend(Backend):
     """

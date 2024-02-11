@@ -18,7 +18,7 @@ import sys
 import tempfile
 import zipfile
 from subprocess import check_output
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 import appdirs
 import click
@@ -264,9 +264,9 @@ class Module:
         """
         self.name = name
         self.backend = backend
-        self.path = os.path.join(backend.library_path, name)
-        url = urlparse(self.path)
-        if url.scheme == "http":
+        self.path = urljoin(backend.library_path,name, allow_fragments=False) if isinstance(backend,WebBackend) else os.path.join(backend.library_path, name)
+        url = urlparse(self.path,allow_fragments=False)
+        if str(url.scheme).lower() in ("http", "https"):
             if url.path.endswith(".py") or url.path.endswith(".mpy"):
                 self.file = os.path.basename(url.path)
                 self.name = (
@@ -274,7 +274,7 @@ class Module:
                 )
             else:
                 self.file = None
-                self.name = os.path.basename(url.path[:-1])
+                self.name = os.path.basename(url.path if url.path[:-1]=='/' else url.path[:-1])
         else:
             if os.path.isfile(self.path):
                 # Single file module.
@@ -608,6 +608,12 @@ def find_modules(backend, bundles_list):
                     if not path.endswith(os.sep)
                     else path[:-1].split(os.sep)[-1] + os.sep
                 )
+                print("old path module name: ", module_name)
+                module_name = name if not path.contains(os.sep) else module_name # should probably check for os.sep and use previous version if found
+                print("new path module name: ", module_name)
+                print("Name: ", name)
+                print("Path: ", path)
+                print("Module_name: ", module_name)
                 m = Module(
                     module_name,
                     backend,
@@ -618,6 +624,7 @@ def find_modules(backend, bundles_list):
                     bundle,
                     compatibility,
                 )
+                print("Module: ", m)
                 result.append(m)
         return result
     except Exception as ex:
@@ -1225,13 +1232,16 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
     elif auto or auto_file:
         if auto_file is None:
             auto_file = "code.py"
+            print(f"Auto file: {auto_file}")
         # pass a local file with "./" or "../"
-        is_relative = auto_file.split(os.sep)[0] in [os.path.curdir, os.path.pardir]
+        is_relative = not isinstance(ctx.obj["backend"], WebBackend) or auto_file.split(os.sep)[0] in [os.path.curdir, os.path.pardir]
+        print("is rel: ", is_relative, "is abs: ", os.path.isabs(auto_file))
         if not os.path.isabs(auto_file) and not is_relative:
             auto_file = ctx.obj["backend"].get_file_path(auto_file or "code.py")
+            print(f"Auto file: {auto_file}")
 
         auto_file_path = ctx.obj["backend"].get_auto_file_path(auto_file)
-
+        print(f"Auto file path: {auto_file_path}")
         if not os.path.isfile(auto_file_path):
             click.secho(f"Auto file not found: {auto_file}", fg="red")
             sys.exit(1)

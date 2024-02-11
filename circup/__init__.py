@@ -608,12 +608,7 @@ def find_modules(backend, bundles_list):
                     if not path.endswith(os.sep)
                     else path[:-1].split(os.sep)[-1] + os.sep
                 )
-                print("old path module name: ", module_name)
-                module_name = name if not path.contains(os.sep) else module_name # should probably check for os.sep and use previous version if found
-                print("new path module name: ", module_name)
-                print("Name: ", name)
-                print("Path: ", path)
-                print("Module_name: ", module_name)
+                module_name = name if not path.find(os.sep) else module_name # should probably check for os.sep and use previous version if found
                 m = Module(
                     module_name,
                     backend,
@@ -624,7 +619,6 @@ def find_modules(backend, bundles_list):
                     bundle,
                     compatibility,
                 )
-                print("Module: ", m)
                 result.append(m)
         return result
     except Exception as ex:
@@ -1235,10 +1229,8 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
             print(f"Auto file: {auto_file}")
         # pass a local file with "./" or "../"
         is_relative = not isinstance(ctx.obj["backend"], WebBackend) or auto_file.split(os.sep)[0] in [os.path.curdir, os.path.pardir]
-        print("is rel: ", is_relative, "is abs: ", os.path.isabs(auto_file))
         if not os.path.isabs(auto_file) and not is_relative:
             auto_file = ctx.obj["backend"].get_file_path(auto_file or "code.py")
-            print(f"Auto file: {auto_file}")
 
         auto_file_path = ctx.obj["backend"].get_auto_file_path(auto_file)
         print(f"Auto file path: {auto_file_path}")
@@ -1296,6 +1288,7 @@ def uninstall(ctx, module):  # pragma: no cover
     separated by a space.
     """
     device_path = ctx.obj["DEVICE_PATH"]
+    print(f"Uninstalling {module} from {device_path}")
     for name in module:
         device_modules = ctx.obj["backend"].get_device_versions()
         name = name.lower()
@@ -1309,6 +1302,8 @@ def uninstall(ctx, module):  # pragma: no cover
             click.echo("Uninstalled '{}'.".format(name))
         else:
             click.echo("Module '{}' not found on device.".format(name))
+        continue
+
 
 
 # pylint: disable=too-many-branches

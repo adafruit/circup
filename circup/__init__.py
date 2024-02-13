@@ -498,6 +498,7 @@ def ensure_latest_bundle(bundle):
 
 
 def extract_metadata(path):
+    # pylint: disable=too-many-locals,too-many-branches
     """
     Given an file path, return a dictionary containing metadata extracted from
     dunder attributes found therein. Works with both .py and .mpy files.
@@ -528,6 +529,7 @@ def extract_metadata(path):
         if result:
             logger.info("Extracted metadata: %s", result)
     elif path.endswith(".mpy"):
+        find_by_regexp_match = False
         result["mpy"] = True
         with open(path, "rb") as mpy_file:
             content = mpy_file.read()
@@ -541,10 +543,20 @@ def extract_metadata(path):
             loc = content.find(b"__version__") - 1
             compatibility = (None, "7.0.0-alpha.1")
         elif mpy_version == b"C\x05":
-            # Two bytes in mpy version 5
+            # Two bytes for the length of "__version__" in mpy version 5
             loc = content.find(b"__version__") - 2
-            compatibility = ("7.0.0-alpha.1", None)
-        if loc > -1:
+            compatibility = ("7.0.0-alpha.1", "8.99.99")
+        elif mpy_version == b"C\x06":
+            # Two bytes in mpy version 6
+            find_by_regexp_match = True
+            compatibility = ("9.0.0-alpha.1", None)
+        if find_by_regexp_match:
+            # Too hard to find the version positionally.
+            # Find the first thing that looks like an x.y.z version number.
+            match = re.search(rb"([\d]+\.[\d]+\.[\d]+)\x00", content)
+            if match:
+                result["__version__"] = match.group(1).decode("utf-8")
+        elif loc > -1:
             # Backtrack until a byte value of the offset is reached.
             offset = 1
             while offset < loc:

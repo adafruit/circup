@@ -316,7 +316,7 @@ def test_Module_mpy_mismatch():
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         m1 = circup.Module(path, repo, "1.2.3", "1.2.3", True, bundle, (None, None))
         m2 = circup.Module(
-            path, repo, "1.2.3", "1.2.3", True, bundle, ("7.0.0-alpha.1", None)
+            path, repo, "1.2.3", "1.2.3", True, bundle, ("7.0.0-alpha.1", "8.99.99")
         )
         m3 = circup.Module(
             path, repo, "1.2.3", "1.2.3", True, bundle, (None, "7.0.0-alpha.1")
@@ -592,7 +592,7 @@ def test_extract_metadata_byte_code_v7():
     result = circup.extract_metadata("tests/local_module_cp7.mpy")
     assert result["__version__"] == "1.2.3"
     assert result["mpy"] is True
-    assert result["compatibility"] == ("7.0.0-alpha.1", None)
+    assert result["compatibility"] == ("7.0.0-alpha.1", "8.99.99")
 
 
 def test_find_modules():

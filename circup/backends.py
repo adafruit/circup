@@ -8,11 +8,13 @@ Backend classes that represent interfaces to physical devices.
 import os
 import shutil
 import sys
+import socket
 import tempfile
 from urllib.parse import urlparse
 import click
 import requests
 from requests.auth import HTTPBasicAuth
+
 
 from circup.shared import DATA_DIR, BAD_FILE_FORMAT, extract_metadata, _get_modules_file
 
@@ -185,6 +187,20 @@ class WebBackend(Backend):
 
     def __init__(self, host, password, logger):
         super().__init__(logger)
+        if password is None:
+            raise ValueError("--host needs --password")
+
+        # pylint: disable=no-member
+        # verify hostname/address
+        try:
+            socket.getaddrinfo(host, 80, proto=socket.IPPROTO_TCP)
+        except socket.gaierror as exc:
+            raise RuntimeError(
+                "Invalid host: {}.".format(host) + " You should remove the 'http://'"
+                if "http://" in host or "https://" in host
+                else ""
+            ) from exc
+
         self.LIB_DIR_PATH = "fs/lib/"
         self.host = host
         self.password = password

@@ -1005,7 +1005,7 @@ def libraries_from_code_py(code_py, mod_names):
 )
 @click.pass_context
 def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: no cover
-    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-arguments, too-many-branches, too-many-statements
     """
     A tool to manage and update libraries on a CircuitPython device.
     """
@@ -1015,7 +1015,14 @@ def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: 
     using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
 
     if using_webworkflow:
-        ctx.obj["backend"] = WebBackend(host=host, password=password, logger=logger)
+        try:
+            ctx.obj["backend"] = WebBackend(host=host, password=password, logger=logger)
+        except ValueError as e:
+            click.secho(e, fg="red")
+            sys.exit(1)
+        except RuntimeError as e:
+            click.secho(e, fg="red")
+            sys.exit(1)
     else:
         try:
             ctx.obj["backend"] = DiskBackend(device_path, logger)
@@ -1090,17 +1097,6 @@ def get_device_path(host, password, path):
     if path:
         device_path = path
     elif host:
-        if password is None:
-            click.secho("--host needs --password", fg="red")
-            sys.exit(1)
-
-        # pylint: disable=no-member
-        # verify hostname/address
-        try:
-            socket.getaddrinfo(host, 80, proto=socket.IPPROTO_TCP)
-        except socket.gaierror:
-            click.secho("Invalid host: {}".format(host), fg="red")
-            sys.exit(1)
         # pylint: enable=no-member
         device_path = f"http://:{password}@" + host
     else:

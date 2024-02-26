@@ -13,6 +13,7 @@ import tempfile
 from urllib.parse import urlparse, urljoin
 import click
 import requests
+from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 
 
@@ -116,7 +117,11 @@ class Backend:
                 click.echo("'{}' is already installed.".format(name))
                 return
 
-            library_path = os.path.join(device_path, self.LIB_DIR_PATH) if not isinstance(self,WebBackend) else urljoin(device_path,self.LIB_DIR_PATH)
+            library_path = (
+                os.path.join(device_path, self.LIB_DIR_PATH)
+                if not isinstance(self, WebBackend)
+                else urljoin(device_path, self.LIB_DIR_PATH)
+            )
 
             # Create the library directory first.
             self._create_library_directory(device_path, library_path)
@@ -206,6 +211,8 @@ class WebBackend(Backend):
         self.password = password
         self.device_location = f"http://:{self.password}@{self.host}"
 
+        self.session = requests.Session()
+        self.session.mount(self.device_location, HTTPAdapter(max_retries=5))
         self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
 
     def install_file_http(self, source):
@@ -215,19 +222,14 @@ class WebBackend(Backend):
         """
         file_name = source.split(os.path.sep)
         file_name = file_name[-2] if file_name[-1] == "" else file_name[-1]
-        target = (
-            self.device_location
-            + "/"
-            + self.LIB_DIR_PATH
-            + file_name
-        )
+        target = self.device_location + "/" + self.LIB_DIR_PATH + file_name
 
         auth = HTTPBasicAuth("", self.password)
         print(f"target: {target}")
         print(f"source: {source}")
 
         with open(source, "rb") as fp:
-            r = requests.put(target, fp.read(), auth=auth)
+            r = self.session.put(target, fp.read(), auth=auth)
             r.raise_for_status()
 
     def install_dir_http(self, source):
@@ -237,20 +239,15 @@ class WebBackend(Backend):
         """
         mod_name = source.split(os.path.sep)
         mod_name = mod_name[-2] if mod_name[-1] == "" else mod_name[-1]
-        target = (
-            self.device_location
-            + "/"
-            + self.LIB_DIR_PATH
-            + mod_name
-        )
-        target = target + "/" if target[:-1]!="/" else target
+        target = self.device_location + "/" + self.LIB_DIR_PATH + mod_name
+        target = target + "/" if target[:-1] != "/" else target
         url = urlparse(target)
         auth = HTTPBasicAuth("", url.password)
         print(f"target: {target}")
         print(f"source: {source}")
 
         # Create the top level directory.
-        with requests.put(target, auth=auth) as r:
+        with self.session.put(target, auth=auth) as r:
             print(f"resp {r.content}")
             r.raise_for_status()
 
@@ -260,18 +257,36 @@ class WebBackend(Backend):
             if rel_path == ".":
                 rel_path = ""
             for name in dirs:
-                path_to_create = urljoin( urljoin(target , rel_path + "/", allow_fragments=False) , name, allow_fragments=False) if rel_path != "" else urljoin(target , name, allow_fragments=False)
-                path_to_create = path_to_create + "/" if path_to_create[:-1]!="/" else path_to_create
+                path_to_create = (
+                    urljoin(
+                        urljoin(target, rel_path + "/", allow_fragments=False),
+                        name,
+                        allow_fragments=False,
+                    )
+                    if rel_path != ""
+                    else urljoin(target, name, allow_fragments=False)
+                )
+                path_to_create = (
+                    path_to_create + "/"
+                    if path_to_create[:-1] != "/"
+                    else path_to_create
+                )
                 print(f"dir_path_to_create: {path_to_create}")
-                with requests.put(path_to_create, auth=auth) as r:
+                with self.session.put(path_to_create, auth=auth) as r:
                     r.raise_for_status()
             for name in files:
                 with open(os.path.join(root, name), "rb") as fp:
-                    path_to_create = urljoin( urljoin(target , rel_path + "/", allow_fragments=False) , name, allow_fragments=False) if rel_path != "" else urljoin(target , name, allow_fragments=False)
+                    path_to_create = (
+                        urljoin(
+                            urljoin(target, rel_path + "/", allow_fragments=False),
+                            name,
+                            allow_fragments=False,
+                        )
+                        if rel_path != ""
+                        else urljoin(target, name, allow_fragments=False)
+                    )
                     print(f"file_path_to_create: {path_to_create}")
-                    with requests.put(
-                        path_to_create, fp.read(), auth=auth
-                    ) as r:
+                    with self.session.put(path_to_create, fp.read(), auth=auth) as r:
                         r.raise_for_status()
 
     def get_circuitpython_version(self):
@@ -283,7 +298,7 @@ class WebBackend(Backend):
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
         # pylint: disable=arguments-renamed
-        with requests.get(self.device_location + "/cp/version.json") as r:
+        with self.session.get(self.device_location + "/cp/version.json") as r:
             # pylint: disable=no-member
             if r.status_code != requests.codes.ok:
                 click.secho(
@@ -296,6 +311,7 @@ class WebBackend(Backend):
         return ver_json.get("version"), ver_json.get("board_id")
 
     def _get_modules(self, device_lib_path):
+        print(f"device_lib_path {device_lib_path}")
         return self._get_modules_http(device_lib_path)
 
     def _get_modules_http(self, url):
@@ -309,12 +325,17 @@ class WebBackend(Backend):
         result = {}
         u = urlparse(url)
         auth = HTTPBasicAuth("", u.password)
-        with requests.get(url, auth=auth, headers={"Accept": "application/json"}) as r:
+        with self.session.get(
+            url, auth=auth, headers={"Accept": "application/json"}
+        ) as r:
             r.raise_for_status()
 
             directory_mods = []
             single_file_mods = []
-            for entry in r.json():
+
+            for entry in r.json()["files"]:
+                # print(f"type: {type(entry)}")
+                # print(f"val: {entry}")
                 entry_name = entry.get("name")
                 if entry.get("directory"):
                     directory_mods.append(entry_name)
@@ -328,6 +349,7 @@ class WebBackend(Backend):
         return result
 
     def _get_modules_http_dir_mods(self, auth, directory_mods, result, url):
+        # pylint: disable=too-many-locals
         """
         #TODO describe what this does
 
@@ -337,21 +359,27 @@ class WebBackend(Backend):
         :param url: URL of the device.
         """
         for dm in directory_mods:
-            if not str(urlparse(dm).scheme).lower() in ("http", "https"):
+            if str(urlparse(dm).scheme).lower() not in ("http", "https"):
                 dm_url = url + dm + "/"
             else:
                 dm_url = dm
-            with requests.get(dm_url, auth=auth, headers={"Accept": "application/json"}) as r:
+
+            print(f"dm_url: {dm_url}")
+            with self.session.get(
+                dm_url, auth=auth, headers={"Accept": "application/json"}, timeout=10
+            ) as r:
                 r.raise_for_status()
                 mpy = False
-                for entry in r.json():
+
+                for entry in r.json()["files"]:
                     entry_name = entry.get("name")
                     if not entry.get("directory") and (
                         entry_name.endswith(".py") or entry_name.endswith(".mpy")
                     ):
                         if entry_name.endswith(".mpy"):
                             mpy = True
-                        with requests.get(dm_url + entry_name, auth=auth) as rr:
+
+                        with self.session.get(dm_url + entry_name, auth=auth) as rr:
                             rr.raise_for_status()
                             idx = entry_name.rfind(".")
                             with tempfile.NamedTemporaryFile(
@@ -381,11 +409,11 @@ class WebBackend(Backend):
         :param url: URL of the device.
         """
         for sfm in single_file_mods:
-            if not str(urlparse(sfm).scheme).lower() in ("http", "https"):
+            if str(urlparse(sfm).scheme).lower() not in ("http", "https"):
                 sfm_url = url + sfm
             else:
                 sfm_url = sfm
-            with requests.get(sfm_url, auth=auth) as r:
+            with self.session.get(sfm_url, auth=auth) as r:
                 r.raise_for_status()
                 idx = sfm.rfind(".")
                 with tempfile.NamedTemporaryFile(
@@ -401,7 +429,7 @@ class WebBackend(Backend):
     def _create_library_directory(self, device_path, library_path):
         url = urlparse(device_path)
         auth = HTTPBasicAuth("", url.password)
-        with requests.put(library_path, auth=auth) as r:
+        with self.session.put(library_path, auth=auth) as r:
             r.raise_for_status()
 
     def _install_module_mpy(self, bundle, metadata):
@@ -455,7 +483,7 @@ class WebBackend(Backend):
         """
         url = auto_file_path
         auth = HTTPBasicAuth("", self.password)
-        with requests.get(url, auth=auth) as r:
+        with self.session.get(url, auth=auth) as r:
             r.raise_for_status()
             with open(LOCAL_CODE_PY_COPY, "w", encoding="utf-8") as f:
                 f.write(r.text)
@@ -468,7 +496,7 @@ class WebBackend(Backend):
         print(f"Uninstalling {module_path}")
         url = urlparse(device_path)
         auth = HTTPBasicAuth("", url.password)
-        with requests.delete(module_path, auth=auth) as r:
+        with self.session.delete(module_path, auth=auth) as r:
             r.raise_for_status()
 
     def update(self, module):
@@ -491,7 +519,7 @@ class WebBackend(Backend):
             # Delete the directory (recursive) first.
             url = urlparse(module.path)
             auth = HTTPBasicAuth("", url.password)
-            with requests.delete(module.path, auth=auth) as r:
+            with self.session.delete(module.path, auth=auth) as r:
                 r.raise_for_status()
             self.install_dir_http(module.bundle_path)
 
@@ -499,7 +527,11 @@ class WebBackend(Backend):
         """
         retuns the full path on the device to a given file name.
         """
-        return urljoin( urljoin(self.device_location, "fs/", allow_fragments=False), filename, allow_fragments=False)
+        return urljoin(
+            urljoin(self.device_location, "fs/", allow_fragments=False),
+            filename,
+            allow_fragments=False,
+        )
 
     def is_device_present(self):
         """
@@ -520,6 +552,7 @@ class WebBackend(Backend):
                  connected device.
         """
         return self.get_modules(urljoin(self.device_location, self.LIB_DIR_PATH))
+
 
 class DiskBackend(Backend):
     """

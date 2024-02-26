@@ -264,8 +264,12 @@ class Module:
         """
         self.name = name
         self.backend = backend
-        self.path = urljoin(backend.library_path,name, allow_fragments=False) if isinstance(backend,WebBackend) else os.path.join(backend.library_path, name)
-        url = urlparse(self.path,allow_fragments=False)
+        self.path = (
+            urljoin(backend.library_path, name, allow_fragments=False)
+            if isinstance(backend, WebBackend)
+            else os.path.join(backend.library_path, name)
+        )
+        url = urlparse(self.path, allow_fragments=False)
         if str(url.scheme).lower() in ("http", "https"):
             if url.path.endswith(".py") or url.path.endswith(".mpy"):
                 self.file = os.path.basename(url.path)
@@ -274,7 +278,9 @@ class Module:
                 )
             else:
                 self.file = None
-                self.name = os.path.basename(url.path if url.path[:-1]=='/' else url.path[:-1])
+                self.name = os.path.basename(
+                    url.path if url.path[:-1] == "/" else url.path[:-1]
+                )
         else:
             if os.path.isfile(self.path):
                 # Single file module.
@@ -608,7 +614,9 @@ def find_modules(backend, bundles_list):
                     if not path.endswith(os.sep)
                     else path[:-1].split(os.sep)[-1] + os.sep
                 )
-                module_name = name if not path.find(os.sep) else module_name # should probably check for os.sep and use previous version if found
+                module_name = (
+                    name if not path.find(os.sep) else module_name
+                )  # should probably check for os.sep and use previous version if found
                 m = Module(
                     module_name,
                     backend,
@@ -1224,7 +1232,9 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
             auto_file = "code.py"
             print(f"Auto file: {auto_file}")
         # pass a local file with "./" or "../"
-        is_relative = not isinstance(ctx.obj["backend"], WebBackend) or auto_file.split(os.sep)[0] in [os.path.curdir, os.path.pardir]
+        is_relative = not isinstance(ctx.obj["backend"], WebBackend) or auto_file.split(
+            os.sep
+        )[0] in [os.path.curdir, os.path.pardir]
         if not os.path.isabs(auto_file) and not is_relative:
             auto_file = ctx.obj["backend"].get_file_path(auto_file or "code.py")
 
@@ -1299,7 +1309,6 @@ def uninstall(ctx, module):  # pragma: no cover
         else:
             click.echo("Module '{}' not found on device.".format(name))
         continue
-
 
 
 # pylint: disable=too-many-branches

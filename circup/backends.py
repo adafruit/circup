@@ -220,8 +220,8 @@ class WebBackend(Backend):
             + self.LIB_DIR_PATH
             + source.split(os.path.sep)[-1]
         )
-        url = urlparse(target)
-        auth = HTTPBasicAuth("", url.password)
+
+        auth = HTTPBasicAuth("", self.password)
         print(f"target: {target}")
         print(f"source: {source}")
 

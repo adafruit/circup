@@ -29,19 +29,21 @@ jobs:
         python3 --version
         pre-commit --version
     - name: Checkout Current Repo
-      uses: actions/checkout@v1
+      uses: actions/checkout@v4
       with:
         submodules: true
+        show-progress: false
     - name: Library version
       run: git describe --dirty --always --tags
     - name: Pre-commit hooks
       run: |
         pre-commit run --all-files
     - name: Checkout tools repo
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         repository: adafruit/actions-ci-circuitpython-libs
         path: actions-ci
+        show-progress: false
     - name: Install dependencies
       # (e.g. - apt-get: gettext, etc; pip: circuitpython-build-tools, requirements.txt; etc.)
       run: |

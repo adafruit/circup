@@ -358,7 +358,14 @@ def test_Module_mpy_mismatch():
             name, backend, repo, "1.2.3", "1.2.3", True, bundle, (None, None)
         )
         m2 = circup.Module(
-            name, backend, repo, "1.2.3", "1.2.3", True, bundle, ("7.0.0-alpha.1", "8.99.99")
+            name,
+            backend,
+            repo,
+            "1.2.3",
+            "1.2.3",
+            True,
+            bundle,
+            ("7.0.0-alpha.1", "8.99.99"),
         )
         m3 = circup.Module(
             name, backend, repo, "1.2.3", "1.2.3", True, bundle, (None, "7.0.0-alpha.1")

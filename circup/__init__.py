@@ -282,10 +282,12 @@ class Module:
             self.name = url.path.split("/")[-2]
         else:
             self.file = os.path.basename(url.path)
-            self.name = os.path.basename(url.path).replace(".py", "").replace(".mpy", "")
-        
-        #print(f"opb: {os.path.basename(url.path)}")
-        
+            self.name = (
+                os.path.basename(url.path).replace(".py", "").replace(".mpy", "")
+            )
+
+        # print(f"opb: {os.path.basename(url.path)}")
+
         print(f"file: {self.file}")
         print(f"name: {self.name}")
 
@@ -305,7 +307,7 @@ class Module:
         #     print(f"file: {self.file}")
         #     print(f"name: {self.name}")
         # else:
-        # 
+        #
         #     print(f"parse: {self.file.parse()}")
         #     print(f"path b4: {self.path}")
         #     if os.path.isfile(self.path):
@@ -320,7 +322,7 @@ class Module:
         #         self.path = os.path.join(backend.library_path, name, "")
         #     print(f"file: {self.file}")
         #     print(f"name: {self.name}")
-        
+
         self.repo = repo
         self.device_version = device_version
         self.bundle_version = bundle_version
@@ -634,7 +636,7 @@ def find_modules(backend, bundles_list):
         for key, device_metadata in device_modules.items():
             print(f"key in loop: {key}")
             print(f"dev_meta in loop: {device_metadata}")
-            
+
             if key in bundle_modules:
                 path = device_metadata["path"]
                 bundle_metadata = bundle_modules[key]

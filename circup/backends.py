@@ -214,6 +214,7 @@ class WebBackend(Backend):
         self.session = requests.Session()
         self.session.mount(self.device_location, HTTPAdapter(max_retries=5))
         self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
+        self.timeout = 10
 
     def install_file_http(self, source):
         """
@@ -229,7 +230,7 @@ class WebBackend(Backend):
         print(f"source: {source}")
 
         with open(source, "rb") as fp:
-            r = self.session.put(target, fp.read(), auth=auth)
+            r = self.session.put(target, fp.read(), auth=auth, timeout=self.timeout)
             r.raise_for_status()
 
     def install_dir_http(self, source):
@@ -247,7 +248,7 @@ class WebBackend(Backend):
         print(f"source: {source}")
 
         # Create the top level directory.
-        with self.session.put(target, auth=auth) as r:
+        with self.session.put(target, auth=auth, timeout=self.timeout) as r:
             print(f"resp {r.content}")
             r.raise_for_status()
 
@@ -272,7 +273,9 @@ class WebBackend(Backend):
                     else path_to_create
                 )
                 print(f"dir_path_to_create: {path_to_create}")
-                with self.session.put(path_to_create, auth=auth) as r:
+                with self.session.put(
+                    path_to_create, auth=auth, timeout=self.timeout
+                ) as r:
                     r.raise_for_status()
             for name in files:
                 with open(os.path.join(root, name), "rb") as fp:
@@ -286,7 +289,9 @@ class WebBackend(Backend):
                         else urljoin(target, name, allow_fragments=False)
                     )
                     print(f"file_path_to_create: {path_to_create}")
-                    with self.session.put(path_to_create, fp.read(), auth=auth) as r:
+                    with self.session.put(
+                        path_to_create, fp.read(), auth=auth, timeout=self.timeout
+                    ) as r:
                         r.raise_for_status()
 
     def get_circuitpython_version(self):
@@ -298,7 +303,9 @@ class WebBackend(Backend):
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
         # pylint: disable=arguments-renamed
-        with self.session.get(self.device_location + "/cp/version.json") as r:
+        with self.session.get(
+            self.device_location + "/cp/version.json", timeout=self.timeout
+        ) as r:
             # pylint: disable=no-member
             if r.status_code != requests.codes.ok:
                 click.secho(
@@ -326,7 +333,7 @@ class WebBackend(Backend):
         u = urlparse(url)
         auth = HTTPBasicAuth("", u.password)
         with self.session.get(
-            url, auth=auth, headers={"Accept": "application/json"}
+            url, auth=auth, headers={"Accept": "application/json"}, timeout=self.timeout
         ) as r:
             r.raise_for_status()
 
@@ -366,7 +373,10 @@ class WebBackend(Backend):
 
             print(f"dm_url: {dm_url}")
             with self.session.get(
-                dm_url, auth=auth, headers={"Accept": "application/json"}, timeout=10
+                dm_url,
+                auth=auth,
+                headers={"Accept": "application/json"},
+                timeout=self.timeout,
             ) as r:
                 r.raise_for_status()
                 mpy = False
@@ -379,7 +389,9 @@ class WebBackend(Backend):
                         if entry_name.endswith(".mpy"):
                             mpy = True
 
-                        with self.session.get(dm_url + entry_name, auth=auth) as rr:
+                        with self.session.get(
+                            dm_url + entry_name, auth=auth, timeout=self.timeout
+                        ) as rr:
                             rr.raise_for_status()
                             idx = entry_name.rfind(".")
                             with tempfile.NamedTemporaryFile(
@@ -413,7 +425,7 @@ class WebBackend(Backend):
                 sfm_url = url + sfm
             else:
                 sfm_url = sfm
-            with self.session.get(sfm_url, auth=auth) as r:
+            with self.session.get(sfm_url, auth=auth, timeout=self.timeout) as r:
                 r.raise_for_status()
                 idx = sfm.rfind(".")
                 with tempfile.NamedTemporaryFile(
@@ -429,7 +441,7 @@ class WebBackend(Backend):
     def _create_library_directory(self, device_path, library_path):
         url = urlparse(device_path)
         auth = HTTPBasicAuth("", url.password)
-        with self.session.put(library_path, auth=auth) as r:
+        with self.session.put(library_path, auth=auth, timeout=self.timeout) as r:
             r.raise_for_status()
 
     def _install_module_mpy(self, bundle, metadata):
@@ -483,7 +495,7 @@ class WebBackend(Backend):
         """
         url = auto_file_path
         auth = HTTPBasicAuth("", self.password)
-        with self.session.get(url, auth=auth) as r:
+        with self.session.get(url, auth=auth, timeout=self.timeout) as r:
             r.raise_for_status()
             with open(LOCAL_CODE_PY_COPY, "w", encoding="utf-8") as f:
                 f.write(r.text)
@@ -496,7 +508,7 @@ class WebBackend(Backend):
         print(f"Uninstalling {module_path}")
         url = urlparse(device_path)
         auth = HTTPBasicAuth("", url.password)
-        with self.session.delete(module_path, auth=auth) as r:
+        with self.session.delete(module_path, auth=auth, timeout=self.timeout) as r:
             r.raise_for_status()
 
     def update(self, module):
@@ -519,7 +531,7 @@ class WebBackend(Backend):
             # Delete the directory (recursive) first.
             url = urlparse(module.path)
             auth = HTTPBasicAuth("", url.password)
-            with self.session.delete(module.path, auth=auth) as r:
+            with self.session.delete(module.path, auth=auth, timeout=self.timeout) as r:
                 r.raise_for_status()
             self.install_dir_http(module.bundle_path)
 

@@ -263,13 +263,18 @@ class Module:
         :param (str,str) compatibility: Min and max versions of CP compatible with the mpy.
         """
         self.name = name
+        print(f"name in init: {name}")
         self.backend = backend
         self.path = (
             urljoin(backend.library_path, name, allow_fragments=False)
             if isinstance(backend, WebBackend)
             else os.path.join(backend.library_path, name)
         )
+        print(f"path in init: {self.path}")
         url = urlparse(self.path, allow_fragments=False)
+
+        print(url)
+        print(url.scheme)
         if str(url.scheme).lower() in ("http", "https"):
             if url.path.endswith(".py") or url.path.endswith(".mpy"):
                 self.file = os.path.basename(url.path)
@@ -281,15 +286,22 @@ class Module:
                 self.name = os.path.basename(
                     url.path if url.path[:-1] == "/" else url.path[:-1]
                 )
+            print(f"file: {self.file}")
+            print(f"name: {self.name}")
         else:
+            print(f"path b4: {self.path}")
             if os.path.isfile(self.path):
+                print("isfile")
                 # Single file module.
                 self.file = os.path.basename(self.path)
                 self.name = self.file.replace(".py", "").replace(".mpy", "")
             else:
+                print("directory")
                 # Directory based module.
                 self.file = None
                 self.path = os.path.join(backend.library_path, name, "")
+            print(f"file: {self.file}")
+            print(f"name: {self.name}")
         self.repo = repo
         self.device_version = device_version
         self.bundle_version = bundle_version
@@ -597,9 +609,13 @@ def find_modules(backend, bundles_list):
     # pylint: disable=broad-except,too-many-locals
     try:
         device_modules = backend.get_device_versions()
+        print(f"dev_modules: {device_modules}")
         bundle_modules = get_bundle_versions(bundles_list)
         result = []
         for name, device_metadata in device_modules.items():
+            print(f"name in loop: {name}")
+            print(f"dev_meta in loop: {device_metadata}")
+            
             if name in bundle_modules:
                 path = device_metadata["path"]
                 bundle_metadata = bundle_modules[name]
@@ -614,9 +630,8 @@ def find_modules(backend, bundles_list):
                     if not path.endswith(os.sep)
                     else path[:-1].split(os.sep)[-1] + os.sep
                 )
-                module_name = (
-                    name if not path.find(os.sep) else module_name
-                )  # should probably check for os.sep and use previous version if found
+                print(f"module_name after 1st: {module_name}")
+
                 m = Module(
                     module_name,
                     backend,

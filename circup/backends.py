@@ -612,7 +612,7 @@ class DiskBackend(Backend):
         super().__init__(logger)
         self.LIB_DIR_PATH = "lib"
         self.device_location = device_location
-        self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
+        self.library_path = os.path.join(self.device_location, os.sep + self.LIB_DIR_PATH)
         self.version_info = None
         if boot_out is not None:
             self.version_info = self.parse_boot_out_file(boot_out)

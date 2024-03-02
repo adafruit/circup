@@ -276,9 +276,9 @@ class Module:
         print(url.scheme)
 
         print(f"url.path: {url.path}")
-        if url.path.endswith("/"):
+        if url.path.endswith("/") if isinstance(backend, WebBackend) else self.path.endswith(os.sep):
             self.file = None
-            self.name = url.path.split("/")[-2]
+            self.name = self.path.split("/" if isinstance(backend, WebBackend) else os.sep)[-2]
         else:
             self.file = os.path.basename(url.path)
             self.name = (

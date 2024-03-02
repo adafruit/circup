@@ -122,12 +122,16 @@ class Backend:
                 if not isinstance(self, WebBackend)
                 else urljoin(device_path, self.LIB_DIR_PATH)
             )
+            metadata = mod_names[name]
+            bundle = metadata["bundle"]
+            bundle.size = os.path.getsize(metadata['path'])
+
+            if self.get_free_space() < bundle.size:
+                self.logger.error(f"Aborted installing module {name} - not enough free space ({bundle.size} < {self.get_free_space()})")
 
             # Create the library directory first.
             self._create_library_directory(device_path, library_path)
 
-            metadata = mod_names[name]
-            bundle = metadata["bundle"]
             if pyext:
                 # Use Python source for module.
                 self._install_module_py(metadata)
@@ -157,6 +161,12 @@ class Backend:
         raise NotImplementedError
 
     def get_file_path(self, filename):
+        """
+        To be overridden by subclass
+        """
+        raise NotImplementedError
+    
+    def get_free_space(self):
         """
         To be overridden by subclass
         """
@@ -564,7 +574,23 @@ class WebBackend(Backend):
                  connected device.
         """
         return self.get_modules(urljoin(self.device_location, self.LIB_DIR_PATH))
-
+    
+    def get_free_space(self):
+        """
+        Returns the free space on the device in bytes.
+        """
+        auth = HTTPBasicAuth("", self.password)
+        with self.session.get(
+            urljoin(self.device_location , "fs/"), auth=auth, headers={"Accept": "application/json"}, timeout=self.timeout
+        ) as r:
+            r.raise_for_status()
+            if r.json().get("free") is None:
+                self.logger.error("Unable to get free space from device.")
+            if r.json().get("block_size") is None:
+                self.logger.error("Unable to get block size from device.")
+            if r.json().get("writable") is None or r.json().get("writable") is False:
+                raise PermissionError("CircuitPython Web Workflow Device not writable\n - Remount storage as writable to device (not PC)")
+            return r.json()["free"] * r.json()["block_size"] # bytes
 
 class DiskBackend(Backend):
     """
@@ -743,3 +769,10 @@ class DiskBackend(Backend):
         returns True if the device is currently connected
         """
         return os.path.exists(self.device_location)
+
+    def get_free_space(self):
+        """
+        Returns the free space on the device in bytes.
+        """
+        _, total, free = shutil.disk_usage(self.device_location)
+        return free

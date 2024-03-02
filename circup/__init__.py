@@ -4,7 +4,6 @@
 """
 CircUp -- a utility to manage and update libraries on a CircuitPython device.
 """
-import pdb
 
 import ctypes
 import glob
@@ -646,7 +645,6 @@ def find_modules(backend, bundles_list):
                 bundle_version = bundle_metadata.get("__version__")
                 mpy = device_metadata["mpy"]
                 compatibility = device_metadata.get("compatibility", (None, None))
-                pdb.set_trace()
                 module_name = (
                     path.split(os.sep)[-1]
                     if not path.endswith(os.sep)
@@ -1284,8 +1282,15 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
         auto_file_path = ctx.obj["backend"].get_auto_file_path(auto_file)
         print(f"Auto file path: {auto_file_path}")
         if not os.path.isfile(auto_file_path):
-            click.secho(f"Auto file not found: {auto_file}", fg="red")
-            sys.exit(1)
+            # fell through to here when run from random folder on windows - ask backend.
+            new_auto_file = ctx.obj["backend"].get_file_path(auto_file)
+            if os.path.isfile(new_auto_file):
+                auto_file = new_auto_file
+                auto_file_path = ctx.obj["backend"].get_auto_file_path(auto_file)
+                print(f"Auto file path: {auto_file_path}")
+            else:
+                click.secho(f"Auto file not found: {auto_file}", fg="red")
+                sys.exit(1)
 
         requested_installs = libraries_from_code_py(auto_file_path, mod_names)
     else:

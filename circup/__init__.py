@@ -4,7 +4,7 @@
 """
 CircUp -- a utility to manage and update libraries on a CircuitPython device.
 """
-
+import pdb
 
 import ctypes
 import glob
@@ -646,6 +646,7 @@ def find_modules(backend, bundles_list):
                 bundle_version = bundle_metadata.get("__version__")
                 mpy = device_metadata["mpy"]
                 compatibility = device_metadata.get("compatibility", (None, None))
+                pdb.set_trace()
                 module_name = (
                     path.split(os.sep)[-1]
                     if not path.endswith(os.sep)
@@ -1033,6 +1034,11 @@ def libraries_from_code_py(code_py, mod_names):
     "--password", help="Password to use for authentication when --host is used."
 )
 @click.option(
+    "--timeout",
+    default=30,
+    help="Specify the timeout in seconds for any network operations.",
+)
+@click.option(
     "--board-id",
     default=None,
     help="Manual Board ID of the CircuitPython device. If provided in combination "
@@ -1049,19 +1055,20 @@ def libraries_from_code_py(code_py, mod_names):
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )
 @click.pass_context
-def main(ctx, verbose, path, host, password, board_id, cpy_version):  # pragma: no cover
+def main(ctx, verbose, path, host, password, timeout, board_id, cpy_version):  # pragma: no cover
     # pylint: disable=too-many-arguments, too-many-branches, too-many-statements
     """
     A tool to manage and update libraries on a CircuitPython device.
     """
     ctx.ensure_object(dict)
+    ctx.obj["TIMEOUT"] = REQUESTS_TIMEOUT = timeout
     device_path = get_device_path(host, password, path)
 
     using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
 
     if using_webworkflow:
         try:
-            ctx.obj["backend"] = WebBackend(host=host, password=password, logger=logger)
+            ctx.obj["backend"] = WebBackend(host=host, password=password, logger=logger, timeout=timeout)
         except ValueError as e:
             click.secho(e, fg="red")
             sys.exit(1)

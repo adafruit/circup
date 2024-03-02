@@ -190,7 +190,7 @@ class WebBackend(Backend):
     Backend for interacting with a device via Web Workflow
     """
 
-    def __init__(self, host, password, logger):
+    def __init__(self, host, password, logger, timeout=10):
         super().__init__(logger)
         if password is None:
             raise ValueError("--host needs --password")
@@ -214,7 +214,7 @@ class WebBackend(Backend):
         self.session = requests.Session()
         self.session.mount(self.device_location, HTTPAdapter(max_retries=5))
         self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
-        self.timeout = 10
+        self.timeout = timeout
 
     def install_file_http(self, source):
         """

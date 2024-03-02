@@ -275,33 +275,12 @@ class Module:
 
         print(url)
         print(url.scheme)
-        if str(url.scheme).lower() in ("http", "https"):
-            if url.path.endswith(".py") or url.path.endswith(".mpy"):
-                self.file = os.path.basename(url.path)
-                self.name = (
-                    os.path.basename(url.path).replace(".py", "").replace(".mpy", "")
-                )
-            else:
-                self.file = None
-                self.name = os.path.basename(
-                    url.path if url.path[:-1] == "/" else url.path[:-1]
-                )
-            print(f"file: {self.file}")
-            print(f"name: {self.name}")
-        else:
-            print(f"path b4: {self.path}")
-            if os.path.isfile(self.path):
-                print("isfile")
-                # Single file module.
-                self.file = os.path.basename(self.path)
-                self.name = self.file.replace(".py", "").replace(".mpy", "")
-            else:
-                print("directory")
-                # Directory based module.
-                self.file = None
-                self.path = os.path.join(backend.library_path, name, "")
-            print(f"file: {self.file}")
-            print(f"name: {self.name}")
+        
+        self.file = os.path.basename(url.path)
+        self.name = self.file.replace(".py", "").replace(".mpy", "")
+        print(f"file: {self.file}")
+        print(f"name: {self.name}")
+        
         self.repo = repo
         self.device_version = device_version
         self.bundle_version = bundle_version
@@ -612,13 +591,13 @@ def find_modules(backend, bundles_list):
         print(f"dev_modules: {device_modules}")
         bundle_modules = get_bundle_versions(bundles_list)
         result = []
-        for name, device_metadata in device_modules.items():
-            print(f"name in loop: {name}")
+        for key, device_metadata in device_modules.items():
+            print(f"key in loop: {key}")
             print(f"dev_meta in loop: {device_metadata}")
             
-            if name in bundle_modules:
+            if key in bundle_modules:
                 path = device_metadata["path"]
-                bundle_metadata = bundle_modules[name]
+                bundle_metadata = bundle_modules[key]
                 repo = bundle_metadata.get("__repo__")
                 bundle = bundle_metadata.get("bundle")
                 device_version = device_metadata.get("__version__")

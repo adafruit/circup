@@ -1059,7 +1059,6 @@ def libraries_from_code_py(code_py, mod_names):
     prog_name="CircUp",
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )
-# pylint: disable=too-many-locals
 @click.pass_context
 def main(
     ctx, verbose, path, host, password, timeout, board_id, cpy_version
@@ -1068,6 +1067,7 @@ def main(
     A tool to manage and update libraries on a CircuitPython device.
     """
     # pylint: disable=too-many-arguments,too-many-branches,too-many-statements,too-many-locals
+    # pylint: disable=too-many-locals
     ctx.ensure_object(dict)
     global REQUESTS_TIMEOUT
     ctx.obj["TIMEOUT"] = REQUESTS_TIMEOUT = timeout

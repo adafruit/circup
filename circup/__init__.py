@@ -1060,14 +1060,13 @@ def libraries_from_code_py(code_py, mod_names):
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )
 @click.pass_context
-def main(
+def main(  # pylint: disable=too-many-locals
     ctx, verbose, path, host, password, timeout, board_id, cpy_version
 ):  # pragma: no cover
     """
     A tool to manage and update libraries on a CircuitPython device.
     """
     # pylint: disable=too-many-arguments,too-many-branches,too-many-statements,too-many-locals
-    # pylint: disable=too-many-locals
     ctx.ensure_object(dict)
     global REQUESTS_TIMEOUT
     ctx.obj["TIMEOUT"] = REQUESTS_TIMEOUT = timeout

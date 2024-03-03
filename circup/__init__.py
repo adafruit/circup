@@ -9,6 +9,7 @@ import ctypes
 import glob
 import json
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import re
 import shutil
@@ -83,7 +84,7 @@ if not os.path.exists(LOG_DIR):  # pragma: no cover
 # Setup logging.
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-logfile_handler = logging.FileHandler(LOGFILE)
+logfile_handler = RotatingFileHandler(LOGFILE, maxBytes=10_000_000, backupCount=0)
 log_formatter = logging.Formatter(
     "%(asctime)s %(levelname)s: %(message)s", datefmt="%m/%d/%Y %H:%M:%S"
 )

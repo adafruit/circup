@@ -9,6 +9,7 @@ import ctypes
 import glob
 import json
 import logging
+import time
 from logging.handlers import RotatingFileHandler
 import os
 import re
@@ -263,20 +264,15 @@ class Module:
         :param (str,str) compatibility: Min and max versions of CP compatible with the mpy.
         """
         self.name = name
-        print(f"name in init: {name}")
         self.backend = backend
         self.path = (
             urljoin(backend.library_path, name, allow_fragments=False)
             if isinstance(backend, WebBackend)
             else os.path.join(backend.library_path, name)
         )
-        print(f"path in init: {self.path}")
+
         url = urlparse(self.path, allow_fragments=False)
 
-        print(url)
-        print(url.scheme)
-
-        print(f"url.path: {url.path}")
         if (
             url.path.endswith("/")
             if isinstance(backend, WebBackend)
@@ -291,43 +287,6 @@ class Module:
             self.name = (
                 os.path.basename(url.path).replace(".py", "").replace(".mpy", "")
             )
-
-        # print(f"opb: {os.path.basename(url.path)}")
-
-        print(f"file: {self.file}")
-        print(f"name: {self.name}")
-
-        # if str(url.scheme).lower() in ("http", "https"):
-        #     if url.path.endswith(".py") or url.path.endswith(".mpy"):
-        #         print("isfile")
-        #         self.file = os.path.basename(url.path)
-        #         self.name = (
-        #             os.path.basename(url.path).replace(".py", "").replace(".mpy", "")
-        #         )
-        #     else:
-        #         print("directory")
-        #         self.file = None
-        #         self.name = os.path.basename(
-        #             url.path if url.path[:-1] == "/" else url.path[:-1]
-        #         )
-        #     print(f"file: {self.file}")
-        #     print(f"name: {self.name}")
-        # else:
-        #
-        #     print(f"parse: {self.file.parse()}")
-        #     print(f"path b4: {self.path}")
-        #     if os.path.isfile(self.path):
-        #         print("isfile")
-        #         # Single file module.
-        #         self.file = os.path.basename(self.path)
-        #         self.name = self.file.replace(".py", "").replace(".mpy", "")
-        #     else:
-        #         print("directory")
-        #         # Directory based module.
-        #         self.file = None
-        #         self.path = os.path.join(backend.library_path, name, "")
-        #     print(f"file: {self.file}")
-        #     print(f"name: {self.name}")
 
         self.repo = repo
         self.device_version = device_version
@@ -636,12 +595,9 @@ def find_modules(backend, bundles_list):
     # pylint: disable=broad-except,too-many-locals
     try:
         device_modules = backend.get_device_versions()
-        print(f"dev_modules: {device_modules}")
         bundle_modules = get_bundle_versions(bundles_list)
         result = []
         for key, device_metadata in device_modules.items():
-            print(f"key in loop: {key}")
-            print(f"dev_meta in loop: {device_metadata}")
 
             if key in bundle_modules:
                 path = device_metadata["path"]
@@ -657,7 +613,6 @@ def find_modules(backend, bundles_list):
                     if not path.endswith(os.sep)
                     else path[:-1].split(os.sep)[-1] + os.sep
                 )
-                print(f"module_name after 1st: {module_name}")
 
                 m = Module(
                     module_name,
@@ -1089,6 +1044,7 @@ def main(  # pylint: disable=too-many-locals
             )
         except ValueError as e:
             click.secho(e, fg="red")
+            time.sleep(0.3)
             sys.exit(1)
         except RuntimeError as e:
             click.secho(e, fg="red")

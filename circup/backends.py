@@ -238,7 +238,7 @@ class WebBackend(Backend):
             raise RuntimeError(
                 "Invalid host: {}.".format(host) + " You should remove the 'http://'"
                 if "http://" in host or "https://" in host
-                else ""
+                else "Could not find or connect to specified device"
             ) from exc
 
         self.LIB_DIR_PATH = "fs/lib/"
@@ -261,8 +261,6 @@ class WebBackend(Backend):
         target = self.device_location + "/" + self.LIB_DIR_PATH + file_name
 
         auth = HTTPBasicAuth("", self.password)
-        print(f"target: {target}")
-        print(f"source: {source}")
 
         with open(source, "rb") as fp:
             r = self.session.put(target, fp.read(), auth=auth, timeout=self.timeout)
@@ -279,12 +277,9 @@ class WebBackend(Backend):
         target = target + "/" if target[:-1] != "/" else target
         url = urlparse(target)
         auth = HTTPBasicAuth("", url.password)
-        print(f"target: {target}")
-        print(f"source: {source}")
 
         # Create the top level directory.
         with self.session.put(target, auth=auth, timeout=self.timeout) as r:
-            print(f"resp {r.content}")
             r.raise_for_status()
 
         # Traverse the directory structure and create the directories/files.
@@ -307,7 +302,7 @@ class WebBackend(Backend):
                     if path_to_create[:-1] != "/"
                     else path_to_create
                 )
-                print(f"dir_path_to_create: {path_to_create}")
+
                 with self.session.put(
                     path_to_create, auth=auth, timeout=self.timeout
                 ) as r:
@@ -323,7 +318,6 @@ class WebBackend(Backend):
                         if rel_path != ""
                         else urljoin(target, name, allow_fragments=False)
                     )
-                    print(f"file_path_to_create: {path_to_create}")
                     with self.session.put(
                         path_to_create, fp.read(), auth=auth, timeout=self.timeout
                     ) as r:
@@ -353,7 +347,6 @@ class WebBackend(Backend):
         return ver_json.get("version"), ver_json.get("board_id")
 
     def _get_modules(self, device_lib_path):
-        print(f"device_lib_path {device_lib_path}")
         return self._get_modules_http(device_lib_path)
 
     def _get_modules_http(self, url):
@@ -376,8 +369,7 @@ class WebBackend(Backend):
             single_file_mods = []
 
             for entry in r.json()["files"]:
-                # print(f"type: {type(entry)}")
-                # print(f"val: {entry}")
+
                 entry_name = entry.get("name")
                 if entry.get("directory"):
                     directory_mods.append(entry_name)
@@ -406,7 +398,6 @@ class WebBackend(Backend):
             else:
                 dm_url = dm
 
-            print(f"dm_url: {dm_url}")
             with self.session.get(
                 dm_url,
                 auth=auth,
@@ -485,7 +476,6 @@ class WebBackend(Backend):
         :param library_path library path
         :param metadata dictionary.
         """
-        library_path = self.library_path
         module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
         if not module_name:
             # Must be a directory based module.
@@ -495,15 +485,9 @@ class WebBackend(Backend):
         bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
         if os.path.isdir(bundle_path):
 
-            print(f"456 library_path: {library_path}")
-            print(f"456 module_name: {module_name}")
-
             self.install_dir_http(bundle_path)
 
         elif os.path.isfile(bundle_path):
-            target = os.path.basename(bundle_path)
-            print(f"123 library_path: {library_path}")
-            print(f"123 target: {target}")
             self.install_file_http(bundle_path)
 
         else:
@@ -540,7 +524,6 @@ class WebBackend(Backend):
         """
         Uninstall given module on device using REST API.
         """
-        print(f"Uninstalling {module_path}")
         url = urlparse(device_path)
         auth = HTTPBasicAuth("", url.password)
         with self.session.delete(module_path, auth=auth, timeout=self.timeout) as r:
@@ -585,7 +568,7 @@ class WebBackend(Backend):
         returns True if the device is currently connected
         """
         try:
-            _ = self.get_free_space()
+            _ = self.session.get(f"{self.device_location}/cp/version.json")
             return True
         except requests.exceptions.ConnectionError:
             return False
@@ -691,7 +674,6 @@ class DiskBackend(Backend):
                 )
                 self.logger.error("boot_out.txt not found.")
                 sys.exit(1)
-            print((circuit_python, board_id))
             return circuit_python, board_id
 
         return self.version_info
@@ -731,9 +713,9 @@ class DiskBackend(Backend):
         elif os.path.isfile(bundle_path):
 
             target = os.path.basename(bundle_path)
-            print(f"lib path: {self.library_path} target: {target}")
+
             target_path = os.path.join(self.library_path, target)
-            print(f"target path: {target_path}")
+
             # Copy file.
             shutil.copyfile(bundle_path, target_path)
         else:

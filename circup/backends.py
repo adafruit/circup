@@ -630,7 +630,7 @@ class DiskBackend(Backend):
         super().__init__(logger)
         self.LIB_DIR_PATH = "lib"
         self.device_location = device_location
-        self.library_path = os.path.join(self.device_location, os.sep + self.LIB_DIR_PATH)
+        self.library_path = os.path.join(self.device_location, self.LIB_DIR_PATH)
         self.version_info = None
         if boot_out is not None:
             self.version_info = self.parse_boot_out_file(boot_out)
@@ -706,8 +706,11 @@ class DiskBackend(Backend):
             # Copy the directory.
             shutil.copytree(bundle_path, target_path)
         elif os.path.isfile(bundle_path):
+            
             target = os.path.basename(bundle_path)
+            print(f"lib path: {self.library_path} target: {target}")
             target_path = os.path.join(self.library_path, target)
+            print(f"target path: {target_path}")
             # Copy file.
             shutil.copyfile(bundle_path, target_path)
         else:

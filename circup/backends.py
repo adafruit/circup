@@ -385,7 +385,8 @@ class WebBackend(Backend):
     def _get_modules_http_dir_mods(self, auth, directory_mods, result, url):
         # pylint: disable=too-many-locals
         """
-        #TODO describe what this does
+        Builds result dictionary with keys containing module names and values containing a
+        dictionary with metadata bout the module like version, compatibility, mpy or not etc.
 
         :param auth HTTP authentication.
         :param directory_mods list of modules.

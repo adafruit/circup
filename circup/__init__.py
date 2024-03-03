@@ -1059,6 +1059,7 @@ def libraries_from_code_py(code_py, mod_names):
     prog_name="CircUp",
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )
+# pylint: disable=too-many-locals
 @click.pass_context
 def main(
     ctx, verbose, path, host, password, timeout, board_id, cpy_version

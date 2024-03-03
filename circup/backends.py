@@ -91,7 +91,7 @@ class Backend:
         """
         raise NotImplementedError
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-arguments
+    # pylint: disable=too-many-locals,too-many-branches,too-many-arguments,too-many-nested-blocks
     def install_module(
         self, device_path, device_modules, name, pyext, mod_names
     ):  # pragma: no cover
@@ -124,8 +124,9 @@ class Backend:
             )
             metadata = mod_names[name]
             bundle = metadata["bundle"]
-            bundle.size = os.path.getsize(metadata['path'])
+            bundle.size = os.path.getsize(metadata["path"])
             if os.path.isdir(metadata["path"]):
+                # pylint: disable=unused-variable
                 for dirpath, dirnames, filenames in os.walk(metadata["path"]):
                     for f in filenames:
                         fp = os.path.join(dirpath, f)
@@ -133,13 +134,24 @@ class Backend:
                             if not os.path.islink(fp):  # Ignore symbolic links
                                 bundle.size += os.path.getsize(fp)
                             else:
-                                self.logger.warning(f"Skipping symbolic link in space calculation: {fp}")
+                                self.logger.warning(
+                                    f"Skipping symbolic link in space calculation: {fp}"
+                                )
                         except OSError as e:
-                            self.logger.error(f"Error: {e} - Skipping file in space calculation: {fp}")
+                            self.logger.error(
+                                f"Error: {e} - Skipping file in space calculation: {fp}"
+                            )
 
             if self.get_free_space() < bundle.size:
-                self.logger.error(f"Aborted installing module {name} - not enough free space ({bundle.size} < {self.get_free_space()})")
-                click.secho(f"Aborted installing module {name} - not enough free space ({bundle.size} < {self.get_free_space()})", fg="red")
+                self.logger.error(
+                    f"Aborted installing module {name} - "
+                    f"not enough free space ({bundle.size} < {self.get_free_space()})"
+                )
+                click.secho(
+                    f"Aborted installing module {name} - "
+                    f"not enough free space ({bundle.size} < {self.get_free_space()})",
+                    fg="red",
+                )
                 return
 
             # Create the library directory first.
@@ -178,7 +190,7 @@ class Backend:
         To be overridden by subclass
         """
         raise NotImplementedError
-    
+
     def get_free_space(self):
         """
         To be overridden by subclass
@@ -587,14 +599,17 @@ class WebBackend(Backend):
                  connected device.
         """
         return self.get_modules(urljoin(self.device_location, self.LIB_DIR_PATH))
-    
+
     def get_free_space(self):
         """
         Returns the free space on the device in bytes.
         """
         auth = HTTPBasicAuth("", self.password)
         with self.session.get(
-            urljoin(self.device_location , "fs/"), auth=auth, headers={"Accept": "application/json"}, timeout=self.timeout
+            urljoin(self.device_location, "fs/"),
+            auth=auth,
+            headers={"Accept": "application/json"},
+            timeout=self.timeout,
         ) as r:
             r.raise_for_status()
             if r.json().get("free") is None:
@@ -604,11 +619,19 @@ class WebBackend(Backend):
                 self.logger.error("Unable to get block size from device.")
                 click.secho("Unable to get block size from device.", fg="red")
             elif r.json().get("writable") is None or r.json().get("writable") is False:
-                self.logger.error("CircuitPython Web Workflow Device not writable\n - Remount storage as writable to device (not PC)")
-                click.secho("CircuitPython Web Workflow Device not writable\n - Remount storage as writable to device (not PC)", fg="red")
+                self.logger.error(
+                    "CircuitPython Web Workflow Device not writable\n - "
+                    "Remount storage as writable to device (not PC)"
+                )
+                click.secho(
+                    "CircuitPython Web Workflow Device not writable\n - "
+                    "Remount storage as writable to device (not PC)",
+                    fg="red",
+                )
             else:
-                return r.json()["free"] * r.json()["block_size"] # bytes
+                return r.json()["free"] * r.json()["block_size"]  # bytes
             sys.exit(1)
+
 
 class DiskBackend(Backend):
     """
@@ -706,7 +729,7 @@ class DiskBackend(Backend):
             # Copy the directory.
             shutil.copytree(bundle_path, target_path)
         elif os.path.isfile(bundle_path):
-            
+
             target = os.path.basename(bundle_path)
             print(f"lib path: {self.library_path} target: {target}")
             target_path = os.path.join(self.library_path, target)
@@ -795,5 +818,6 @@ class DiskBackend(Backend):
         """
         Returns the free space on the device in bytes.
         """
+        # pylint: disable=unused-variable
         _, total, free = shutil.disk_usage(self.device_location)
         return free

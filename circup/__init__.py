@@ -277,9 +277,15 @@ class Module:
         print(url.scheme)
 
         print(f"url.path: {url.path}")
-        if url.path.endswith("/") if isinstance(backend, WebBackend) else self.path.endswith(os.sep):
+        if (
+            url.path.endswith("/")
+            if isinstance(backend, WebBackend)
+            else self.path.endswith(os.sep)
+        ):
             self.file = None
-            self.name = self.path.split("/" if isinstance(backend, WebBackend) else os.sep)[-2]
+            self.name = self.path.split(
+                "/" if isinstance(backend, WebBackend) else os.sep
+            )[-2]
         else:
             self.file = os.path.basename(url.path)
             self.name = (
@@ -1054,12 +1060,15 @@ def libraries_from_code_py(code_py, mod_names):
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )
 @click.pass_context
-def main(ctx, verbose, path, host, password, timeout, board_id, cpy_version):  # pragma: no cover
-    # pylint: disable=too-many-arguments, too-many-branches, too-many-statements
+def main(
+    ctx, verbose, path, host, password, timeout, board_id, cpy_version
+):  # pragma: no cover
+    # pylint: disable=too-many-arguments, too-many-branches, too-many-statements, too-many-locals
     """
     A tool to manage and update libraries on a CircuitPython device.
     """
     ctx.ensure_object(dict)
+    global REQUESTS_TIMEOUT
     ctx.obj["TIMEOUT"] = REQUESTS_TIMEOUT = timeout
     device_path = get_device_path(host, password, path)
 
@@ -1067,7 +1076,9 @@ def main(ctx, verbose, path, host, password, timeout, board_id, cpy_version):  #
 
     if using_webworkflow:
         try:
-            ctx.obj["backend"] = WebBackend(host=host, password=password, logger=logger, timeout=timeout)
+            ctx.obj["backend"] = WebBackend(
+                host=host, password=password, logger=logger, timeout=timeout
+            )
         except ValueError as e:
             click.secho(e, fg="red")
             sys.exit(1)

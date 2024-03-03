@@ -1077,7 +1077,9 @@ def main(  # pylint: disable=too-many-locals
     if using_webworkflow:
         if host == "circuitpython.local":
             click.echo("Checking versions.json on circuitpython.local to find hostname")
-            versions_resp = requests.get("http://circuitpython.local/cp/version.json", timeout=timeout)
+            versions_resp = requests.get(
+                "http://circuitpython.local/cp/version.json", timeout=timeout
+            )
             host = f'{versions_resp.json()["hostname"]}.local'
             click.echo(f"Using hostname: {host}")
             device_path = device_path.replace("circuitpython.local", host)

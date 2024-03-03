@@ -1075,6 +1075,12 @@ def main(  # pylint: disable=too-many-locals
     using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
 
     if using_webworkflow:
+        if host == "circuitpython.local":
+            click.echo("Checking versions.json on circuitpython.local to find hostname")
+            versions_resp = requests.get("http://circuitpython.local/cp/version.json", timeout=timeout)
+            host = f'{versions_resp.json()["hostname"]}.local'
+            click.echo(f"Using hostname: {host}")
+            device_path = device_path.replace("circuitpython.local", host)
         try:
             ctx.obj["backend"] = WebBackend(
                 host=host, password=password, logger=logger, timeout=timeout

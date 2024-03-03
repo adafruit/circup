@@ -95,7 +95,7 @@ logger.addHandler(logfile_handler)
 __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/adafruit/circup.git"
 
-
+# pylint: disable=too-many-locals
 class Bundle:
     """
     All the links and file names for a bundle

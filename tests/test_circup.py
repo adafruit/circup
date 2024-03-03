@@ -249,7 +249,7 @@ def test_Module_init_directory_module():
     Ensure the Module instance is set up as expected and logged, as if for a
     directory based Python module.
     """
-    name = "dir_module"
+    name = "dir_module/"
     path = os.path.join("mock_device", "lib", f"{name}", "")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"

@@ -95,7 +95,7 @@ logger.addHandler(logfile_handler)
 __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/adafruit/circup.git"
 
-# pylint: disable=too-many-locals
+
 class Bundle:
     """
     All the links and file names for a bundle
@@ -1063,10 +1063,10 @@ def libraries_from_code_py(code_py, mod_names):
 def main(
     ctx, verbose, path, host, password, timeout, board_id, cpy_version
 ):  # pragma: no cover
-    # pylint: disable=too-many-arguments, too-many-branches, too-many-statements, too-many-locals
     """
     A tool to manage and update libraries on a CircuitPython device.
     """
+    # pylint: disable=too-many-arguments,too-many-branches,too-many-statements,too-many-locals
     ctx.ensure_object(dict)
     global REQUESTS_TIMEOUT
     ctx.obj["TIMEOUT"] = REQUESTS_TIMEOUT = timeout

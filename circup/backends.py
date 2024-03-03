@@ -585,7 +585,7 @@ class WebBackend(Backend):
         returns True if the device is currently connected
         """
         try:
-            _ = self.get_device_versions()
+            _ = self.get_free_space()
             return True
         except requests.exceptions.ConnectionError:
             return False

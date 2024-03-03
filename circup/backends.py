@@ -125,9 +125,22 @@ class Backend:
             metadata = mod_names[name]
             bundle = metadata["bundle"]
             bundle.size = os.path.getsize(metadata['path'])
+            if os.path.isdir(metadata["path"]):
+                for dirpath, dirnames, filenames in os.walk(metadata["path"]):
+                    for f in filenames:
+                        fp = os.path.join(dirpath, f)
+                        try:
+                            if not os.path.islink(fp):  # Ignore symbolic links
+                                bundle.size += os.path.getsize(fp)
+                            else:
+                                self.logger.warning(f"Skipping symbolic link in space calculation: {fp}")
+                        except OSError as e:
+                            self.logger.error(f"Error: {e} - Skipping file in space calculation: {fp}")
 
             if self.get_free_space() < bundle.size:
                 self.logger.error(f"Aborted installing module {name} - not enough free space ({bundle.size} < {self.get_free_space()})")
+                click.secho(f"Aborted installing module {name} - not enough free space ({bundle.size} < {self.get_free_space()})", fg="red")
+                return
 
             # Create the library directory first.
             self._create_library_directory(device_path, library_path)
@@ -585,12 +598,17 @@ class WebBackend(Backend):
         ) as r:
             r.raise_for_status()
             if r.json().get("free") is None:
-                self.logger.error("Unable to get free space from device.")
-            if r.json().get("block_size") is None:
+                self.logger.error("Unable to get free block count from device.")
+                click.secho("Unable to get free block count from device.", fg="red")
+            elif r.json().get("block_size") is None:
                 self.logger.error("Unable to get block size from device.")
-            if r.json().get("writable") is None or r.json().get("writable") is False:
-                raise PermissionError("CircuitPython Web Workflow Device not writable\n - Remount storage as writable to device (not PC)")
-            return r.json()["free"] * r.json()["block_size"] # bytes
+                click.secho("Unable to get block size from device.", fg="red")
+            elif r.json().get("writable") is None or r.json().get("writable") is False:
+                self.logger.error("CircuitPython Web Workflow Device not writable\n - Remount storage as writable to device (not PC)")
+                click.secho("CircuitPython Web Workflow Device not writable\n - Remount storage as writable to device (not PC)", fg="red")
+            else:
+                return r.json()["free"] * r.json()["block_size"] # bytes
+            sys.exit(1)
 
 class DiskBackend(Backend):
     """

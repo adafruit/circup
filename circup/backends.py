@@ -220,6 +220,15 @@ class Backend:
         return circuit_python, board_id
 
 
+def _writeable_error():
+    click.secho(
+        "CircuitPython Web Workflow Device not writable\n - "
+        "Remount storage as writable to device (not PC)",
+        fg="red",
+    )
+    sys.exit(1)
+
+
 class WebBackend(Backend):
     """
     Backend for interacting with a device via Web Workflow
@@ -264,6 +273,8 @@ class WebBackend(Backend):
 
         with open(source, "rb") as fp:
             r = self.session.put(target, fp.read(), auth=auth, timeout=self.timeout)
+            if r.status_code == 409:
+                _writeable_error()
             r.raise_for_status()
 
     def install_dir_http(self, source):
@@ -280,6 +291,8 @@ class WebBackend(Backend):
 
         # Create the top level directory.
         with self.session.put(target, auth=auth, timeout=self.timeout) as r:
+            if r.status_code == 409:
+                _writeable_error()
             r.raise_for_status()
 
         # Traverse the directory structure and create the directories/files.
@@ -306,6 +319,8 @@ class WebBackend(Backend):
                 with self.session.put(
                     path_to_create, auth=auth, timeout=self.timeout
                 ) as r:
+                    if r.status_code == 409:
+                        _writeable_error()
                     r.raise_for_status()
             for name in files:
                 with open(os.path.join(root, name), "rb") as fp:
@@ -321,6 +336,8 @@ class WebBackend(Backend):
                     with self.session.put(
                         path_to_create, fp.read(), auth=auth, timeout=self.timeout
                     ) as r:
+                        if r.status_code == 409:
+                            _writeable_error()
                         r.raise_for_status()
 
     def get_circuitpython_version(self):
@@ -469,6 +486,8 @@ class WebBackend(Backend):
         url = urlparse(device_path)
         auth = HTTPBasicAuth("", url.password)
         with self.session.put(library_path, auth=auth, timeout=self.timeout) as r:
+            if r.status_code == 409:
+                _writeable_error()
             r.raise_for_status()
 
     def _install_module_mpy(self, bundle, metadata):
@@ -528,6 +547,8 @@ class WebBackend(Backend):
         url = urlparse(device_path)
         auth = HTTPBasicAuth("", url.password)
         with self.session.delete(module_path, auth=auth, timeout=self.timeout) as r:
+            if r.status_code == 409:
+                _writeable_error()
             r.raise_for_status()
 
     def update(self, module):
@@ -551,6 +572,8 @@ class WebBackend(Backend):
             url = urlparse(module.path)
             auth = HTTPBasicAuth("", url.password)
             with self.session.delete(module.path, auth=auth, timeout=self.timeout) as r:
+                if r.status_code == 409:
+                    _writeable_error()
                 r.raise_for_status()
             self.install_dir_http(module.bundle_path)
 

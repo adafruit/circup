@@ -31,14 +31,12 @@ import ctypes
 import json
 import pathlib
 from unittest import mock
-
-
 from click.testing import CliRunner
 import pytest
 import requests
 
 import circup
-
+from circup import DiskBackend
 
 TEST_BUNDLE_CONFIG_JSON = "tests/test_bundle_config.json"
 with open(TEST_BUNDLE_CONFIG_JSON, "rb") as tbc:
@@ -211,18 +209,29 @@ def test_Module_init_file_module():
     Ensure the Module instance is set up as expected and logged, as if for a
     single file Python module.
     """
-    path = os.path.join("foo", "bar", "baz", "local_module.py")
+    name = "local_module.py"
+    path = os.path.join("mock_device", "lib", name)
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "3.2.1"
+
     with mock.patch("circup.logger.info") as mock_logger, mock.patch(
         "circup.os.path.isfile", return_value=True
     ), mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
-        "circup.Bundle.lib_dir", return_value="tests"
+        "circup.Bundle.lib_dir",
+        return_value="tests",
     ):
+        backend = DiskBackend("mock_device", mock_logger)
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         m = circup.Module(
-            path, repo, device_version, bundle_version, False, bundle, (None, None)
+            name,
+            backend,
+            repo,
+            device_version,
+            bundle_version,
+            False,
+            bundle,
+            (None, None),
         )
         mock_logger.assert_called_once_with(m)
         assert m.path == path
@@ -240,7 +249,8 @@ def test_Module_init_directory_module():
     Ensure the Module instance is set up as expected and logged, as if for a
     directory based Python module.
     """
-    path = os.path.join("foo", "bar", "dir_module", "")
+    name = "dir_module/"
+    path = os.path.join("mock_device", "lib", f"{name}", "")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "3.2.1"
@@ -252,9 +262,17 @@ def test_Module_init_directory_module():
     ), mock.patch(
         "circup.Bundle.lib_dir", return_value="tests"
     ):
+        backend = DiskBackend("mock_device", mock_logger)
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         m = circup.Module(
-            path, repo, device_version, bundle_version, mpy, bundle, (None, None)
+            name,
+            backend,
+            repo,
+            device_version,
+            bundle_version,
+            mpy,
+            bundle,
+            (None, None),
         )
         mock_logger.assert_called_once_with(m)
         assert m.path == path
@@ -274,15 +292,23 @@ def test_Module_outofdate():
     out of date.
     """
     bundle = circup.Bundle(TEST_BUNDLE_NAME)
-    path = os.path.join("foo", "bar", "baz", "module.py")
+    name = "module.py"
     repo = "https://github.com/adafruit/SomeLibrary.git"
-    m1 = circup.Module(path, repo, "1.2.3", "3.2.1", False, bundle, (None, None))
-    m2 = circup.Module(path, repo, "1.2.3", "1.2.3", False, bundle, (None, None))
-    # shouldn't happen!
-    m3 = circup.Module(path, repo, "3.2.1", "1.2.3", False, bundle, (None, None))
-    assert m1.outofdate is True
-    assert m2.outofdate is False
-    assert m3.outofdate is False
+    with mock.patch("circup.logger.info") as mock_logger:
+        backend = DiskBackend("mock_device", mock_logger)
+        m1 = circup.Module(
+            name, backend, repo, "1.2.3", "3.2.1", False, bundle, (None, None)
+        )
+        m2 = circup.Module(
+            name, backend, repo, "1.2.3", "1.2.3", False, bundle, (None, None)
+        )
+        # shouldn't happen!
+        m3 = circup.Module(
+            name, backend, repo, "3.2.1", "1.2.3", False, bundle, (None, None)
+        )
+        assert m1.outofdate is True
+        assert m2.outofdate is False
+        assert m3.outofdate is False
 
 
 def test_Module_outofdate_bad_versions():
@@ -292,14 +318,25 @@ def test_Module_outofdate_bad_versions():
     this problem). Such a problem should be logged.
     """
     bundle = circup.Bundle(TEST_BUNDLE_NAME)
-    path = os.path.join("foo", "bar", "baz", "module.py")
+    name = "module.py"
+
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "hello"
     bundle_version = "3.2.1"
-    m = circup.Module(
-        path, repo, device_version, bundle_version, False, bundle, (None, None)
-    )
+
     with mock.patch("circup.logger.warning") as mock_logger:
+        backend = DiskBackend("mock_device", mock_logger)
+        m = circup.Module(
+            name,
+            backend,
+            repo,
+            device_version,
+            bundle_version,
+            False,
+            bundle,
+            (None, None),
+        )
+
         assert m.outofdate is True
         assert mock_logger.call_count == 2
 
@@ -310,16 +347,28 @@ def test_Module_mpy_mismatch():
     boolean value to correctly indicate if the referenced module is, in fact,
     out of date.
     """
-    path = os.path.join("foo", "bar", "baz", "module.mpy")
+    name = "module.py"
     repo = "https://github.com/adafruit/SomeLibrary.git"
-    with mock.patch("circup.CPY_VERSION", "8.0.0"):
+    with mock.patch("circup.CPY_VERSION", "8.0.0"), mock.patch(
+        "circup.logger.warning"
+    ) as mock_logger:
+        backend = DiskBackend("mock_device", mock_logger)
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        m1 = circup.Module(path, repo, "1.2.3", "1.2.3", True, bundle, (None, None))
+        m1 = circup.Module(
+            name, backend, repo, "1.2.3", "1.2.3", True, bundle, (None, None)
+        )
         m2 = circup.Module(
-            path, repo, "1.2.3", "1.2.3", True, bundle, ("7.0.0-alpha.1", "8.99.99")
+            name,
+            backend,
+            repo,
+            "1.2.3",
+            "1.2.3",
+            True,
+            bundle,
+            ("7.0.0-alpha.1", "8.99.99"),
         )
         m3 = circup.Module(
-            path, repo, "1.2.3", "1.2.3", True, bundle, (None, "7.0.0-alpha.1")
+            name, backend, repo, "1.2.3", "1.2.3", True, bundle, (None, "7.0.0-alpha.1")
         )
     with mock.patch("circup.CPY_VERSION", "6.2.0"):
         assert m1.mpy_mismatch is False
@@ -345,14 +394,23 @@ def test_Module_major_update_bad_versions():
     Such a problem should be logged.
     """
     bundle = circup.Bundle(TEST_BUNDLE_NAME)
-    path = os.path.join("foo", "bar", "baz", "module.py")
+    name = "module.py"
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "version-3"
-    m = circup.Module(
-        path, repo, device_version, bundle_version, False, bundle, (None, None)
-    )
+
     with mock.patch("circup.logger.warning") as mock_logger:
+        backend = DiskBackend("mock_device", mock_logger)
+        m = circup.Module(
+            name,
+            backend,
+            repo,
+            device_version,
+            bundle_version,
+            False,
+            bundle,
+            (None, None),
+        )
         assert m.major_update is True
         assert mock_logger.call_count == 2
 
@@ -363,16 +421,23 @@ def test_Module_row():
     a table of version-related results.
     """
     bundle = circup.Bundle(TEST_BUNDLE_NAME)
-    path = os.path.join("foo", "bar", "baz", "module.py")
+    name = "module.py"
     repo = "https://github.com/adafruit/SomeLibrary.git"
     with mock.patch("circup.os.path.isfile", return_value=True), mock.patch(
         "circup.CPY_VERSION", "8.0.0"
-    ):
-        m = circup.Module(path, repo, "1.2.3", None, False, bundle, (None, None))
+    ), mock.patch("circup.logger.warning") as mock_logger:
+        backend = DiskBackend("mock_device", mock_logger)
+        m = circup.Module(
+            name, backend, repo, "1.2.3", None, False, bundle, (None, None)
+        )
         assert m.row == ("module", "1.2.3", "unknown", "Major Version")
-        m = circup.Module(path, repo, "1.2.3", "1.3.4", False, bundle, (None, None))
+        m = circup.Module(
+            name, backend, repo, "1.2.3", "1.3.4", False, bundle, (None, None)
+        )
         assert m.row == ("module", "1.2.3", "1.3.4", "Minor Version")
-        m = circup.Module(path, repo, "1.2.3", "1.2.3", True, bundle, ("9.0.0", None))
+        m = circup.Module(
+            name, backend, repo, "1.2.3", "1.2.3", True, bundle, ("9.0.0", None)
+        )
         assert m.row == ("module", "1.2.3", "1.2.3", "MPY Format")
 
 
@@ -382,17 +447,25 @@ def test_Module_update_dir():
     update the module on the connected device.
     """
     bundle = circup.Bundle(TEST_BUNDLE_NAME)
-    path = os.path.join("foo", "bar", "baz", "module.py")
+    name = "adafruit_waveform"
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = None
-    m = circup.Module(
-        path, repo, device_version, bundle_version, False, bundle, (None, None)
-    )
-    with mock.patch("circup.shutil") as mock_shutil, mock.patch(
+    with mock.patch("circup.backends.shutil") as mock_shutil, mock.patch(
         "circup.os.path.isdir", return_value=True
-    ):
-        m.update()
+    ), mock.patch("circup.logger.warning") as mock_logger:
+        backend = DiskBackend("mock_device", mock_logger)
+        m = circup.Module(
+            name,
+            backend,
+            repo,
+            device_version,
+            bundle_version,
+            False,
+            bundle,
+            (None, None),
+        )
+        backend.update(m)
         mock_shutil.rmtree.assert_called_once_with(m.path, ignore_errors=True)
         mock_shutil.copytree.assert_called_once_with(m.bundle_path, m.path)
 
@@ -403,17 +476,31 @@ def test_Module_update_file():
     update the module on the connected device.
     """
     bundle = circup.Bundle(TEST_BUNDLE_NAME)
-    path = os.path.join("foo", "bar", "baz", "module.py")
+    name = "colorsys.py"
+    # path = os.path.join("foo", "bar", "baz", "module.py")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = None
-    m = circup.Module(
-        path, repo, device_version, bundle_version, False, bundle, (None, None)
-    )
-    with mock.patch("circup.shutil") as mock_shutil, mock.patch(
+
+    with mock.patch("circup.backends.shutil") as mock_shutil, mock.patch(
         "circup.os.remove"
-    ) as mock_remove, mock.patch("circup.os.path.isdir", return_value=False):
-        m.update()
+    ) as mock_remove, mock.patch(
+        "circup.os.path.isdir", return_value=False
+    ), mock.patch(
+        "circup.logger.warning"
+    ) as mock_logger:
+        backend = circup.DiskBackend("mock_device", mock_logger)
+        m = circup.Module(
+            name,
+            backend,
+            repo,
+            device_version,
+            bundle_version,
+            False,
+            bundle,
+            (None, None),
+        )
+        backend.update(m)
         mock_remove.assert_called_once_with(m.path)
         mock_shutil.copyfile.assert_called_once_with(m.bundle_path, m.path)
 
@@ -422,16 +509,27 @@ def test_Module_repr():
     """
     Ensure the repr(dict) is returned (helps when logging).
     """
-    path = os.path.join("foo", "bar", "baz", "local_module.py")
+    name = "local_module.py"
+    path = os.path.join("mock_device", "lib", f"{name}")
     repo = "https://github.com/adafruit/SomeLibrary.git"
     device_version = "1.2.3"
     bundle_version = "3.2.1"
     with mock.patch("circup.os.path.isfile", return_value=True), mock.patch(
         "circup.CPY_VERSION", "4.1.2"
-    ), mock.patch("circup.Bundle.lib_dir", return_value="tests"):
+    ), mock.patch("circup.Bundle.lib_dir", return_value="tests"), mock.patch(
+        "circup.logger.warning"
+    ) as mock_logger:
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        backend = circup.DiskBackend("mock_device", mock_logger)
         m = circup.Module(
-            path, repo, device_version, bundle_version, False, bundle, (None, None)
+            name,
+            backend,
+            repo,
+            device_version,
+            bundle_version,
+            False,
+            bundle,
+            (None, None),
         )
     assert repr(m) == repr(
         {
@@ -563,8 +661,10 @@ def test_extract_metadata_python():
         'print("Hello, world!")\n'
     )
     path = "foo.py"
-    with mock.patch("builtins.open", mock.mock_open(read_data=code)) as mock_open:
-        result = circup.extract_metadata(path)
+    with mock.patch(
+        "builtins.open", mock.mock_open(read_data=code)
+    ) as mock_open, mock.patch("circup.logger.warning") as mock_logger:
+        result = circup.extract_metadata(path, mock_logger)
         mock_open.assert_called_once_with(path, "r", encoding="utf-8")
     assert len(result) == 3
     assert result["__version__"] == "1.1.4"
@@ -578,10 +678,11 @@ def test_extract_metadata_byte_code_v6():
     Ensure the __version__ is correctly extracted from the bytecode ".mpy"
     file generated from Circuitpython < 7. Version in test_module is 0.9.2
     """
-    result = circup.extract_metadata("tests/test_module.mpy")
-    assert result["__version__"] == "0.9.2"
-    assert result["mpy"] is True
-    assert result["compatibility"] == (None, "7.0.0-alpha.1")
+    with mock.patch("circup.logger.warning") as mock_logger:
+        result = circup.extract_metadata("tests/test_module.mpy", mock_logger)
+        assert result["__version__"] == "0.9.2"
+        assert result["mpy"] is True
+        assert result["compatibility"] == (None, "7.0.0-alpha.1")
 
 
 def test_extract_metadata_byte_code_v7():
@@ -589,10 +690,11 @@ def test_extract_metadata_byte_code_v7():
     Ensure the __version__ is correctly extracted from the bytecode ".mpy"
     file generated from Circuitpython >= 7. Version in local_module_cp7 is 1.2.3
     """
-    result = circup.extract_metadata("tests/local_module_cp7.mpy")
-    assert result["__version__"] == "1.2.3"
-    assert result["mpy"] is True
-    assert result["compatibility"] == ("7.0.0-alpha.1", "8.99.99")
+    with mock.patch("circup.logger.warning") as mock_logger:
+        result = circup.extract_metadata("tests/local_module_cp7.mpy", mock_logger)
+        assert result["__version__"] == "1.2.3"
+        assert result["mpy"] is True
+        assert result["compatibility"] == ("7.0.0-alpha.1", "8.99.99")
 
 
 def test_find_modules():
@@ -604,18 +706,23 @@ def test_find_modules():
         device_modules = json.load(f)
     with open("tests/bundle.json", "rb") as f:
         bundle_modules = json.load(f)
+
     with mock.patch(
-        "circup.get_device_versions", return_value=device_modules
+        "circup.DiskBackend.get_device_versions", return_value=device_modules
     ), mock.patch(
         "circup.get_bundle_versions", return_value=bundle_modules
     ), mock.patch(
         "circup.os.path.isfile", return_value=True
-    ):
+    ), mock.patch(
+        "circup.logger.warning"
+    ) as mock_logger:
+        backend = DiskBackend("mock_device", mock_logger)
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         bundles_list = [bundle]
         for module in bundle_modules:
             bundle_modules[module]["bundle"] = bundle
-        result = circup.find_modules("", bundles_list)
+
+        result = circup.find_modules(backend, bundles_list)
     assert len(result) == 1
     assert result[0].name == "adafruit_74hc595"
     assert (
@@ -630,13 +737,16 @@ def test_find_modules_goes_bang():
     and the utility exists with an error code of 1.
     """
     with mock.patch(
-        "circup.get_device_versions", side_effect=Exception("BANG!")
+        "circup.DiskBackend.get_device_versions", side_effect=Exception("BANG!")
     ), mock.patch("circup.click") as mock_click, mock.patch(
         "circup.sys.exit"
-    ) as mock_exit:
+    ) as mock_exit, mock.patch(
+        "circup.logger.warning"
+    ) as mock_logger:
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         bundles_list = [bundle]
-        circup.find_modules("", bundles_list)
+        backend = DiskBackend("mock_devcie", mock_logger)
+        circup.find_modules(backend, bundles_list)
         assert mock_click.echo.call_count == 1
         mock_exit.assert_called_once_with(1)
 
@@ -647,19 +757,21 @@ def test_get_bundle_versions():
     Ensure ensure_latest_bundle is called even if lib_dir exists.
     """
     with mock.patch("circup.ensure_latest_bundle") as mock_elb, mock.patch(
-        "circup.get_modules", return_value={"ok": {"name": "ok"}}
+        "circup._get_modules_file", return_value={"ok": {"name": "ok"}}
     ) as mock_gm, mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
         "circup.Bundle.lib_dir", return_value="foo/bar/lib"
     ), mock.patch(
         "circup.os.path.isdir", return_value=True
-    ):
+    ), mock.patch(
+        "circup.logger"
+    ) as mock_logger:
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         bundles_list = [bundle]
         assert circup.get_bundle_versions(bundles_list) == {
             "ok": {"name": "ok", "bundle": bundle}
         }
         mock_elb.assert_called_once_with(bundle)
-        mock_gm.assert_called_once_with("foo/bar/lib")
+        mock_gm.assert_called_once_with("foo/bar/lib", mock_logger)
 
 
 def test_get_bundle_versions_avoid_download():
@@ -668,10 +780,12 @@ def test_get_bundle_versions_avoid_download():
     Testing both cases: lib_dir exists and lib_dir doesn't exists.
     """
     with mock.patch("circup.ensure_latest_bundle") as mock_elb, mock.patch(
-        "circup.get_modules", return_value={"ok": {"name": "ok"}}
+        "circup._get_modules_file", return_value={"ok": {"name": "ok"}}
     ) as mock_gm, mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
         "circup.Bundle.lib_dir", return_value="foo/bar/lib"
-    ):
+    ), mock.patch(
+        "circup.logger"
+    ) as mock_logger:
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         bundles_list = [bundle]
         with mock.patch("circup.os.path.isdir", return_value=True):
@@ -679,13 +793,13 @@ def test_get_bundle_versions_avoid_download():
                 "ok": {"name": "ok", "bundle": bundle}
             }
             assert mock_elb.call_count == 0
-            mock_gm.assert_called_once_with("foo/bar/lib")
+            mock_gm.assert_called_once_with("foo/bar/lib", mock_logger)
         with mock.patch("circup.os.path.isdir", return_value=False):
             assert circup.get_bundle_versions(bundles_list, avoid_download=True) == {
                 "ok": {"name": "ok", "bundle": bundle}
             }
             mock_elb.assert_called_once_with(bundle)
-            mock_gm.assert_called_with("foo/bar/lib")
+            mock_gm.assert_called_with("foo/bar/lib", mock_logger)
 
 
 def test_get_circuitpython_version():
@@ -693,26 +807,11 @@ def test_get_circuitpython_version():
     Given valid content of a boot_out.txt file on a connected device, return
     the version number of CircuitPython running on the board.
     """
-    device_path = "device"
-    data_no_id = (
-        "Adafruit CircuitPython 4.1.0 on 2019-08-02; "
-        "Adafruit CircuitPlayground Express with samd21g18"
-    )
-    with mock.patch("builtins.open", mock.mock_open(read_data=data_no_id)) as mock_open:
-        assert circup.get_circuitpython_version(device_path) == ("4.1.0", "")
-        mock_open.assert_called_once_with(
-            os.path.join(device_path, "boot_out.txt"), "r", encoding="utf-8"
-        )
-    data_with_id = data_no_id + "\r\n" "Board ID:this_is_a_board"
-    with mock.patch(
-        "builtins.open", mock.mock_open(read_data=data_with_id)
-    ) as mock_open:
-        assert circup.get_circuitpython_version(device_path) == (
+    with mock.patch("circup.logger.warning") as mock_logger:
+        backend = DiskBackend("tests/mock_device", mock_logger)
+        assert backend.get_circuitpython_version() == (
             "4.1.0",
             "this_is_a_board",
-        )
-        mock_open.assert_called_once_with(
-            os.path.join(device_path, "boot_out.txt"), "r", encoding="utf-8"
         )
 
 
@@ -720,9 +819,12 @@ def test_get_device_versions():
     """
     Ensure get_modules is called with the path for the attached device.
     """
-    with mock.patch("circup.get_modules", return_value="ok") as mock_gm:
-        assert circup.get_device_versions("TESTDIR") == "ok"
-        mock_gm.assert_called_once_with(os.path.join("TESTDIR", "lib"))
+    with mock.patch(
+        "circup.DiskBackend.get_modules", return_value="ok"
+    ) as mock_gm, mock.patch("circup.logger.warning") as mock_logger:
+        backend = circup.DiskBackend("mock_device", mock_logger)
+        assert backend.get_device_versions() == "ok"
+        mock_gm.assert_called_once_with(os.path.join("mock_device", "lib"))
 
 
 def test_get_modules_empty_path():
@@ -730,7 +832,9 @@ def test_get_modules_empty_path():
     Sometimes a path to a device or bundle may be empty. Ensure, if this is the
     case, an empty dictionary is returned.
     """
-    assert circup.get_modules("") == {}
+    with mock.patch("circup.logger.warning") as mock_logger:
+        backend = circup.DiskBackend("tests/mock_device", mock_logger)
+        assert backend.get_modules("") == {}
 
 
 def test_get_modules_that_are_files():
@@ -743,8 +847,11 @@ def test_get_modules_that_are_files():
         os.path.join("tests", "local_module.py"),
         os.path.join("tests", ".hidden_module.py"),
     ]
-    with mock.patch("circup.glob.glob", side_effect=[mods, [], []]):
-        result = circup.get_modules(path)
+    with mock.patch("circup.glob.glob", side_effect=[mods, [], []]), mock.patch(
+        "circup.logger.warning"
+    ) as mock_logger:
+        backend = circup.DiskBackend("mock_device", mock_logger)
+        result = backend.get_modules(path)
         assert len(result) == 1  # Hidden files are ignored.
         assert "local_module" in result
         assert result["local_module"]["path"] == os.path.join(
@@ -766,8 +873,11 @@ def test_get_modules_that_are_directories():
         os.path.join("tests", ".hidden_dir", ""),
     ]
     mod_files = ["tests/dir_module/my_module.py", "tests/dir_module/__init__.py"]
-    with mock.patch("circup.glob.glob", side_effect=[[], [], mods, mod_files, []]):
-        result = circup.get_modules(path)
+    with mock.patch(
+        "circup.glob.glob", side_effect=[[], [], mods, mod_files, []]
+    ), mock.patch("circup.logger.warning") as mock_logger:
+        backend = circup.DiskBackend("mock_device", mock_logger)
+        result = backend.get_modules(path)
         assert len(result) == 1
         assert "dir_module" in result
         assert result["dir_module"]["path"] == os.path.join("tests", "dir_module", "")
@@ -784,8 +894,11 @@ def test_get_modules_that_are_directories_with_no_metadata():
     path = "tests"  # mocked away in function.
     mods = [os.path.join("tests", "bad_module", "")]
     mod_files = ["tests/bad_module/my_module.py", "tests/bad_module/__init__.py"]
-    with mock.patch("circup.glob.glob", side_effect=[[], [], mods, mod_files, []]):
-        result = circup.get_modules(path)
+    with mock.patch(
+        "circup.glob.glob", side_effect=[[], [], mods, mod_files, []]
+    ), mock.patch("circup.logger.warning") as mock_logger:
+        backend = circup.DiskBackend("mock_device", mock_logger)
+        result = backend.get_modules(path)
         assert len(result) == 1
         assert "bad_module" in result
         assert result["bad_module"]["path"] == os.path.join("tests", "bad_module", "")
@@ -1019,8 +1132,8 @@ def test_libraries_from_imports():
         "adafruit_touchscreen",
     ]
     test_file = str(pathlib.Path(__file__).parent / "import_styles.py")
-    result = circup.libraries_from_imports(test_file, mod_names)
-    print(result)
+
+    result = circup.libraries_from_code_py(test_file, mod_names)
     assert result == [
         "adafruit_bus_device",
         "adafruit_button",
@@ -1033,6 +1146,16 @@ def test_libraries_from_imports_bad():
     """Ensure that we catch an import error"""
     TEST_BUNDLE_MODULES = {"one.py": {}, "two.py": {}, "three.py": {}}
     runner = CliRunner()
+
     with mock.patch("circup.get_bundle_versions", return_value=TEST_BUNDLE_MODULES):
-        result = runner.invoke(circup.install, ["--auto-file", "./tests/bad_python.py"])
+        result = runner.invoke(
+            circup.main,
+            [
+                "--path",
+                "./tests/mock_device/",
+                "install",
+                "--auto-file",
+                "./tests/bad_python.py",
+            ],
+        )
     assert result.exit_code == 2

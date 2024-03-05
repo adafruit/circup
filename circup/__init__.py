@@ -5,17 +5,21 @@
 CircUp -- a utility to manage and update libraries on a CircuitPython device.
 """
 
-
 import ctypes
 import glob
 import json
 import logging
+import time
+from logging.handlers import RotatingFileHandler
 import os
 import re
 import shutil
-from subprocess import check_output
+import socket
 import sys
+import tempfile
 import zipfile
+from subprocess import check_output
+from urllib.parse import urlparse, urljoin
 
 import appdirs
 import click
@@ -23,15 +27,20 @@ import findimports
 import pkg_resources
 import requests
 import toml
-from semver import VersionInfo
 import update_checker
+from requests.auth import HTTPBasicAuth
+from semver import VersionInfo
 
+from circup.shared import DATA_DIR, BAD_FILE_FORMAT, extract_metadata, _get_modules_file
+from circup.backends import WebBackend, DiskBackend
+
+#: The version of CircuitPython found on the connected device.
+CPY_VERSION = ""
 
 # Useful constants.
 #: Flag to indicate if the command is being run in verbose mode.
 VERBOSE = False
-#: The location of data files used by circup (following OS conventions).
-DATA_DIR = appdirs.user_data_dir(appname="circup", appauthor="adafruit")
+
 #: The path to the JSON file containing the metadata about the bundles.
 BUNDLE_CONFIG_FILE = pkg_resources.resource_filename(
     "circup", "config/bundle_config.json"
@@ -46,6 +55,7 @@ BUNDLE_DATA = os.path.join(DATA_DIR, "circup.json")
 LOG_DIR = appdirs.user_log_dir(appname="circup", appauthor="adafruit")
 #: The location of the log file for the utility.
 LOGFILE = os.path.join(LOG_DIR, "circup.log")
+
 #:  The libraries (and blank lines) which don't go on devices
 NOT_MCU_LIBRARIES = [
     "",
@@ -56,14 +66,12 @@ NOT_MCU_LIBRARIES = [
     "circuitpython_typing",
     "pyserial",
 ]
-#: The version of CircuitPython found on the connected device.
-CPY_VERSION = ""
+
 #: Module formats list (and the other form used in github files)
 PLATFORMS = {"py": "py", "8mpy": "8.x-mpy", "9mpy": "9.x-mpy"}
 #: Commands that do not require an attached board
 BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
-#: Version identifier for a bad MPY file format
-BAD_FILE_FORMAT = "Invalid"
+
 #: Timeout for requests calls like get()
 REQUESTS_TIMEOUT = 30
 
@@ -77,7 +85,7 @@ if not os.path.exists(LOG_DIR):  # pragma: no cover
 # Setup logging.
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-logfile_handler = logging.FileHandler(LOGFILE)
+logfile_handler = RotatingFileHandler(LOGFILE, maxBytes=10_000_000, backupCount=0)
 log_formatter = logging.Formatter(
     "%(asctime)s %(levelname)s: %(message)s", datefmt="%m/%d/%Y %H:%M:%S"
 )
@@ -230,7 +238,15 @@ class Module:
     # pylint: disable=too-many-arguments
 
     def __init__(
-        self, path, repo, device_version, bundle_version, mpy, bundle, compatibility
+        self,
+        name,
+        backend,
+        repo,
+        device_version,
+        bundle_version,
+        mpy,
+        bundle,
+        compatibility,
     ):
         """
         The ``self.file`` and ``self.name`` attributes are constructed from
@@ -238,8 +254,8 @@ class Module:
         resulting self.file value will be None, and the name will be the
         basename of the directory path.
 
-        :param str path: The path to the module on the connected
-            CIRCUITPYTHON device.
+        :param str name: The file name of the module.
+        :param Backend backend: The backend that the module is on.
         :param str repo: The URL of the Git repository for this module.
         :param str device_version: The semver value for the version on device.
         :param str bundle_version: The semver value for the version in bundle.
@@ -247,15 +263,31 @@ class Module:
         :param Bundle bundle: Bundle object where the module is located.
         :param (str,str) compatibility: Min and max versions of CP compatible with the mpy.
         """
-        self.path = path
-        if os.path.isfile(self.path):
-            # Single file module.
-            self.file = os.path.basename(path)
-            self.name = self.file.replace(".py", "").replace(".mpy", "")
-        else:
-            # Directory based module.
+        self.name = name
+        self.backend = backend
+        self.path = (
+            urljoin(backend.library_path, name, allow_fragments=False)
+            if isinstance(backend, WebBackend)
+            else os.path.join(backend.library_path, name)
+        )
+
+        url = urlparse(self.path, allow_fragments=False)
+
+        if (
+            url.path.endswith("/")
+            if isinstance(backend, WebBackend)
+            else self.path.endswith(os.sep)
+        ):
             self.file = None
-            self.name = os.path.basename(os.path.dirname(self.path))
+            self.name = self.path.split(
+                "/" if isinstance(backend, WebBackend) else os.sep
+            )[-2]
+        else:
+            self.file = os.path.basename(url.path)
+            self.name = (
+                os.path.basename(url.path).replace(".py", "").replace(".mpy", "")
+            )
+
         self.repo = repo
         self.device_version = device_version
         self.bundle_version = bundle_version
@@ -371,22 +403,6 @@ class Module:
             update_reason = "Minor Version"
         return (self.name, loc, rem, update_reason)
 
-    def update(self):
-        """
-        Delete the module on the device, then copy the module from the bundle
-        back onto the device.
-
-        The caller is expected to handle any exceptions raised.
-        """
-        if os.path.isdir(self.path):
-            # Delete and copy the directory.
-            shutil.rmtree(self.path, ignore_errors=True)
-            shutil.copytree(self.bundle_path, self.path)
-        else:
-            # Delete and copy file.
-            os.remove(self.path)
-            shutil.copyfile(self.bundle_path, self.path)
-
     def __repr__(self):
         """
         Helps with log files.
@@ -498,89 +514,6 @@ def ensure_latest_bundle(bundle):
         logger.info("Current bundle up to date %s.", tag)
 
 
-def extract_metadata(path):
-    # pylint: disable=too-many-locals,too-many-branches
-    """
-    Given an file path, return a dictionary containing metadata extracted from
-    dunder attributes found therein. Works with both .py and .mpy files.
-
-    For Python source files, such metadata assignments should be simple and
-    single-line. For example::
-
-        __version__ = "1.1.4"
-        __repo__ = "https://github.com/adafruit/SomeLibrary.git"
-
-    For byte compiled .mpy files, a brute force / backtrack approach is used
-    to find the __version__ number in the file -- see comments in the
-    code for the implementation details.
-
-    :param str path: The path to the file containing the metadata.
-    :return: The dunder based metadata found in the file, as a dictionary.
-    """
-    result = {}
-    logger.info("%s", path)
-    if path.endswith(".py"):
-        result["mpy"] = False
-        with open(path, "r", encoding="utf-8") as source_file:
-            content = source_file.read()
-        #: The regex used to extract ``__version__`` and ``__repo__`` assignments.
-        dunder_key_val = r"""(__\w+__)(?:\s*:\s*\w+)?\s*=\s*(?:['"]|\(\s)(.+)['"]"""
-        for match in re.findall(dunder_key_val, content):
-            result[match[0]] = str(match[1])
-        if result:
-            logger.info("Extracted metadata: %s", result)
-    elif path.endswith(".mpy"):
-        find_by_regexp_match = False
-        result["mpy"] = True
-        with open(path, "rb") as mpy_file:
-            content = mpy_file.read()
-        # Track the MPY version number
-        mpy_version = content[0:2]
-        compatibility = None
-        loc = -1
-        # Find the start location of the __version__
-        if mpy_version == b"M\x03":
-            # One byte for the length of "__version__"
-            loc = content.find(b"__version__") - 1
-            compatibility = (None, "7.0.0-alpha.1")
-        elif mpy_version == b"C\x05":
-            # Two bytes for the length of "__version__" in mpy version 5
-            loc = content.find(b"__version__") - 2
-            compatibility = ("7.0.0-alpha.1", "8.99.99")
-        elif mpy_version == b"C\x06":
-            # Two bytes in mpy version 6
-            find_by_regexp_match = True
-            compatibility = ("9.0.0-alpha.1", None)
-        if find_by_regexp_match:
-            # Too hard to find the version positionally.
-            # Find the first thing that looks like an x.y.z version number.
-            match = re.search(rb"([\d]+\.[\d]+\.[\d]+)\x00", content)
-            if match:
-                result["__version__"] = match.group(1).decode("utf-8")
-        elif loc > -1:
-            # Backtrack until a byte value of the offset is reached.
-            offset = 1
-            while offset < loc:
-                val = int(content[loc - offset])
-                if mpy_version == b"C\x05":
-                    val = val // 2
-                if val == offset - 1:  # Off by one..!
-                    # Found version, extract the number given boundaries.
-                    start = loc - offset + 1  # No need for prepended length.
-                    end = loc  # Up to the start of the __version__.
-                    version = content[start:end]  # Slice the version number.
-                    # Create a string version as metadata in the result.
-                    result["__version__"] = version.decode("utf-8")
-                    break  # Nothing more to do.
-                offset += 1  # ...and again but backtrack by one.
-        if compatibility:
-            result["compatibility"] = compatibility
-        else:
-            # not a valid MPY file
-            result["__version__"] = BAD_FILE_FORMAT
-    return result
-
-
 def find_device():
     """
     Return the location on the filesystem for the connected CircuitPython device.
@@ -649,43 +582,50 @@ def find_device():
     return device_dir
 
 
-def find_modules(device_path, bundles_list):
+def find_modules(backend, bundles_list):
     """
     Extracts metadata from the connected device and available bundles and
     returns this as a list of Module instances representing the modules on the
     device.
 
-    :param str device_path: The path to the connected board.
-    :param Bundle bundles_list: List of supported bundles as Bundle objects.
+    :param Backend backend: Backend with the device connection.
+    :param List[Bundle] bundles_list: List of supported bundles as Bundle objects.
     :return: A list of Module instances describing the current state of the
              modules on the connected device.
     """
     # pylint: disable=broad-except,too-many-locals
     try:
-        device_modules = get_device_versions(device_path)
+        device_modules = backend.get_device_versions()
         bundle_modules = get_bundle_versions(bundles_list)
         result = []
-        for name, device_metadata in device_modules.items():
-            if name in bundle_modules:
+        for key, device_metadata in device_modules.items():
+
+            if key in bundle_modules:
                 path = device_metadata["path"]
-                bundle_metadata = bundle_modules[name]
+                bundle_metadata = bundle_modules[key]
                 repo = bundle_metadata.get("__repo__")
                 bundle = bundle_metadata.get("bundle")
                 device_version = device_metadata.get("__version__")
                 bundle_version = bundle_metadata.get("__version__")
                 mpy = device_metadata["mpy"]
                 compatibility = device_metadata.get("compatibility", (None, None))
-                result.append(
-                    Module(
-                        path,
-                        repo,
-                        device_version,
-                        bundle_version,
-                        mpy,
-                        bundle,
-                        compatibility,
-                    )
+                module_name = (
+                    path.split(os.sep)[-1]
+                    if not path.endswith(os.sep)
+                    else path[:-1].split(os.sep)[-1] + os.sep
                 )
+
+                m = Module(
+                    module_name,
+                    backend,
+                    repo,
+                    device_version,
+                    bundle_version,
+                    mpy,
+                    bundle,
+                    compatibility,
+                )
+                result.append(m)
         return result
     except Exception as ex:
         # If it's not possible to get the device and bundle metadata, bail out
@@ -740,7 +680,7 @@ def get_bundle_versions(bundles_list, avoid_download=False):
     of the library bundle. Uses the Python version (rather than the compiled
     version) of the library modules.
 
-    :param Bundle bundles_list: List of supported bundles as Bundle objects.
+    :param List[Bundle] bundles_list: List of supported bundles as Bundle objects.
     :param bool avoid_download: if True, download the bundle only if missing.
     :return: A dictionary of metadata about the modules available in the
              library bundle.
@@ -750,7 +690,7 @@ def get_bundle_versions(bundles_list, avoid_download=False):
         if not avoid_download or not os.path.isdir(bundle.lib_dir("py")):
             ensure_latest_bundle(bundle)
         path = bundle.lib_dir("py")
-        path_modules = get_modules(path)
+        path_modules = _get_modules_file(path, logger)
         for name, module in path_modules.items():
             module["bundle"] = bundle
             if name not in all_the_modules:  # here we decide the order of priority
@@ -808,43 +748,6 @@ def get_bundles_list():
     return bundles_list
 
 
-def get_circuitpython_version(device_path):
-    """
-    Returns the version number of CircuitPython running on the board connected
-    via ``device_path``, along with the board ID. This is obtained from the
-    ``boot_out.txt`` file on the device, whose first line will start with
-    something like this::
-
-        Adafruit CircuitPython 4.1.0 on 2019-08-02;
-
-    While the second line is::
-
-        Board ID:raspberry_pi_pico
-
-    :param str device_path: The path to the connected board.
-    :return: A tuple with the version string for CircuitPython and the board ID string.
-    """
-    try:
-        with open(
-            os.path.join(device_path, "boot_out.txt"), "r", encoding="utf-8"
-        ) as boot:
-            version_line = boot.readline()
-            circuit_python = version_line.split(";")[0].split(" ")[-3]
-            board_line = boot.readline()
-            if board_line.startswith("Board ID:"):
-                board_id = board_line[9:].strip()
-            else:
-                board_id = ""
-    except FileNotFoundError:
-        click.secho(
-            "Missing file boot_out.txt on the device: wrong path or drive corrupted.",
-            fg="red",
-        )
-        logger.error("boot_out.txt not found.")
-        sys.exit(1)
-    return (circuit_python, board_id)
-
-
 def get_circup_version():
     """Return the version of circup that is running. If not available, return None.
 
@@ -865,7 +768,8 @@ def get_circup_version():
 
 def get_dependencies(*requested_libraries, mod_names, to_install=()):
     """
-    Return a list of other CircuitPython libraries
+    Return a list of other CircuitPython libraries required by the given list
+    of libraries
 
     :param tuple requested_libraries: The libraries to search for dependencies
     :param object mod_names:  All the modules metadata from bundle
@@ -958,17 +862,6 @@ def get_circup_dependencies(bundle, library):
         return tuple()
 
 
-def get_device_versions(device_path):
-    """
-    Returns a dictionary of metadata from modules on the connected device.
-
-    :param str device_path: Path to the device volume.
-    :return: A dictionary of metadata about the modules available on the
-             connected device.
-    """
-    return get_modules(os.path.join(device_path, "lib"))
-
-
 def get_latest_release_from_url(url):
     """
     Find the tag name of the latest release by using HTTP HEAD and decoding the redirect.
@@ -985,138 +878,6 @@ def get_latest_release_from_url(url):
     tag = responseurl.rsplit("/", 1)[-1]
     logger.info("Tag: '%s'", tag)
     return tag
-
-
-def get_modules(path):
-    """
-    Get a dictionary containing metadata about all the Python modules found in
-    the referenced path.
-
-    :param str path: The directory in which to find modules.
-    :return: A dictionary containing metadata about the found modules.
-    """
-    result = {}
-    if not path:
-        return result
-    single_file_py_mods = glob.glob(os.path.join(path, "*.py"))
-    single_file_mpy_mods = glob.glob(os.path.join(path, "*.mpy"))
-    package_dir_mods = [
-        d
-        for d in glob.glob(os.path.join(path, "*", ""))
-        if not os.path.basename(os.path.normpath(d)).startswith(".")
-    ]
-    single_file_mods = single_file_py_mods + single_file_mpy_mods
-    for sfm in [f for f in single_file_mods if not os.path.basename(f).startswith(".")]:
-        metadata = extract_metadata(sfm)
-        metadata["path"] = sfm
-        result[os.path.basename(sfm).replace(".py", "").replace(".mpy", "")] = metadata
-    for package_path in package_dir_mods:
-        name = os.path.basename(os.path.dirname(package_path))
-        py_files = glob.glob(os.path.join(package_path, "**/*.py"), recursive=True)
-        mpy_files = glob.glob(os.path.join(package_path, "**/*.mpy"), recursive=True)
-        all_files = py_files + mpy_files
-        # default value
-        result[name] = {"path": package_path, "mpy": bool(mpy_files)}
-        # explore all the submodules to detect bad ones
-        for source in [f for f in all_files if not os.path.basename(f).startswith(".")]:
-            metadata = extract_metadata(source)
-            if "__version__" in metadata:
-                metadata["path"] = package_path
-                result[name] = metadata
-                # break now if any of the submodules has a bad format
-                if metadata["__version__"] == BAD_FILE_FORMAT:
-                    break
-    return result
-
-
-# pylint: disable=too-many-locals,too-many-branches
-def install_module(
-    device_path, device_modules, name, pyext, mod_names
-):  # pragma: no cover
-    """
-    Finds a connected device and installs a given module name if it
-    is available in the current module bundle and is not already
-    installed on the device.
-    TODO: There is currently no check for the version.
-
-    :param str device_path: The path to the connected board.
-    :param list(dict) device_modules: List of module metadata from the device.
-    :param str name: Name of module to install
-    :param bool pyext: Boolean to specify if the module should be installed from
-                    source or from a pre-compiled module
-    :param mod_names: Dictionary of metadata from modules that can be generated
-                       with get_bundle_versions()
-    """
-    if not name:
-        click.echo("No module name(s) provided.")
-    elif name in mod_names:
-        library_path = os.path.join(device_path, "lib")
-        if not os.path.exists(library_path):  # pragma: no cover
-            os.makedirs(library_path)
-        metadata = mod_names[name]
-        bundle = metadata["bundle"]
-        # Grab device modules to check if module already installed
-        if name in device_modules:
-            click.echo("'{}' is already installed.".format(name))
-            return
-        if pyext:
-            # Use Python source for module.
-            source_path = metadata["path"]  # Path to Python source version.
-            if os.path.isdir(source_path):
-                target = os.path.basename(os.path.dirname(source_path))
-                target_path = os.path.join(library_path, target)
-                # Copy the directory.
-                shutil.copytree(source_path, target_path)
-            else:
-                target = os.path.basename(source_path)
-                target_path = os.path.join(library_path, target)
-                # Copy file.
-                shutil.copyfile(source_path, target_path)
-        else:
-            # Use pre-compiled mpy modules.
-            module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
-            if not module_name:
-                # Must be a directory based module.
-                module_name = os.path.basename(os.path.dirname(metadata["path"]))
-            major_version = CPY_VERSION.split(".")[0]
-            bundle_platform = "{}mpy".format(major_version)
-            bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
-            if os.path.isdir(bundle_path):
-                target_path = os.path.join(library_path, module_name)
-                # Copy the directory.
-                shutil.copytree(bundle_path, target_path)
-            elif os.path.isfile(bundle_path):
-                target = os.path.basename(bundle_path)
-                target_path = os.path.join(library_path, target)
-                # Copy file.
-                shutil.copyfile(bundle_path, target_path)
-            else:
-                raise IOError("Cannot find compiled version of module.")
-        click.echo("Installed '{}'.".format(name))
-    else:
-        click.echo("Unknown module named, '{}'.".format(name))
-
-
-# pylint: enable=too-many-locals,too-many-branches
-
-
-def libraries_from_imports(code_py, mod_names):
-    """
-    Parse the given code.py file and return the imported libraries
-
-    :param str code_py: Full path of the code.py file
-    :return: sequence of library names
-    """
-    # pylint: disable=broad-except
-    try:
-        found_imports = findimports.find_imports(code_py)
-    except Exception as ex:  # broad exception because anything could go wrong
-        logger.exception(ex)
-        click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
-        sys.exit(2)
-    # pylint: enable=broad-except
-    imports = [info.name.split(".", 1)[0] for info in found_imports]
-    return [r for r in imports if r in mod_names]
 
 
 def libraries_from_requirements(requirements):
@@ -1189,6 +950,25 @@ def tags_data_save_tag(key, tag):
         json.dump(tags_data, data)
 
 
+def libraries_from_code_py(code_py, mod_names):
+    """
+    Parse the given code.py file and return the imported libraries
+
+    :param str code_py: Full path of the code.py file
+    :return: sequence of library names
+    """
+    # pylint: disable=broad-except
+    try:
+        found_imports = findimports.find_imports(code_py)
+    except Exception as ex:  # broad exception because anything could go wrong
+        logger.exception(ex)
+        click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
+        sys.exit(2)
+    # pylint: enable=broad-except
+    imports = [info.name.split(".", 1)[0] for info in found_imports]
+    return [r for r in imports if r in mod_names]
+
+
 # ----------- CLI command definitions  ----------- #
 
 # The following functions have IO side effects (for instance they emit to
@@ -1208,6 +988,18 @@ def tags_data_save_tag(key, tag):
     help="Path to CircuitPython directory. Overrides automatic path detection.",
 )
 @click.option(
+    "--host",
+    help="Hostname or IP address of a device. Overrides automatic path detection.",
+)
+@click.option(
+    "--password", help="Password to use for authentication when --host is used."
+)
+@click.option(
+    "--timeout",
+    default=30,
+    help="Specify the timeout in seconds for any network operations.",
+)
+@click.option(
     "--board-id",
     default=None,
     help="Manual Board ID of the CircuitPython device. If provided in combination "
@@ -1224,11 +1016,46 @@ def tags_data_save_tag(key, tag):
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )
 @click.pass_context
-def main(ctx, verbose, path, board_id, cpy_version):  # pragma: no cover
+def main(  # pylint: disable=too-many-locals
+    ctx, verbose, path, host, password, timeout, board_id, cpy_version
+):  # pragma: no cover
     """
     A tool to manage and update libraries on a CircuitPython device.
     """
+    # pylint: disable=too-many-arguments,too-many-branches,too-many-statements,too-many-locals
     ctx.ensure_object(dict)
+    global REQUESTS_TIMEOUT
+    ctx.obj["TIMEOUT"] = REQUESTS_TIMEOUT = timeout
+    device_path = get_device_path(host, password, path)
+
+    using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
+
+    if using_webworkflow:
+        if host == "circuitpython.local":
+            click.echo("Checking versions.json on circuitpython.local to find hostname")
+            versions_resp = requests.get(
+                "http://circuitpython.local/cp/version.json", timeout=timeout
+            )
+            host = f'{versions_resp.json()["hostname"]}.local'
+            click.echo(f"Using hostname: {host}")
+            device_path = device_path.replace("circuitpython.local", host)
+        try:
+            ctx.obj["backend"] = WebBackend(
+                host=host, password=password, logger=logger, timeout=timeout
+            )
+        except ValueError as e:
+            click.secho(e, fg="red")
+            time.sleep(0.3)
+            sys.exit(1)
+        except RuntimeError as e:
+            click.secho(e, fg="red")
+            sys.exit(1)
+    else:
+        try:
+            ctx.obj["backend"] = DiskBackend(device_path, logger)
+        except ValueError as e:
+            print(e)
+
     if verbose:
         # Configure additional logging to stdout.
         global VERBOSE
@@ -1249,21 +1076,18 @@ def main(ctx, verbose, path, board_id, cpy_version):  # pragma: no cover
     # stop early if the command is boardless
     if ctx.invoked_subcommand in BOARDLESS_COMMANDS:
         return
-    if path:
-        device_path = path
-    else:
-        device_path = find_device()
+
     ctx.obj["DEVICE_PATH"] = device_path
     latest_version = get_latest_release_from_url(
         "https://github.com/adafruit/circuitpython/releases/latest"
     )
     global CPY_VERSION
-    if device_path is None:
+    if device_path is None or not ctx.obj["backend"].is_device_present():
         click.secho("Could not find a connected CircuitPython device.", fg="red")
         sys.exit(1)
     else:
         CPY_VERSION, board_id = (
-            get_circuitpython_version(device_path)
+            ctx.obj["backend"].get_circuitpython_version()
             if board_id is None or cpy_version is None
             else (cpy_version, board_id)
         )
@@ -1290,6 +1114,23 @@ def main(ctx, verbose, path, board_id, cpy_version):  # pragma: no cover
         logger.warning(ex)
 
 
+def get_device_path(host, password, path):
+    """
+    :param host Hostname or IP address.
+    :param password REST API password.
+    :param path File system path.
+    :return device URL or None if the device cannot be found.
+    """
+    if path:
+        device_path = path
+    elif host:
+        # pylint: enable=no-member
+        device_path = f"http://:{password}@" + host
+    else:
+        device_path = find_device()
+    return device_path
+
+
 @main.command()
 @click.option("-r", "--requirement", is_flag=True)
 @click.pass_context
@@ -1299,7 +1140,7 @@ def freeze(ctx, requirement):  # pragma: no cover
     device. Option -r saves output to requirements.txt file
     """
     logger.info("Freeze")
-    modules = find_modules(ctx.obj["DEVICE_PATH"], get_bundles_list())
+    modules = find_modules(ctx.obj["backend"], get_bundles_list())
     if modules:
         output = []
         for module in modules:
@@ -1332,7 +1173,7 @@ def list_cli(ctx):  # pragma: no cover
 
     modules = [
         m.row
-        for m in find_modules(ctx.obj["DEVICE_PATH"], get_bundles_list())
+        for m in find_modules(ctx.obj["backend"], get_bundles_list())
         if m.outofdate
     ]
     if modules:
@@ -1394,6 +1235,7 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
     can be installed at once by providing more than one module name, each
     separated by a space.
     """
+
     # TODO: Ensure there's enough space on the device
     available_modules = get_bundle_versions(get_bundles_list())
     mod_names = {}
@@ -1406,25 +1248,39 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
     elif auto or auto_file:
         if auto_file is None:
             auto_file = "code.py"
+            print(f"Auto file: {auto_file}")
         # pass a local file with "./" or "../"
-        is_relative = auto_file.split(os.sep)[0] in [os.path.curdir, os.path.pardir]
+        is_relative = not isinstance(ctx.obj["backend"], WebBackend) or auto_file.split(
+            os.sep
+        )[0] in [os.path.curdir, os.path.pardir]
         if not os.path.isabs(auto_file) and not is_relative:
-            auto_file = os.path.join(ctx.obj["DEVICE_PATH"], auto_file or "code.py")
-        if not os.path.isfile(auto_file):
-            click.secho(f"Auto file not found: {auto_file}", fg="red")
-            sys.exit(1)
-        requested_installs = libraries_from_imports(auto_file, mod_names)
+            auto_file = ctx.obj["backend"].get_file_path(auto_file or "code.py")
+
+        auto_file_path = ctx.obj["backend"].get_auto_file_path(auto_file)
+        print(f"Auto file path: {auto_file_path}")
+        if not os.path.isfile(auto_file_path):
+            # fell through to here when run from random folder on windows - ask backend.
+            new_auto_file = ctx.obj["backend"].get_file_path(auto_file)
+            if os.path.isfile(new_auto_file):
+                auto_file = new_auto_file
+                auto_file_path = ctx.obj["backend"].get_auto_file_path(auto_file)
+                print(f"Auto file path: {auto_file_path}")
+            else:
+                click.secho(f"Auto file not found: {auto_file}", fg="red")
+                sys.exit(1)
+
+        requested_installs = libraries_from_code_py(auto_file_path, mod_names)
     else:
         requested_installs = modules
     requested_installs = sorted(set(requested_installs))
     click.echo(f"Searching for dependencies for: {requested_installs}")
     to_install = get_dependencies(requested_installs, mod_names=mod_names)
-    device_modules = get_device_versions(ctx.obj["DEVICE_PATH"])
+    device_modules = ctx.obj["backend"].get_device_versions()
     if to_install is not None:
         to_install = sorted(to_install)
         click.echo(f"Ready to install: {to_install}\n")
         for library in to_install:
-            install_module(
+            ctx.obj["backend"].install_module(
                 ctx.obj["DEVICE_PATH"], device_modules, library, pyext, mod_names
             )
 
@@ -1462,29 +1318,22 @@ def uninstall(ctx, module):  # pragma: no cover
     can be uninstalled at once by providing more than one module name, each
     separated by a space.
     """
+    device_path = ctx.obj["DEVICE_PATH"]
+    print(f"Uninstalling {module} from {device_path}")
     for name in module:
-        device_modules = get_device_versions(ctx.obj["DEVICE_PATH"])
+        device_modules = ctx.obj["backend"].get_device_versions()
         name = name.lower()
         mod_names = {}
         for module_item, metadata in device_modules.items():
             mod_names[module_item.replace(".py", "").lower()] = metadata
         if name in mod_names:
-            library_path = os.path.join(ctx.obj["DEVICE_PATH"], "lib")
             metadata = mod_names[name]
             module_path = metadata["path"]
-            if os.path.isdir(module_path):
-                target = os.path.basename(os.path.dirname(module_path))
-                target_path = os.path.join(library_path, target)
-                # Remove the directory.
-                shutil.rmtree(target_path)
-            else:
-                target = os.path.basename(module_path)
-                target_path = os.path.join(library_path, target)
-                # Remove file
-                os.remove(target_path)
+            ctx.obj["backend"].uninstall(device_path, module_path)
             click.echo("Uninstalled '{}'.".format(name))
         else:
             click.echo("Module '{}' not found on device.".format(name))
+        continue
 
 
 # pylint: disable=too-many-branches
@@ -1511,9 +1360,7 @@ def update(ctx, update_all):  # pragma: no cover
     logger.info("Update")
     # Grab out of date modules.
     modules = [
-        m
-        for m in find_modules(ctx.obj["DEVICE_PATH"], get_bundles_list())
-        if m.outofdate
+        m for m in find_modules(ctx.obj["backend"], get_bundles_list()) if m.outofdate
     ]
     if modules:
         click.echo("Found {} module[s] needing update.".format(len(modules)))
@@ -1565,7 +1412,7 @@ def update(ctx, update_all):  # pragma: no cover
             if update_flag:
                 # pylint: disable=broad-except
                 try:
-                    module.update()
+                    ctx.obj["backend"].update(module)
                     click.echo("Updated {}".format(module.name))
                 except Exception as ex:
                     logger.exception(ex)

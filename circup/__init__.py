@@ -1352,76 +1352,106 @@ def uninstall(ctx, module):  # pragma: no cover
     help="Update all modules without Major Version warnings.",
 )
 @click.pass_context
+# pylint: disable=too-many-locals
 def update(ctx, update_all):  # pragma: no cover
     """
     Checks for out-of-date modules on the connected CIRCUITPYTHON device, and
     prompts the user to confirm updating such modules.
     """
     logger.info("Update")
-    # Grab out of date modules.
-    modules = [
-        m for m in find_modules(ctx.obj["backend"], get_bundles_list()) if m.outofdate
-    ]
-    if modules:
-        click.echo("Found {} module[s] needing update.".format(len(modules)))
-        if not update_all:
-            click.echo("Please indicate which modules you wish to update:\n")
-        for module in modules:
-            update_flag = update_all
-            if VERBOSE:
-                click.echo(
-                    "Device version: {}, Bundle version: {}".format(
-                        module.device_version, module.bundle_version
-                    )
+    # Grab current modules.
+    bundles_list = get_bundles_list()
+    installed_modules = find_modules(ctx.obj["backend"], bundles_list)
+    modules_to_update = [m for m in installed_modules if m.outofdate]
+
+    if not modules_to_update:
+        click.echo("None of the module[s] found on the device need an update.")
+        return
+
+    # Process out of date modules
+    updated_modules = []
+    click.echo("Found {} module[s] needing update.".format(len(modules_to_update)))
+    if not update_all:
+        click.echo("Please indicate which module[s] you wish to update:\n")
+    for module in modules_to_update:
+        update_flag = update_all
+        if VERBOSE:
+            click.echo(
+                "Device version: {}, Bundle version: {}".format(
+                    module.device_version, module.bundle_version
                 )
-            if isinstance(module.bundle_version, str) and not VersionInfo.is_valid(
-                module.bundle_version
-            ):
+            )
+        if isinstance(module.bundle_version, str) and not VersionInfo.is_valid(
+            module.bundle_version
+        ):
+            click.secho(
+                f"WARNING: Library {module.name} repo has incorrect __version__"
+                "\n\tmetadata. Circup will assume it needs updating."
+                "\n\tPlease file an issue in the library repo.",
+                fg="yellow",
+            )
+            if module.repo:
+                click.secho(f"\t{module.repo}", fg="yellow")
+        if not update_flag:
+            if module.bad_format:
                 click.secho(
-                    f"WARNING: Library {module.name} repo has incorrect __version__"
-                    "\n\tmetadata. Circup will assume it needs updating."
-                    "\n\tPlease file an issue in the library repo.",
+                    f"WARNING: '{module.name}': module corrupted or in an"
+                    " unknown mpy format. Updating is required.",
                     fg="yellow",
                 )
-                if module.repo:
-                    click.secho(f"\t{module.repo}", fg="yellow")
-            if not update_flag:
-                if module.bad_format:
-                    click.secho(
-                        f"WARNING: '{module.name}': module corrupted or in an"
-                        " unknown mpy format. Updating is required.",
-                        fg="yellow",
+                update_flag = click.confirm("Do you want to update?")
+            elif module.mpy_mismatch:
+                click.secho(
+                    f"WARNING: '{module.name}': mpy format doesn't match the"
+                    " device's Circuitpython version. Updating is required.",
+                    fg="yellow",
+                )
+                update_flag = click.confirm("Do you want to update?")
+            elif module.major_update:
+                update_flag = click.confirm(
+                    (
+                        "'{}' is a Major Version update and may contain breaking "
+                        "changes. Do you want to update?".format(module.name)
                     )
-                    update_flag = click.confirm("Do you want to update?")
-                elif module.mpy_mismatch:
-                    click.secho(
-                        f"WARNING: '{module.name}': mpy format doesn't match the"
-                        " device's Circuitpython version. Updating is required.",
-                        fg="yellow",
-                    )
-                    update_flag = click.confirm("Do you want to update?")
-                elif module.major_update:
-                    update_flag = click.confirm(
-                        (
-                            "'{}' is a Major Version update and may contain breaking "
-                            "changes. Do you want to update?".format(module.name)
-                        )
-                    )
-                else:
-                    update_flag = click.confirm("Update '{}'?".format(module.name))
-            if update_flag:
-                # pylint: disable=broad-except
-                try:
-                    ctx.obj["backend"].update(module)
-                    click.echo("Updated {}".format(module.name))
-                except Exception as ex:
-                    logger.exception(ex)
-                    click.echo(
-                        "Something went wrong, {} (check the logs)".format(str(ex))
-                    )
-                # pylint: enable=broad-except
+                )
+            else:
+                update_flag = click.confirm("Update '{}'?".format(module.name))
+        if update_flag:
+            # pylint: disable=broad-except
+            try:
+                ctx.obj["backend"].update(module)
+                updated_modules.append(module.name)
+                click.echo("Updated {}".format(module.name))
+            except Exception as ex:
+                logger.exception(ex)
+                click.echo("Something went wrong, {} (check the logs)".format(str(ex)))
+            # pylint: enable=broad-except
+
+    if not updated_modules:
         return
-    click.echo("None of the modules found on the device need an update.")
+
+    # We updated modules, look to see if any requirements are missing
+    click.echo(
+        "Checking {} updated module[s] for missing requirements.".format(
+            len(updated_modules)
+        )
+    )
+    available_modules = get_bundle_versions(bundles_list)
+    mod_names = {}
+    for module, metadata in available_modules.items():
+        mod_names[module.replace(".py", "").lower()] = metadata
+    missing_modules = get_dependencies(updated_modules, mod_names=mod_names)
+    device_modules = ctx.obj["backend"].get_device_versions()
+    # Process newly needed modules
+    if missing_modules is not None:
+        installed_module_names = [m.name for m in installed_modules]
+        missing_modules = set(missing_modules) - set(installed_module_names)
+        missing_modules = sorted(list(missing_modules))
+        click.echo(f"Ready to install: {missing_modules}\n")
+        for library in missing_modules:
+            ctx.obj["backend"].install_module(
+                ctx.obj["DEVICE_PATH"], device_modules, library, False, mod_names
+            )
 
 
 # pylint: enable=too-many-branches

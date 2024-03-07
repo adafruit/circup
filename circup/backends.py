@@ -589,13 +589,30 @@ class WebBackend(Backend):
 
     def is_device_present(self):
         """
-        returns True if the device is currently connected
+        returns True if the device is currently connected and running supported version
         """
         try:
-            _ = self.session.get(f"{self.device_location}/cp/version.json")
-            return True
+            with self.session.get(f"{self.device_location}/cp/version.json") as r:
+                r.raise_for_status()
+                web_api_version = r.json().get("web_api_version")
+                if web_api_version is None:
+                    self.logger.error("Unable to get web API version from device.")
+                    click.secho("Unable to get web API version from device.", fg="red")
+                    return False
+
+                if web_api_version < 4:
+                    self.logger.error(
+                        f"Device running unsupported web API version {web_api_version} < 4."
+                    )
+                    click.secho(
+                        f"Device running unsupported web API version {web_api_version} < 4.",
+                        fg="red",
+                    )
+                    return False
         except requests.exceptions.ConnectionError:
             return False
+
+        return True
 
     def get_device_versions(self):
         """

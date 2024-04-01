@@ -123,7 +123,7 @@ def main(  # pylint: disable=too-many-locals
         update_checker.update_check("circup", version)
 
     # stop early if the command is boardless
-    if ctx.invoked_subcommand in BOARDLESS_COMMANDS:
+    if ctx.invoked_subcommand in BOARDLESS_COMMANDS or "--help" in sys.argv:
         return
 
     ctx.obj["DEVICE_PATH"] = device_path

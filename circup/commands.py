@@ -7,7 +7,7 @@
 The following functions have IO side effects (for instance they emit to
 stdout). Ergo, these are not checked with unit tests. Most of the
 functionality they provide is provided by the functions from util_functions.py,
-and the respective Backends which *are* tested. Most of the logic of the following 
+and the respective Backends which *are* tested. Most of the logic of the following
 functions is to prepare things for presentation to / interaction with the user.
 """
 import os
@@ -25,11 +25,20 @@ from circup.backends import WebBackend, DiskBackend
 from circup.logging import logger, log_formatter, LOGFILE
 from circup.shared import BOARDLESS_COMMANDS, get_latest_release_from_url
 from circup.bundle import Bundle
-from circup.command_utils import get_device_path, get_circup_version, find_modules, \
-    get_bundles_list, completion_for_install, get_bundle_versions, libraries_from_requirements, \
-    libraries_from_code_py, get_dependencies, get_bundles_local_dict, save_local_bundles, get_bundles_dict
-
-
+from circup.command_utils import (
+    get_device_path,
+    get_circup_version,
+    find_modules,
+    get_bundles_list,
+    completion_for_install,
+    get_bundle_versions,
+    libraries_from_requirements,
+    libraries_from_code_py,
+    get_dependencies,
+    get_bundles_local_dict,
+    save_local_bundles,
+    get_bundles_dict,
+)
 
 
 @click.group()
@@ -57,13 +66,13 @@ from circup.command_utils import get_device_path, get_circup_version, find_modul
     "--board-id",
     default=None,
     help="Manual Board ID of the CircuitPython device. If provided in combination "
-         "with --cpy-version, it overrides the detected board ID.",
+    "with --cpy-version, it overrides the detected board ID.",
 )
 @click.option(
     "--cpy-version",
     default=None,
     help="Manual CircuitPython version. If provided in combination "
-         "with --board-id, it overrides the detected CPy version.",
+    "with --board-id, it overrides the detected CPy version.",
 )
 @click.version_option(
     prog_name="CircUp",
@@ -71,7 +80,7 @@ from circup.command_utils import get_device_path, get_circup_version, find_modul
 )
 @click.pass_context
 def main(  # pylint: disable=too-many-locals
-        ctx, verbose, path, host, password, timeout, board_id, cpy_version
+    ctx, verbose, path, host, password, timeout, board_id, cpy_version
 ):  # pragma: no cover
     """
     A tool to manage and update libraries on a CircuitPython device.
@@ -133,8 +142,7 @@ def main(  # pylint: disable=too-many-locals
 
     ctx.obj["DEVICE_PATH"] = device_path
     latest_version = get_latest_release_from_url(
-        "https://github.com/adafruit/circuitpython/releases/latest",
-        logger
+        "https://github.com/adafruit/circuitpython/releases/latest", logger
     )
     global CPY_VERSION
     if device_path is None or not ctx.obj["backend"].is_device_present():
@@ -191,7 +199,7 @@ def freeze(ctx, requirement):  # pragma: no cover
             for i, module in enumerate(output):
                 output[i] += "\n"
             with open(
-                    cwd + "/" + "requirements.txt", "w", newline="\n", encoding="utf-8"
+                cwd + "/" + "requirements.txt", "w", newline="\n", encoding="utf-8"
             ) as file:
                 file.truncate(0)
                 file.writelines(output)
@@ -255,7 +263,7 @@ def list_cli(ctx):  # pragma: no cover
     "--requirement",
     type=click.Path(exists=True, dir_okay=False),
     help="specify a text file to install all modules listed in the text file."
-         " Typically requirements.txt.",
+    " Typically requirements.txt.",
 )
 @click.option(
     "--auto", "-a", is_flag=True, help="Install the modules imported in code.py."
@@ -264,7 +272,7 @@ def list_cli(ctx):  # pragma: no cover
     "--auto-file",
     default=None,
     help="Specify the name of a file on the board to read for auto install."
-         " Also accepts an absolute path or a local ./ path.",
+    " Also accepts an absolute path or a local ./ path.",
 )
 @click.pass_context
 def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no cover
@@ -379,8 +387,8 @@ def uninstall(ctx, module):  # pragma: no cover
 
 @main.command(
     short_help=(
-            "Update modules on the device. "
-            "Use --all to automatically update all modules without Major Version warnings."
+        "Update modules on the device. "
+        "Use --all to automatically update all modules without Major Version warnings."
     )
 )
 @click.option(
@@ -420,7 +428,7 @@ def update(ctx, update_all):  # pragma: no cover
                 )
             )
         if isinstance(module.bundle_version, str) and not VersionInfo.is_valid(
-                module.bundle_version
+            module.bundle_version
         ):
             click.secho(
                 f"WARNING: Library {module.name} repo has incorrect __version__"

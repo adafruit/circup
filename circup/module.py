@@ -12,6 +12,7 @@ from circup.shared import BAD_FILE_FORMAT
 from circup.backends import WebBackend
 from circup.logging import logger
 
+
 class Module:
     """
     Represents a CircuitPython module.
@@ -20,15 +21,15 @@ class Module:
     # pylint: disable=too-many-arguments
 
     def __init__(
-            self,
-            name,
-            backend,
-            repo,
-            device_version,
-            bundle_version,
-            mpy,
-            bundle,
-            compatibility,
+        self,
+        name,
+        backend,
+        repo,
+        device_version,
+        bundle_version,
+        mpy,
+        bundle,
+        compatibility,
     ):
         """
         The ``self.file`` and ``self.name`` attributes are constructed from
@@ -56,9 +57,9 @@ class Module:
         url = urlparse(self.path, allow_fragments=False)
 
         if (
-                url.path.endswith("/")
-                if isinstance(backend, WebBackend)
-                else self.path.endswith(os.sep)
+            url.path.endswith("/")
+            if isinstance(backend, WebBackend)
+            else self.path.endswith(os.sep)
         ):
             self.file = None
             self.name = self.path.split(
@@ -80,7 +81,7 @@ class Module:
         self.bundle_path = None
         if self.mpy:
             # Byte compiled, now check CircuitPython version.
-            
+
             major_version = self.backend.get_circuitpython_version()[0].split(".")[0]
             bundle_platform = "{}mpy".format(major_version)
         else:
@@ -158,8 +159,8 @@ class Module:
         """
         try:
             if (
-                    VersionInfo.parse(self.device_version).major
-                    == VersionInfo.parse(self.bundle_version).major
+                VersionInfo.parse(self.device_version).major
+                == VersionInfo.parse(self.bundle_version).major
             ):
                 return False
         except (TypeError, ValueError) as ex:

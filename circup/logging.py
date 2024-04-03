@@ -1,3 +1,9 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, 2024 Tim Cocks, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
+"""
+Logging utilities and configuration used by circup
+"""
 import os
 import logging
 from logging.handlers import RotatingFileHandler

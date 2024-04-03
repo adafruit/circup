@@ -10,8 +10,13 @@ import sys
 import click
 import requests
 
-from circup.shared import DATA_DIR, PLATFORMS, REQUESTS_TIMEOUT, tags_data_load, \
-    get_latest_release_from_url
+from circup.shared import (
+    DATA_DIR,
+    PLATFORMS,
+    REQUESTS_TIMEOUT,
+    tags_data_load,
+    get_latest_release_from_url,
+)
 
 from circup.logging import logger
 
@@ -106,7 +111,9 @@ class Bundle:
         :return: The most recent tag value for the project.
         """
         if self._latest is None:
-            self._latest = get_latest_release_from_url(self.url + "/releases/latest", logger)
+            self._latest = get_latest_release_from_url(
+                self.url + "/releases/latest", logger
+            )
         return self._latest
 
     def validate(self):

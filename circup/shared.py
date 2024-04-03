@@ -51,6 +51,7 @@ NOT_MCU_LIBRARIES = [
 #: Commands that do not require an attached board
 BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 
+
 def _get_modules_file(path, logger):
     """
     Get a dictionary containing metadata about all the Python modules found in
@@ -175,6 +176,7 @@ def extract_metadata(path, logger):
             result["__version__"] = BAD_FILE_FORMAT
     return result
 
+
 def tags_data_load(logger):
     """
     Load the list of the version tags of the bundles on disk.
@@ -196,6 +198,7 @@ def tags_data_load(logger):
     if not isinstance(tags_data, dict):
         tags_data = {}
     return tags_data
+
 
 def get_latest_release_from_url(url, logger):
     """

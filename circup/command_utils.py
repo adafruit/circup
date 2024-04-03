@@ -17,8 +17,17 @@ import toml
 import re
 import findimports
 
-from circup.shared import PLATFORMS, REQUESTS_TIMEOUT, _get_modules_file, BUNDLE_CONFIG_OVERWRITE, BUNDLE_CONFIG_FILE, \
-    BUNDLE_CONFIG_LOCAL, BUNDLE_DATA, NOT_MCU_LIBRARIES, tags_data_load
+from circup.shared import (
+    PLATFORMS,
+    REQUESTS_TIMEOUT,
+    _get_modules_file,
+    BUNDLE_CONFIG_OVERWRITE,
+    BUNDLE_CONFIG_FILE,
+    BUNDLE_CONFIG_LOCAL,
+    BUNDLE_DATA,
+    NOT_MCU_LIBRARIES,
+    tags_data_load,
+)
 from circup.logging import logger
 from circup.module import Module
 from circup.bundle import Bundle
@@ -258,7 +267,7 @@ def get_bundle(bundle, tag):
         total_size = int(r.headers.get("Content-Length"))
         temp_zip = bundle.zip.format(platform=platform)
         with click.progressbar(
-                r.iter_content(1024), label="Extracting:", length=total_size
+            r.iter_content(1024), label="Extracting:", length=total_size
         ) as pbar, open(temp_zip, "wb") as zip_fp:
             for chunk in pbar:
                 zip_fp.write(chunk)

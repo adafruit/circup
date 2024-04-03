@@ -11,9 +11,7 @@ from circup.backends import WebBackend, DiskBackend
 from circup.logging import logger
 
 
-
 # Useful constants.
-
 
 
 __version__ = "0.0.0-auto.0"

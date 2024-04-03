@@ -1,4 +1,12 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, 2024 Tim Cocks, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
+"""
+Class that represents a specific release of a Bundle.
+"""
 import os
+import sys
+
 import click
 import requests
 
@@ -107,7 +115,7 @@ class Bundle:
         """
         tag = self.latest_tag
         if not tag or tag == "releases":
-            if VERBOSE:
+            if "--verbose" in sys.argv:
                 click.secho(f'  Invalid tag "{tag}"', fg="red")
             return False
         for platform in PLATFORMS.values():
@@ -115,7 +123,7 @@ class Bundle:
             r = requests.get(url, stream=True, timeout=REQUESTS_TIMEOUT)
             # pylint: disable=no-member
             if r.status_code != requests.codes.ok:
-                if VERBOSE:
+                if "--verbose" in sys.argv:
                     click.secho(f"  Unable to find {os.path.split(url)[1]}", fg="red")
                 return False
             # pylint: enable=no-member

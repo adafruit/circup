@@ -1,3 +1,15 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, 2024 Tim Cocks, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
+"""
+# ----------- CLI command definitions  ----------- #
+
+The following functions have IO side effects (for instance they emit to
+stdout). Ergo, these are not checked with unit tests. Most of the
+functionality they provide is provided by the functions from util_functions.py,
+and the respective Backends which *are* tested. Most of the logic of the following 
+functions is to prepare things for presentation to / interaction with the user.
+"""
 import os
 import click
 
@@ -12,19 +24,12 @@ import re
 from circup.backends import WebBackend, DiskBackend
 from circup.logging import logger, log_formatter, LOGFILE
 from circup.shared import BOARDLESS_COMMANDS, get_latest_release_from_url
-from circup.class_definitions import Bundle
-from circup.util_functions import get_device_path, get_circup_version, find_modules, \
+from circup.bundle import Bundle
+from circup.command_utils import get_device_path, get_circup_version, find_modules, \
     get_bundles_list, completion_for_install, get_bundle_versions, libraries_from_requirements, \
     libraries_from_code_py, get_dependencies, get_bundles_local_dict, save_local_bundles, get_bundles_dict
 
 
-# ----------- CLI command definitions  ----------- #
-
-# The following functions have IO side effects (for instance they emit to
-# stdout). Ergo, these are not checked with unit tests. Most of the
-# functionality they provide is provided by the functions above, which *are*
-# tested. Most of the logic of the following functions is to prepare things for
-# presentation to / interaction with the user.
 
 
 @click.group()
@@ -227,7 +232,7 @@ def list_cli(ctx):  # pragma: no cover
             output = ""
             for index, cell in enumerate(row):
                 output += cell.ljust(col_width[index])
-            if not VERBOSE:
+            if "--verbose" not in sys.argv:
                 click.echo(output)
             logger.info(output)
     else:

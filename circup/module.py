@@ -1,3 +1,9 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, 2024 Tim Cocks, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
+"""
+Class that represents a specific CircuitPython module on a device or in a Bundle.
+"""
 import os
 from urllib.parse import urljoin, urlparse
 from semver import VersionInfo

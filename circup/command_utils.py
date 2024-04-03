@@ -1,3 +1,9 @@
+# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, 2024 Tim Cocks, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
+"""
+Functions called from commands in order to provide behaviors and return information.
+"""
 import click
 import ctypes
 import os
@@ -12,9 +18,10 @@ import re
 import findimports
 
 from circup.shared import PLATFORMS, REQUESTS_TIMEOUT, _get_modules_file, BUNDLE_CONFIG_OVERWRITE, BUNDLE_CONFIG_FILE, \
-    BUNDLE_CONFIG_LOCAL, BUNDLE_DATA, NOT_MCU_LIBRARIES
+    BUNDLE_CONFIG_LOCAL, BUNDLE_DATA, NOT_MCU_LIBRARIES, tags_data_load
 from circup.logging import logger
-from circup.class_definitions import Module, Bundle
+from circup.module import Module
+from circup.bundle import Bundle
 
 
 def clean_library_name(assumed_library_name):
@@ -454,9 +461,6 @@ def get_circup_dependencies(bundle, library):
         return tuple()
 
 
-
-
-
 def libraries_from_requirements(requirements):
     """
     Clean up supplied requirements.txt and turn into tuple of CP libraries
@@ -489,9 +493,6 @@ def save_local_bundles(bundles_data):
     else:
         if os.path.isfile(BUNDLE_CONFIG_LOCAL):
             os.unlink(BUNDLE_CONFIG_LOCAL)
-
-
-
 
 
 def tags_data_save_tag(key, tag):

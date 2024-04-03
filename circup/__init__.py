@@ -5,28 +5,6 @@
 CircUp -- a utility to manage and update libraries on a CircuitPython device.
 """
 
-import ctypes
-import glob
-import json
-
-import time
-
-import os
-import re
-import shutil
-import socket
-import sys
-import tempfile
-import zipfile
-
-from urllib.parse import urlparse, urljoin
-import findimports
-import pkg_resources
-import requests
-import toml
-
-from requests.auth import HTTPBasicAuth
-
 
 from circup.shared import DATA_DIR, BAD_FILE_FORMAT, extract_metadata, _get_modules_file
 from circup.backends import WebBackend, DiskBackend

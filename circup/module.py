@@ -2,7 +2,7 @@ import os
 from urllib.parse import urljoin, urlparse
 from semver import VersionInfo
 
-from circup.shared import BAD_FILE_FORMAT, \
+from circup.shared import BAD_FILE_FORMAT
 from circup.backends import WebBackend
 from circup.logging import logger
 
@@ -75,7 +75,7 @@ class Module:
         if self.mpy:
             # Byte compiled, now check CircuitPython version.
             
-            major_version = CPY_VERSION.split(".")[0]
+            major_version = self.backend.get_circuitpython_version()[0].split(".")[0]
             bundle_platform = "{}mpy".format(major_version)
         else:
             # Regular Python
@@ -127,7 +127,7 @@ class Module:
         if not self.mpy:
             return False
         try:
-            cpv = VersionInfo.parse(CPY_VERSION)
+            cpv = VersionInfo.parse(self.backend.get_circuitpython_version()[0])
         except ValueError as ex:
             logger.warning("CircuitPython has incorrect semver value.")
             logger.warning(ex)

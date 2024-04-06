@@ -545,6 +545,14 @@ def bundle_add(bundle):
     like a bundle are done before validating it. There might still be errors
     when the bundle is downloaded for the first time.
     """
+
+    if len(bundle) == 0:
+        click.secho(
+            "Must pass bundle argument, expecting github URL or `user/repository` string.",
+            fg="red",
+        )
+        return
+    
     bundles_dict = get_bundles_local_dict()
     modified = False
     for bundle_repo in bundle:
@@ -602,6 +610,14 @@ def bundle_remove(bundle, reset):
     if reset:
         save_local_bundles({})
         return
+    else:
+        if len(bundle) == 0:
+            click.secho(
+                "Must pass bundle argument or --reset, expecting github URL or `user/repository` string."
+                " Run circup bundle-show to see a list of bundles.",
+                fg="red",
+            )
+            return
     bundle_config = list(get_bundles_dict().values())
     bundles_local_dict = get_bundles_local_dict()
     modified = False

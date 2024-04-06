@@ -511,7 +511,7 @@ def tags_data_save_tag(key, tag):
     :param str key: The bundle's identifier/key.
     :param str tag: The new tag for the bundle.
     """
-    tags_data = tags_data_load()
+    tags_data = tags_data_load(logger)
     tags_data[key] = tag
     with open(BUNDLE_DATA, "w", encoding="utf-8") as data:
         json.dump(tags_data, data)

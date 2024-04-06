@@ -11,15 +11,15 @@ and the respective Backends which *are* tested. Most of the logic of the followi
 functions is to prepare things for presentation to / interaction with the user.
 """
 import os
-import click
-
-import requests
 import time
 import sys
+import re
 import logging
 import update_checker
 from semver import VersionInfo
-import re
+import click
+import requests
+
 
 from circup.backends import WebBackend, DiskBackend
 from circup.logging import logger, log_formatter, LOGFILE
@@ -87,8 +87,7 @@ def main(  # pylint: disable=too-many-locals
     """
     # pylint: disable=too-many-arguments,too-many-branches,too-many-statements,too-many-locals
     ctx.ensure_object(dict)
-    global REQUESTS_TIMEOUT
-    ctx.obj["TIMEOUT"] = REQUESTS_TIMEOUT = timeout
+    ctx.obj["TIMEOUT"] = timeout
     device_path = get_device_path(host, password, path)
 
     using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
@@ -121,13 +120,15 @@ def main(  # pylint: disable=too-many-locals
 
     if verbose:
         # Configure additional logging to stdout.
-        global VERBOSE
-        VERBOSE = True
+        ctx.obj["verbose"] = True
         verbose_handler = logging.StreamHandler(sys.stdout)
         verbose_handler.setLevel(logging.INFO)
         verbose_handler.setFormatter(log_formatter)
         logger.addHandler(verbose_handler)
         click.echo("Logging to {}\n".format(LOGFILE))
+    else:
+        ctx.obj["verbose"] = False
+
     logger.info("### Started Circup ###")
 
     # If a newer version of circup is available, print a message.
@@ -144,23 +145,23 @@ def main(  # pylint: disable=too-many-locals
     latest_version = get_latest_release_from_url(
         "https://github.com/adafruit/circuitpython/releases/latest", logger
     )
-    global CPY_VERSION
+
     if device_path is None or not ctx.obj["backend"].is_device_present():
         click.secho("Could not find a connected CircuitPython device.", fg="red")
         sys.exit(1)
     else:
-        CPY_VERSION, board_id = (
+        cpy_version, board_id = (
             ctx.obj["backend"].get_circuitpython_version()
             if board_id is None or cpy_version is None
             else (cpy_version, board_id)
         )
         click.echo(
             "Found device at {}, running CircuitPython {}.".format(
-                device_path, CPY_VERSION
+                device_path, cpy_version
             )
         )
     try:
-        if VersionInfo.parse(CPY_VERSION) < VersionInfo.parse(latest_version):
+        if VersionInfo.parse(cpy_version) < VersionInfo.parse(latest_version):
             click.secho(
                 "A newer version of CircuitPython ({}) is available.".format(
                     latest_version
@@ -200,8 +201,15 @@ def freeze(ctx, requirement):  # pragma: no cover
                 output[i] += "\n"
 
             overwrite = None
-            if (os.path.exists(os.path.join(cwd,"requirements.txt"))):
-                overwrite = click.confirm(click.style("\nrequirements.txt file already exists in this location.\nDo you want to overwrite it?", fg="red"), default=False)
+            if os.path.exists(os.path.join(cwd, "requirements.txt")):
+                overwrite = click.confirm(
+                    click.style(
+                        "\nrequirements.txt file already exists in this location.\n"
+                        "Do you want to overwrite it?",
+                        fg="red",
+                    ),
+                    default=False,
+                )
             else:
                 overwrite = True
 
@@ -538,7 +546,8 @@ def bundle_show(modules):
 
 @main.command("bundle-add")
 @click.argument("bundle", nargs=-1)
-def bundle_add(bundle):
+@click.pass_context
+def bundle_add(ctx, bundle):
     """
     Add bundles to the local bundles list, by "user/repo" github string.
     A series of tests to validate that the bundle exists and at least looks
@@ -552,7 +561,7 @@ def bundle_add(bundle):
             fg="red",
         )
         return
-    
+
     bundles_dict = get_bundles_local_dict()
     modified = False
     for bundle_repo in bundle:
@@ -574,7 +583,7 @@ def bundle_add(bundle):
             click.secho("    " + bundle_repo, fg="red")
             continue
         result = requests.get(
-            "https://github.com/" + bundle_repo, timeout=REQUESTS_TIMEOUT
+            "https://github.com/" + bundle_repo, timeout=ctx.obj["TIMEOUT"]
         )
         # pylint: disable=no-member
         if result.status_code == requests.codes.NOT_FOUND:
@@ -610,14 +619,14 @@ def bundle_remove(bundle, reset):
     if reset:
         save_local_bundles({})
         return
-    else:
-        if len(bundle) == 0:
-            click.secho(
-                "Must pass bundle argument or --reset, expecting github URL or `user/repository` string."
-                " Run circup bundle-show to see a list of bundles.",
-                fg="red",
-            )
-            return
+
+    if len(bundle) == 0:
+        click.secho(
+            "Must pass bundle argument or --reset, expecting github URL or "
+            "`user/repository` string. Run circup bundle-show to see a list of bundles.",
+            fg="red",
+        )
+        return
     bundle_config = list(get_bundles_dict().values())
     bundles_local_dict = get_bundles_local_dict()
     modified = False

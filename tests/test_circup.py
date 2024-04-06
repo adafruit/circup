@@ -37,6 +37,15 @@ import requests
 
 import circup
 from circup import DiskBackend
+from circup.command_utils import (
+    find_device,
+    ensure_latest_bundle,
+    get_bundle,
+    get_bundles_dict,
+)
+from circup.shared import PLATFORMS
+from circup.module import Module
+from circup.logging import logger
 
 TEST_BUNDLE_CONFIG_JSON = "tests/test_bundle_config.json"
 with open(TEST_BUNDLE_CONFIG_JSON, "rb") as tbc:
@@ -126,13 +135,13 @@ def test_get_bundles_dict():
     with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON), mock.patch(
         "circup.BUNDLE_CONFIG_LOCAL", ""
     ):
-        bundles_dict = circup.get_bundles_dict()
+        bundles_dict = get_bundles_dict()
         assert bundles_dict == TEST_BUNDLE_DATA
 
     with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON), mock.patch(
         "circup.BUNDLE_CONFIG_LOCAL", TEST_BUNDLE_CONFIG_LOCAL_JSON
     ):
-        bundles_dict = circup.get_bundles_dict()
+        bundles_dict = get_bundles_dict()
         expected_dict = {**TEST_BUNDLE_LOCAL_DATA, **TEST_BUNDLE_DATA}
         assert bundles_dict == expected_dict
 
@@ -144,13 +153,13 @@ def test_get_bundles_local_dict():
     with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON), mock.patch(
         "circup.BUNDLE_CONFIG_LOCAL", ""
     ):
-        bundles_dict = circup.get_bundles_dict()
+        bundles_dict = get_bundles_dict()
         assert bundles_dict == TEST_BUNDLE_DATA
 
     with mock.patch("circup.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON), mock.patch(
         "circup.BUNDLE_CONFIG_LOCAL", TEST_BUNDLE_CONFIG_LOCAL_JSON
     ):
-        bundles_dict = circup.get_bundles_dict()
+        bundles_dict = get_bundles_dict()
         expected_dict = {**TEST_BUNDLE_LOCAL_DATA, **TEST_BUNDLE_DATA}
         assert bundles_dict == expected_dict
 
@@ -223,7 +232,7 @@ def test_Module_init_file_module():
     ):
         backend = DiskBackend("mock_device", mock_logger)
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        m = circup.Module(
+        m = Module(
             name,
             backend,
             repo,
@@ -264,7 +273,7 @@ def test_Module_init_directory_module():
     ):
         backend = DiskBackend("mock_device", mock_logger)
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        m = circup.Module(
+        m = Module(
             name,
             backend,
             repo,
@@ -296,16 +305,10 @@ def test_Module_outofdate():
     repo = "https://github.com/adafruit/SomeLibrary.git"
     with mock.patch("circup.logger.info") as mock_logger:
         backend = DiskBackend("mock_device", mock_logger)
-        m1 = circup.Module(
-            name, backend, repo, "1.2.3", "3.2.1", False, bundle, (None, None)
-        )
-        m2 = circup.Module(
-            name, backend, repo, "1.2.3", "1.2.3", False, bundle, (None, None)
-        )
+        m1 = Module(name, backend, repo, "1.2.3", "3.2.1", False, bundle, (None, None))
+        m2 = Module(name, backend, repo, "1.2.3", "1.2.3", False, bundle, (None, None))
         # shouldn't happen!
-        m3 = circup.Module(
-            name, backend, repo, "3.2.1", "1.2.3", False, bundle, (None, None)
-        )
+        m3 = Module(name, backend, repo, "3.2.1", "1.2.3", False, bundle, (None, None))
         assert m1.outofdate is True
         assert m2.outofdate is False
         assert m3.outofdate is False
@@ -326,7 +329,7 @@ def test_Module_outofdate_bad_versions():
 
     with mock.patch("circup.logger.warning") as mock_logger:
         backend = DiskBackend("mock_device", mock_logger)
-        m = circup.Module(
+        m = Module(
             name,
             backend,
             repo,
@@ -354,10 +357,8 @@ def test_Module_mpy_mismatch():
     ) as mock_logger:
         backend = DiskBackend("mock_device", mock_logger)
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        m1 = circup.Module(
-            name, backend, repo, "1.2.3", "1.2.3", True, bundle, (None, None)
-        )
-        m2 = circup.Module(
+        m1 = Module(name, backend, repo, "1.2.3", "1.2.3", True, bundle, (None, None))
+        m2 = Module(
             name,
             backend,
             repo,
@@ -367,7 +368,7 @@ def test_Module_mpy_mismatch():
             bundle,
             ("7.0.0-alpha.1", "8.99.99"),
         )
-        m3 = circup.Module(
+        m3 = Module(
             name, backend, repo, "1.2.3", "1.2.3", True, bundle, (None, "7.0.0-alpha.1")
         )
     with mock.patch("circup.CPY_VERSION", "6.2.0"):
@@ -401,7 +402,7 @@ def test_Module_major_update_bad_versions():
 
     with mock.patch("circup.logger.warning") as mock_logger:
         backend = DiskBackend("mock_device", mock_logger)
-        m = circup.Module(
+        m = Module(
             name,
             backend,
             repo,
@@ -427,17 +428,11 @@ def test_Module_row():
         "circup.CPY_VERSION", "8.0.0"
     ), mock.patch("circup.logger.warning") as mock_logger:
         backend = DiskBackend("mock_device", mock_logger)
-        m = circup.Module(
-            name, backend, repo, "1.2.3", None, False, bundle, (None, None)
-        )
+        m = Module(name, backend, repo, "1.2.3", None, False, bundle, (None, None))
         assert m.row == ("module", "1.2.3", "unknown", "Major Version")
-        m = circup.Module(
-            name, backend, repo, "1.2.3", "1.3.4", False, bundle, (None, None)
-        )
+        m = Module(name, backend, repo, "1.2.3", "1.3.4", False, bundle, (None, None))
         assert m.row == ("module", "1.2.3", "1.3.4", "Minor Version")
-        m = circup.Module(
-            name, backend, repo, "1.2.3", "1.2.3", True, bundle, ("9.0.0", None)
-        )
+        m = Module(name, backend, repo, "1.2.3", "1.2.3", True, bundle, ("9.0.0", None))
         assert m.row == ("module", "1.2.3", "1.2.3", "MPY Format")
 
 
@@ -455,7 +450,7 @@ def test_Module_update_dir():
         "circup.os.path.isdir", return_value=True
     ), mock.patch("circup.logger.warning") as mock_logger:
         backend = DiskBackend("mock_device", mock_logger)
-        m = circup.Module(
+        m = Module(
             name,
             backend,
             repo,
@@ -490,7 +485,7 @@ def test_Module_update_file():
         "circup.logger.warning"
     ) as mock_logger:
         backend = circup.DiskBackend("mock_device", mock_logger)
-        m = circup.Module(
+        m = Module(
             name,
             backend,
             repo,
@@ -521,7 +516,7 @@ def test_Module_repr():
     ) as mock_logger:
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         backend = circup.DiskBackend("mock_device", mock_logger)
-        m = circup.Module(
+        m = Module(
             name,
             backend,
             repo,
@@ -556,7 +551,7 @@ def test_find_device_posix_exists():
         fixture = fixture_file.read()
         with mock.patch("os.name", "posix"):
             with mock.patch("circup.check_output", return_value=fixture):
-                assert circup.find_device() == "/media/ntoll/CIRCUITPY"
+                assert find_device() == "/media/ntoll/CIRCUITPY"
 
 
 def test_find_device_posix_no_mount_command():
@@ -569,7 +564,7 @@ def test_find_device_posix_no_mount_command():
         fixture = fixture_file.read()
     mock_check = mock.MagicMock(side_effect=[FileNotFoundError, fixture])
     with mock.patch("os.name", "posix"), mock.patch("circup.check_output", mock_check):
-        assert circup.find_device() == "/media/ntoll/CIRCUITPY"
+        assert find_device() == "/media/ntoll/CIRCUITPY"
         assert mock_check.call_count == 2
         assert mock_check.call_args_list[0][0][0] == "mount"
         assert mock_check.call_args_list[1][0][0] == "/sbin/mount"
@@ -585,7 +580,7 @@ def test_find_device_posix_missing():
         with mock.patch("os.name", "posix"), mock.patch(
             "circup.check_output", return_value=fixture
         ):
-            assert circup.find_device() is None
+            assert find_device() is None
 
 
 def test_find_device_nt_exists():
@@ -602,7 +597,7 @@ def test_find_device_nt_exists():
         "os.path.exists", return_value=True
     ), mock.patch("ctypes.create_unicode_buffer", return_value=fake_buffer):
         ctypes.windll = mock_windll
-        assert circup.find_device() == "A:\\"
+        assert find_device() == "A:\\"
 
 
 def test_find_device_nt_missing():
@@ -619,7 +614,7 @@ def test_find_device_nt_missing():
         "os.path.exists", return_value=True
     ), mock.patch("ctypes.create_unicode_buffer", return_value=fake_buffer):
         ctypes.windll = mock_windll
-        assert circup.find_device() is None
+        assert find_device() is None
 
 
 def test_find_device_unknown_os():
@@ -628,7 +623,7 @@ def test_find_device_unknown_os():
     """
     with mock.patch("os.name", "foo"):
         with pytest.raises(NotImplementedError) as ex:
-            circup.find_device()
+            find_device()
     assert ex.value.args[0] == 'OS "foo" not supported.'
 
 
@@ -644,7 +639,7 @@ def test_get_latest_release_from_url():
     }
     expected_url = "https://github.com/" + TEST_BUNDLE_NAME + "/releases/latest"
     with mock.patch("circup.requests.head", return_value=response) as mock_get:
-        result = circup.get_latest_release_from_url(expected_url)
+        result = circup.get_latest_release_from_url(expected_url, logger)
         assert result == "20190903"
         mock_get.assert_called_once_with(expected_url, timeout=mock.ANY)
 
@@ -756,7 +751,7 @@ def test_get_bundle_versions():
     Ensure get_modules is called with the path for the library bundle.
     Ensure ensure_latest_bundle is called even if lib_dir exists.
     """
-    with mock.patch("circup.ensure_latest_bundle") as mock_elb, mock.patch(
+    with mock.patch("ensure_latest_bundle") as mock_elb, mock.patch(
         "circup._get_modules_file", return_value={"ok": {"name": "ok"}}
     ) as mock_gm, mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
         "circup.Bundle.lib_dir", return_value="foo/bar/lib"
@@ -779,7 +774,7 @@ def test_get_bundle_versions_avoid_download():
     When avoid_download is True and lib_dir exists, don't ensure_latest_bundle.
     Testing both cases: lib_dir exists and lib_dir doesn't exists.
     """
-    with mock.patch("circup.ensure_latest_bundle") as mock_elb, mock.patch(
+    with mock.patch("ensure_latest_bundle") as mock_elb, mock.patch(
         "circup._get_modules_file", return_value={"ok": {"name": "ok"}}
     ) as mock_gm, mock.patch("circup.CPY_VERSION", "4.1.2"), mock.patch(
         "circup.Bundle.lib_dir", return_value="foo/bar/lib"
@@ -919,7 +914,7 @@ def test_ensure_latest_bundle_no_bundle_data():
         "circup.open"
     ):
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        circup.ensure_latest_bundle(bundle)
+        ensure_latest_bundle(bundle)
         mock_gb.assert_called_once_with(bundle, "12345")
         assert mock_json.dump.call_count == 1  # Current version saved to file.
 
@@ -942,7 +937,7 @@ def test_ensure_latest_bundle_bad_bundle_data():
         "circup.logger"
     ) as mock_logger:
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        circup.ensure_latest_bundle(bundle)
+        ensure_latest_bundle(bundle)
         mock_gb.assert_called_once_with(bundle, "12345")
         # wrong file is opened twice (one at __init__, one at save())
         assert mock_logger.error.call_count == 2
@@ -963,7 +958,7 @@ def test_ensure_latest_bundle_to_update():
     ) as mock_json:
         mock_json.load.return_value = {TEST_BUNDLE_NAME: "12345"}
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        circup.ensure_latest_bundle(bundle)
+        ensure_latest_bundle(bundle)
         mock_gb.assert_called_once_with(bundle, "54321")
         assert mock_json.dump.call_count == 1  # Current version saved to file.
 
@@ -989,7 +984,7 @@ def test_ensure_latest_bundle_to_update_http_error():
         circup.Bundle.tags_data = dict()
         mock_json.load.return_value = tags_data
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        circup.ensure_latest_bundle(bundle)
+        ensure_latest_bundle(bundle)
         mock_gb.assert_called_once_with(bundle, "54321")
         assert mock_json.dump.call_count == 0  # not saved.
         assert mock_click.call_count == 1  # friendly message.
@@ -1013,7 +1008,7 @@ def test_ensure_latest_bundle_no_update():
     ) as mock_logger:
         mock_json.load.return_value = {TEST_BUNDLE_NAME: "12345"}
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        circup.ensure_latest_bundle(bundle)
+        ensure_latest_bundle(bundle)
         assert mock_gb.call_count == 0
         assert mock_logger.info.call_count == 2
 
@@ -1045,9 +1040,9 @@ def test_get_bundle():
         mock_requests.get.reset_mock()
         tag = "12345"
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        circup.get_bundle(bundle, tag)
+        get_bundle(bundle, tag)
         # how many bundles currently supported. i.e. 6x.mpy, 7x.mpy, py = 3 bundles
-        _bundle_count = len(circup.PLATFORMS)
+        _bundle_count = len(PLATFORMS)
         assert mock_requests.get.call_count == _bundle_count
         assert mock_open.call_count == _bundle_count
         assert mock_shutil.rmtree.call_count == _bundle_count
@@ -1071,7 +1066,7 @@ def test_get_bundle_network_error():
         tag = "12345"
         with pytest.raises(Exception) as ex:
             bundle = circup.Bundle(TEST_BUNDLE_NAME)
-            circup.get_bundle(bundle, tag)
+            get_bundle(bundle, tag)
             assert ex.value.args[0] == "Bang!"
         url = (
             "https://github.com/" + TEST_BUNDLE_NAME + "/releases/download"

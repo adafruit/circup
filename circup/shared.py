@@ -9,9 +9,9 @@ and Backend class functions.
 import glob
 import os
 import re
-import pkg_resources
 import json
 import appdirs
+import pkg_resources
 import requests
 
 #: Version identifier for a bad MPY file format

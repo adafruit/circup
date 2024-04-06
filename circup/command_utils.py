@@ -4,18 +4,20 @@
 """
 Functions called from commands in order to provide behaviors and return information.
 """
-import click
+
 import ctypes
 import os
-import requests
+
 from subprocess import check_output
 import sys
 import shutil
 import zipfile
 import json
-import toml
 import re
+import toml
 import findimports
+import requests
+import click
 
 from circup.shared import (
     PLATFORMS,

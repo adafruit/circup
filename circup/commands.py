@@ -198,11 +198,20 @@ def freeze(ctx, requirement):  # pragma: no cover
             cwd = os.path.abspath(os.getcwd())
             for i, module in enumerate(output):
                 output[i] += "\n"
-            with open(
-                cwd + "/" + "requirements.txt", "w", newline="\n", encoding="utf-8"
-            ) as file:
-                file.truncate(0)
-                file.writelines(output)
+
+            overwrite = None
+            if (os.path.exists(os.path.join(cwd,"requirements.txt"))):
+                click.secho("\nrequirements.txt file already exists in this location.", fg="red")
+                overwrite = click.confirm("Do you want to overwrite it?", default=False)
+            else:
+                overwrite = True
+
+            if overwrite:
+                with open(
+                    cwd + "/" + "requirements.txt", "w", newline="\n", encoding="utf-8"
+                ) as file:
+                    file.truncate(0)
+                    file.writelines(output)
     else:
         click.echo("No modules found on the device.")
 
@@ -421,7 +430,7 @@ def update(ctx, update_all):  # pragma: no cover
         click.echo("Please indicate which module[s] you wish to update:\n")
     for module in modules_to_update:
         update_flag = update_all
-        if VERBOSE:
+        if "--verbose" in sys.argv:
             click.echo(
                 "Device version: {}, Bundle version: {}".format(
                     module.device_version, module.bundle_version

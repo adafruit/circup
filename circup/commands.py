@@ -242,7 +242,7 @@ def list_cli(ctx):  # pragma: no cover
         click.echo(
             "The following modules are out of date or probably need an update.\n"
             "Major Updates may include breaking changes. Review before updating.\n"
-            "MPY Format changes from Circuitpython 6 to 7 require an update.\n"
+            "MPY Format changes from Circuitpython 8 to 9 require an update.\n"
         )
         for row in data:
             output = ""

@@ -201,8 +201,7 @@ def freeze(ctx, requirement):  # pragma: no cover
 
             overwrite = None
             if (os.path.exists(os.path.join(cwd,"requirements.txt"))):
-                click.secho("\nrequirements.txt file already exists in this location.", fg="red")
-                overwrite = click.confirm("Do you want to overwrite it?", default=False)
+                overwrite = click.confirm(click.style("\nrequirements.txt file already exists in this location.\nDo you want to overwrite it?", fg="red"), default=False)
             else:
                 overwrite = True
 

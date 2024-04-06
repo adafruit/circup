@@ -32,6 +32,12 @@ from circup.logging import logger
 from circup.module import Module
 from circup.bundle import Bundle
 
+WARNING_IGNORE_MODULES = (
+    "typing-extensions",
+    "pyasn1",
+    "circuitpython-typing",
+)
+
 
 def clean_library_name(assumed_library_name):
     """
@@ -408,10 +414,11 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
                 mod_names[canonical_lib_name]  # pylint: disable=pointless-statement
                 _requested_libraries.append(canonical_lib_name)
             except KeyError:
-                click.secho(
-                    f"WARNING:\n\t{canonical_lib_name} is not a known CircuitPython library.",
-                    fg="yellow",
-                )
+                if canonical_lib_name not in WARNING_IGNORE_MODULES:
+                    click.secho(
+                        f"WARNING:\n\t{canonical_lib_name} is not a known CircuitPython library.",
+                        fg="yellow",
+                    )
 
     if not _requested_libraries:
         # If nothing is requested, we're done

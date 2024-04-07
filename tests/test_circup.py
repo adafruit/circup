@@ -525,7 +525,7 @@ def test_find_device_posix_exists():
     with open("tests/mount_exists.txt", "rb") as fixture_file:
         fixture = fixture_file.read()
         with mock.patch("os.name", "posix"):
-            with mock.patch("circup.check_output", return_value=fixture):
+            with mock.patch("circup.command_utils.check_output", return_value=fixture):
                 assert find_device() == "/media/ntoll/CIRCUITPY"
 
 
@@ -538,7 +538,7 @@ def test_find_device_posix_no_mount_command():
     with open("tests/mount_exists.txt", "rb") as fixture_file:
         fixture = fixture_file.read()
     mock_check = mock.MagicMock(side_effect=[FileNotFoundError, fixture])
-    with mock.patch("os.name", "posix"), mock.patch("circup.check_output", mock_check):
+    with mock.patch("os.name", "posix"), mock.patch("circup.command_utils.check_output", mock_check):
         assert find_device() == "/media/ntoll/CIRCUITPY"
         assert mock_check.call_count == 2
         assert mock_check.call_args_list[0][0][0] == "mount"
@@ -553,7 +553,7 @@ def test_find_device_posix_missing():
     with open("tests/mount_missing.txt", "rb") as fixture_file:
         fixture = fixture_file.read()
         with mock.patch("os.name", "posix"), mock.patch(
-                "circup.check_output", return_value=fixture
+                "circup.command_utils.check_output", return_value=fixture
         ):
             assert find_device() is None
 
@@ -613,7 +613,7 @@ def test_get_latest_release_from_url():
                     "/Adafruit_CircuitPython_Bundle/releases/tag/20190903"
     }
     expected_url = "https://github.com/" + TEST_BUNDLE_NAME + "/releases/latest"
-    with mock.patch("circup.requests.head", return_value=response) as mock_get:
+    with mock.patch("circup.shared.requests.head", return_value=response) as mock_get:
         result = circup.get_latest_release_from_url(expected_url, logger)
         assert result == "20190903"
         mock_get.assert_called_once_with(expected_url, timeout=mock.ANY)

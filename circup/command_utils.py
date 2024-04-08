@@ -7,7 +7,6 @@ Functions called from commands in order to provide behaviors and return informat
 
 import ctypes
 import os
-import warnings
 
 from subprocess import check_output
 import sys
@@ -113,12 +112,6 @@ def ensure_latest_bundle(bundle):
                 f"{os.path.isdir(bundle.lib_dir(platform))}",
                 file=sys.stderr,
             )
-            # warnings.warn(
-            #     UserWarning(
-            #         f"checking dir: {bundle.lib_dir(platform)} = "
-            #         f"{os.path.isdir(bundle.lib_dir(platform))}"
-            #     )
-            # )
             do_update = do_update or not os.path.isdir(bundle.lib_dir(platform))
     else:
         do_update = True

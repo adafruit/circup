@@ -933,7 +933,7 @@ def test_ensure_latest_bundle_bad_bundle_data():
         side_effect=json.decoder.JSONDecodeError("BANG!", "doc", 1),
     ), mock.patch(
         "circup.os.path.isfile", return_value=True
-    ),mock.patch(
+    ), mock.patch(
         "circup.command_utils.json.dump"
     ), mock.patch(
         "circup.command_utils.logger"

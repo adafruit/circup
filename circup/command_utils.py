@@ -103,6 +103,7 @@ def ensure_latest_bundle(bundle):
     logger.info("Checking library updates for %s.", bundle.key)
     tag = bundle.latest_tag
     do_update = False
+    print(f"tag: {tag} | bundle.current_tag: {bundle.current_tag}")
     if tag == bundle.current_tag:
         for platform in PLATFORMS:
             # missing directories (new platform added on an existing install

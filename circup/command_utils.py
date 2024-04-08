@@ -110,7 +110,8 @@ def ensure_latest_bundle(bundle):
             # or side effect of pytest or network errors)
             print(
                 f"checking dir: {bundle.lib_dir(platform)} = "
-                f"{os.path.isdir(bundle.lib_dir(platform))}", file=sys.stderr
+                f"{os.path.isdir(bundle.lib_dir(platform))}",
+                file=sys.stderr,
             )
             # warnings.warn(
             #     UserWarning(

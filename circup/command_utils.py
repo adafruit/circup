@@ -107,6 +107,9 @@ def ensure_latest_bundle(bundle):
         for platform in PLATFORMS:
             # missing directories (new platform added on an existing install
             # or side effect of pytest or network errors)
+            print(
+                f"checking dir: {bundle.lib_dir(platform)} = {os.path.isdir(bundle.lib_dir(platform))}"
+            )
             do_update = do_update or not os.path.isdir(bundle.lib_dir(platform))
     else:
         do_update = True

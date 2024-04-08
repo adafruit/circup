@@ -995,13 +995,11 @@ def test_ensure_latest_bundle_no_update():
     fact and don't update.
     """
     with mock.patch("circup.bundle.Bundle.latest_tag", "12345"), mock.patch(
-        "circup.os.path.isdir", return_value=True
+        "circup.command_utils.os.path.isdir", return_value=True
     ), mock.patch("circup.command_utils.open"), mock.patch(
         "circup.command_utils.get_bundle"
     ) as mock_gb, mock.patch(
-        "circup.os.path.isfile", return_value=True
-    ), mock.patch(
-        "circup.os.path.isdir", return_value=True
+        "circup.command_utils.os.path.isfile", return_value=True
     ), mock.patch(
         "circup.shared.json"
     ) as mock_json, mock.patch(

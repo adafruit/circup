@@ -929,8 +929,7 @@ def test_ensure_latest_bundle_bad_bundle_data():
     with mock.patch("circup.bundle.Bundle.latest_tag", "12345"), mock.patch(
         "circup.command_utils.open"
     ), mock.patch("circup.command_utils.get_bundle") as mock_gb, mock.patch(
-        "circup.json.load",
-        side_effect=json.decoder.JSONDecodeError("BANG!", "doc", 1),
+        "builtins.open", mock.mock_open(read_data="}{INVALID_JSON")
     ), mock.patch(
         "circup.command_utils.json.dump"
     ), mock.patch(

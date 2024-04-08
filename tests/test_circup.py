@@ -1001,11 +1001,11 @@ def test_ensure_latest_bundle_no_update():
     ) as mock_gb, mock.patch(
         "circup.command_utils.os.path.isfile", return_value=True
     ), mock.patch(
-        "circup.shared.json"
-    ) as mock_json, mock.patch(
+        "circup.bundle.Bundle.current_tag", "12345"
+    ), mock.patch(
         "circup.command_utils.logger"
     ) as mock_logger:
-        mock_json.load.return_value = {TEST_BUNDLE_NAME: "12345"}
+
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         ensure_latest_bundle(bundle)
         assert mock_gb.call_count == 0

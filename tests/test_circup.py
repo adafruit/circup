@@ -1000,7 +1000,9 @@ def test_ensure_latest_bundle_no_update():
         "circup.command_utils.get_bundle"
     ) as mock_gb, mock.patch(
         "circup.os.path.isfile", return_value=True
-    ), mock.patch("circup.os.path.isdir", return_value=True), mock.patch(
+    ), mock.patch(
+        "circup.os.path.isdir", return_value=True
+    ), mock.patch(
         "circup.shared.json"
     ) as mock_json, mock.patch(
         "circup.command_utils.logger"

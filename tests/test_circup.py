@@ -932,8 +932,6 @@ def test_ensure_latest_bundle_bad_bundle_data():
         "circup.command_utils.json.load",
         side_effect=json.decoder.JSONDecodeError("BANG!", "doc", 1),
     ), mock.patch(
-        "circup.os.path.isfile", return_value=True
-    ), mock.patch(
         "circup.command_utils.json.dump"
     ), mock.patch(
         "circup.command_utils.logger"
@@ -1002,7 +1000,7 @@ def test_ensure_latest_bundle_no_update():
         "circup.command_utils.get_bundle"
     ) as mock_gb, mock.patch(
         "circup.os.path.isfile", return_value=True
-    ), mock.patch(
+    ), mock.patch("circup.os.path.isdir", return_value=True), mock.patch(
         "circup.shared.json"
     ) as mock_json, mock.patch(
         "circup.command_utils.logger"

@@ -50,7 +50,7 @@ jobs:
         source actions-ci/install.sh
     - name: Run Test Suite
       run: |
-        pytest --random-order --cov-config .coveragerc --cov-report term-missing --cov=circup
+        pytest --random-order --cov-config .coveragerc --cov-report term-missing --cov=circup -rx
     - name: Build docs
       working-directory: docs
       run: |

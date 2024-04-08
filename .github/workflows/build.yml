@@ -48,9 +48,12 @@ jobs:
       # (e.g. - apt-get: gettext, etc; pip: circuitpython-build-tools, requirements.txt; etc.)
       run: |
         source actions-ci/install.sh
+    - name: Single Test With Print
+      run: |
+        pytest tests/test_circup.py::test_ensure_latest_bundle_no_update -rx
     - name: Run Test Suite
       run: |
-        pytest --random-order --cov-config .coveragerc --cov-report term-missing --cov=circup -rx
+        pytest --random-order --cov-config .coveragerc --cov-report term-missing --cov=circup
     - name: Build docs
       working-directory: docs
       run: |

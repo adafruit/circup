@@ -1026,6 +1026,8 @@ def test_get_bundle():
     ) as mock_click, mock.patch(
         "circup.command_utils.open", mock.mock_open()
     ) as mock_open, mock.patch(
+        "circup.os.path.isdir", return_value=True
+    ), mock.patch(
         "circup.command_utils.shutil"
     ) as mock_shutil, mock.patch(
         "circup.command_utils.zipfile"

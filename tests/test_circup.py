@@ -934,7 +934,7 @@ def test_ensure_latest_bundle_bad_bundle_data():
     ), mock.patch(
         "circup.command_utils.json.dump"
     ), mock.patch(
-        "circup.command_utils.logger"
+        "circup.bundle.logger"
     ) as mock_logger:
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         ensure_latest_bundle(bundle)

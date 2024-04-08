@@ -443,7 +443,7 @@ def test_Module_update_dir():
     with mock.patch("circup.backends.shutil") as mock_shutil, mock.patch(
         "circup.logger.warning"
     ) as mock_logger:
-        backend = DiskBackend("mock_device", mock_logger)
+        backend = DiskBackend("tests/mock_device", mock_logger)
         m = Module(
             name,
             backend,

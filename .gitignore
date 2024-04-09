@@ -19,6 +19,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!tests/mock_device/lib/
 lib64/
 parts/
 sdist/
@@ -93,6 +94,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+*_venv/
 
 # Spyder project settings
 .spyderproject

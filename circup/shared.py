@@ -9,14 +9,47 @@ and Backend class functions.
 import glob
 import os
 import re
-
+import json
 import appdirs
+import pkg_resources
+import requests
 
 #: Version identifier for a bad MPY file format
 BAD_FILE_FORMAT = "Invalid"
 
 #: The location of data files used by circup (following OS conventions).
 DATA_DIR = appdirs.user_data_dir(appname="circup", appauthor="adafruit")
+
+#: Module formats list (and the other form used in github files)
+PLATFORMS = {"py": "py", "8mpy": "8.x-mpy", "9mpy": "9.x-mpy"}
+
+#: Timeout for requests calls like get()
+REQUESTS_TIMEOUT = 30
+
+#: The path to the JSON file containing the metadata about the bundles.
+BUNDLE_CONFIG_FILE = pkg_resources.resource_filename(
+    "circup", "config/bundle_config.json"
+)
+#: Overwrite the bundles list with this file (only done manually)
+BUNDLE_CONFIG_OVERWRITE = os.path.join(DATA_DIR, "bundle_config.json")
+#: The path to the JSON file containing the local list of bundles.
+BUNDLE_CONFIG_LOCAL = os.path.join(DATA_DIR, "bundle_config_local.json")
+#: The path to the JSON file containing the metadata about the bundles.
+BUNDLE_DATA = os.path.join(DATA_DIR, "circup.json")
+
+#:  The libraries (and blank lines) which don't go on devices
+NOT_MCU_LIBRARIES = [
+    "",
+    "adafruit-blinka",
+    "adafruit-blinka-bleio",
+    "adafruit-blinka-displayio",
+    "adafruit-circuitpython-typing",
+    "circuitpython_typing",
+    "pyserial",
+]
+
+#: Commands that do not require an attached board
+BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 
 
 def _get_modules_file(path, logger):
@@ -142,3 +175,44 @@ def extract_metadata(path, logger):
             # not a valid MPY file
             result["__version__"] = BAD_FILE_FORMAT
     return result
+
+
+def tags_data_load(logger):
+    """
+    Load the list of the version tags of the bundles on disk.
+
+    :return: a dict() of tags indexed by Bundle identifiers/keys.
+    """
+    tags_data = None
+    try:
+        with open(BUNDLE_DATA, encoding="utf-8") as data:
+            try:
+                tags_data = json.load(data)
+            except json.decoder.JSONDecodeError as ex:
+                # Sometimes (why?) the JSON file becomes corrupt. In which case
+                # log it and carry on as if setting up for first time.
+                logger.error("Could not parse %s", BUNDLE_DATA)
+                logger.exception(ex)
+    except FileNotFoundError:
+        pass
+    if not isinstance(tags_data, dict):
+        tags_data = {}
+    return tags_data
+
+
+def get_latest_release_from_url(url, logger):
+    """
+    Find the tag name of the latest release by using HTTP HEAD and decoding the redirect.
+
+    :param str url: URL to the latest release page on a git repository.
+    :return: The most recent tag value for the release.
+    """
+
+    logger.info("Requesting redirect information: %s", url)
+    response = requests.head(url, timeout=REQUESTS_TIMEOUT)
+    responseurl = response.url
+    if response.is_redirect:
+        responseurl = response.headers["Location"]
+    tag = responseurl.rsplit("/", 1)[-1]
+    logger.info("Tag: '%s'", tag)
+    return tag

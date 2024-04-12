@@ -93,7 +93,7 @@ class Backend:
 
     # pylint: disable=too-many-locals,too-many-branches,too-many-arguments,too-many-nested-blocks
     def install_module(
-        self, device_path, device_modules, name, pyext, mod_names
+        self, device_path, device_modules, name, pyext, mod_names, upgrade=False
     ):  # pragma: no cover
         """
         Finds a connected device and installs a given module name if it
@@ -108,14 +108,27 @@ class Backend:
                         source or from a pre-compiled module
         :param mod_names: Dictionary of metadata from modules that can be generated
                            with get_bundle_versions()
+        :param bool upgrade: Upgrade the specified modules if they're already installed.
         """
         if not name:
             click.echo("No module name(s) provided.")
         elif name in mod_names:
             # Grab device modules to check if module already installed
             if name in device_modules:
-                click.echo("'{}' is already installed.".format(name))
-                return
+                if not upgrade:
+                    # skip already installed modules if no -upgrade flag
+                    click.echo("'{}' is already installed.".format(name))
+                    return
+
+                # uninstall the module before installing
+                name = name.lower()
+                _mod_names = {}
+                for module_item, _metadata in device_modules.items():
+                    _mod_names[module_item.replace(".py", "").lower()] = _metadata
+                if name in _mod_names:
+                    _metadata = _mod_names[name]
+                    module_path = _metadata["path"]
+                    self.uninstall(device_path, module_path)
 
             library_path = (
                 os.path.join(device_path, self.LIB_DIR_PATH)

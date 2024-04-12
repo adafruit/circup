@@ -294,7 +294,9 @@ def list_cli(ctx):  # pragma: no cover
     " Also accepts an absolute path or a local ./ path.",
 )
 @click.pass_context
-def install(ctx, modules, pyext, requirement, auto, auto_file, upgrade=False):  # pragma: no cover
+def install(
+    ctx, modules, pyext, requirement, auto, auto_file, upgrade=False
+):  # pragma: no cover
     """
     Install a named module(s) onto the device. Multiple modules
     can be installed at once by providing more than one module name, each
@@ -346,7 +348,12 @@ def install(ctx, modules, pyext, requirement, auto, auto_file, upgrade=False):  
         click.echo(f"Ready to install: {to_install}\n")
         for library in to_install:
             ctx.obj["backend"].install_module(
-                ctx.obj["DEVICE_PATH"], device_modules, library, pyext, mod_names, upgrade
+                ctx.obj["DEVICE_PATH"],
+                device_modules,
+                library,
+                pyext,
+                mod_names,
+                upgrade,
             )
 
 

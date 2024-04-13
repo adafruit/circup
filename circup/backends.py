@@ -79,7 +79,7 @@ class Backend:
         """
         raise NotImplementedError
 
-    def _install_module_py(self, metadata):
+    def _install_module_py(self, metadata, location=None):
         """
         To be overridden by subclass
         """
@@ -250,7 +250,8 @@ class WebBackend(Backend):
                 else "Could not find or connect to specified device"
             ) from exc
 
-        self.LIB_DIR_PATH = "fs/lib/"
+        self.FS_PATH = "fs/"
+        self.LIB_DIR_PATH = f"{self.FS_PATH}lib/"
         self.host = host
         self.password = password
         self.device_location = f"http://:{self.password}@{self.host}"
@@ -260,14 +261,18 @@ class WebBackend(Backend):
         self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
         self.timeout = timeout
 
-    def install_file_http(self, source):
+    def install_file_http(self, source, location=None):
         """
         Install file to device using web workflow.
         :param source source file.
         """
         file_name = source.split(os.path.sep)
         file_name = file_name[-2] if file_name[-1] == "" else file_name[-1]
-        target = self.device_location + "/" + self.LIB_DIR_PATH + file_name
+
+        if location is None:
+            target = self.device_location + "/" + self.LIB_DIR_PATH + file_name
+        else:
+            target = self.device_location + "/" + self.FS_PATH + location + file_name
 
         auth = HTTPBasicAuth("", self.password)
 
@@ -277,14 +282,17 @@ class WebBackend(Backend):
                 _writeable_error()
             r.raise_for_status()
 
-    def install_dir_http(self, source):
+    def install_dir_http(self, source, location=None ):
         """
         Install directory to device using web workflow.
         :param source source directory.
         """
         mod_name = source.split(os.path.sep)
         mod_name = mod_name[-2] if mod_name[-1] == "" else mod_name[-1]
-        target = self.device_location + "/" + self.LIB_DIR_PATH + mod_name
+        if location is None:
+            target = self.device_location + "/" + self.LIB_DIR_PATH + mod_name
+        else:
+            target = self.device_location + "/" + self.FS_PATH + location + mod_name
         target = target + "/" if target[:-1] != "/" else target
         url = urlparse(target)
         auth = HTTPBasicAuth("", url.password)
@@ -514,7 +522,7 @@ class WebBackend(Backend):
             raise IOError("Cannot find compiled version of module.")
 
     # pylint: enable=too-many-locals,too-many-branches
-    def _install_module_py(self, metadata):
+    def _install_module_py(self, metadata, location=None):
         """
         :param library_path library path
         :param metadata dictionary.
@@ -522,10 +530,10 @@ class WebBackend(Backend):
 
         source_path = metadata["path"]  # Path to Python source version.
         if os.path.isdir(source_path):
-            self.install_dir_http(source_path)
+            self.install_dir_http(source_path, location=location)
 
         else:
-            self.install_file_http(source_path)
+            self.install_file_http(source_path, location=location)
 
     def get_auto_file_path(self, auto_file_path):
         """

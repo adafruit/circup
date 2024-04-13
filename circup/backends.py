@@ -763,21 +763,25 @@ class DiskBackend(Backend):
             raise IOError("Cannot find compiled version of module.")
 
     # pylint: enable=too-many-locals,too-many-branches
-    def _install_module_py(self, metadata):
+    def _install_module_py(self, metadata, location=None):
         """
         :param library_path library path
         :param metadata dictionary.
         """
+        if location is None:
+            location = self.library_path
+        else:
+            location = os.path.join(self.device_location, location)
 
         source_path = metadata["path"]  # Path to Python source version.
         if os.path.isdir(source_path):
             target = os.path.basename(os.path.dirname(source_path))
-            target_path = os.path.join(self.library_path, target)
+            target_path = os.path.join(location, target)
             # Copy the directory.
             shutil.copytree(source_path, target_path)
         else:
             target = os.path.basename(source_path)
-            target_path = os.path.join(self.library_path, target)
+            target_path = os.path.join(location, target)
             # Copy file.
             shutil.copyfile(source_path, target_path)
 

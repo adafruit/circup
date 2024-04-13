@@ -38,6 +38,8 @@ from circup.command_utils import (
     get_bundles_local_dict,
     save_local_bundles,
     get_bundles_dict,
+    completion_for_example,
+    get_bundle_examples,
 )
 
 
@@ -344,6 +346,29 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
         for library in to_install:
             ctx.obj["backend"].install_module(
                 ctx.obj["DEVICE_PATH"], device_modules, library, pyext, mod_names
+            )
+
+
+@main.command()
+@click.argument(
+    "examples", required=True, nargs=-1, shell_complete=completion_for_example
+)
+@click.pass_context
+def example(ctx, examples):
+    print(f"context: {ctx}")
+    for example in examples:
+        available_examples = get_bundle_examples(
+            get_bundles_list(), avoid_download=True
+        )
+        if example in available_examples:
+            click.echo(available_examples[example])
+            ctx.obj["backend"]._install_module_py(
+                {"path": available_examples[example]}, location=""
+            )
+        else:
+            click.secho(
+                f"Error: {example} was not found in any local bundle examples.",
+                fg="red",
             )
 
 

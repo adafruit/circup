@@ -93,6 +93,31 @@ def completion_for_install(ctx, param, incomplete):
     return sorted(module_names)
 
 
+def completion_for_example(ctx, param, incomplete):
+    """
+    Returns the list of available modules for the command line tab-completion
+    with the ``circup example`` command.
+    """
+    # pylint: disable=unused-argument
+    # available_modules = get_bundle_versions(get_bundles_list(), avoid_download=True)
+    # module_names = {m.replace(".py", "") for m in available_modules}
+    # if incomplete:
+    #     module_names = [name for name in module_names if name.startswith(incomplete)]
+    # return sorted(module_names)
+
+    available_examples = get_bundle_examples(get_bundles_list(), avoid_download=True)
+    # with open("tmp1.py", "w") as f:
+    #     f.write(f"data = {str(available_examples)}")
+
+    matching_examples = [
+        example_path
+        for example_path in available_examples.keys()
+        if example_path.startswith(incomplete)
+    ]
+
+    return sorted(matching_examples)
+
+
 def ensure_latest_bundle(bundle):
     """
     Ensure that there's a copy of the latest library bundle available so circup
@@ -288,6 +313,63 @@ def get_bundle(bundle, tag):
             zfile.extractall(temp_dir)
     bundle.current_tag = tag
     click.echo("\nOK\n")
+
+
+def get_bundle_examples(bundles_list, avoid_download=False):
+    """
+    Return a dictionary of metadata from examples in the all of the bundles
+    specified by bundles_list argument.
+
+    :param List[Bundle] bundles_list: List of supported bundles as Bundle objects.
+    :param bool avoid_download: if True, download the bundle only if missing.
+    :return: A dictionary of metadata about the examples available in the
+             library bundle.
+    """
+    all_the_examples = dict()
+
+    try:
+        for bundle in bundles_list:
+            if not avoid_download or not os.path.isdir(bundle.lib_dir("py")):
+                ensure_latest_bundle(bundle)
+            path = bundle.examples_dir("py")
+            # with open("path_debug.txt", "a") as f:
+            #     f.write(path + "\n")
+            path_examples = _get_modules_file(path, logger)
+
+            # with open("path_modules_debug.txt", "a") as f:
+            #     f.write(str(path_examples) + "\n----------\n")
+
+            for lib_name, lib_metadata in path_examples.items():
+
+                walk_val = os.walk(lib_metadata["path"])
+                # with open("path_walk_debug.txt", "a") as f:
+                #     for thing in walk_val:
+                #         f.write(f"{lib_name}: " + str(thing) + "\n----\n")
+                #     f.write("\n=========================\n")
+
+                # for _example_file in os.listdir(lib_metadata["path"]):
+                #     all_the_examples[f"{lib_name}/{_example_file.replace('.py', '')}"] = os.path.join(lib_metadata["path"], f"{_example_file}")
+
+                for _dir_level in os.walk(lib_metadata["path"]):
+                    for _file in _dir_level[2]:
+                        _parts = _dir_level[0].split(os.path.sep)
+                        _lib_name_index = _parts.index(lib_name)
+                        _dirs = _parts[_lib_name_index:]
+                        if _dirs[-1] == "":
+                            _dirs.pop(-1)
+                        with open("dirs_parts_debug.txt", "a") as f:
+                            f.write(f"{lib_name}: " + str(_dirs) + "\n----\n")
+                        slug = f"{os.path.sep}".join(_dirs + [_file.replace(".py", "")])
+                        all_the_examples[slug] = os.path.join(_dir_level[0], _file)
+
+                        # all_the_examples[f"{lib_name}/{_example_file.replace('.py', '')}"] = os.path.join(
+                        #     lib_metadata["path"], f"{_file}")
+
+    except NotADirectoryError:
+        # Bundle does not have new style examples directory
+        # so we cannot include its examples.
+        pass
+    return all_the_examples
 
 
 def get_bundle_versions(bundles_list, avoid_download=False):

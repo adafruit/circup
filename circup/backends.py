@@ -16,7 +16,6 @@ import requests
 from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 
-
 from circup.shared import DATA_DIR, BAD_FILE_FORMAT, extract_metadata, _get_modules_file
 
 #: The location to store a local copy of code.py for use with --auto and
@@ -79,13 +78,13 @@ class Backend:
         """
         raise NotImplementedError
 
-    def _install_module_py(self, metadata, location=None):
+    def install_module_py(self, metadata, location=None):
         """
         To be overridden by subclass
         """
         raise NotImplementedError
 
-    def _install_module_mpy(self, bundle, metadata):
+    def install_module_mpy(self, bundle, metadata):
         """
         To be overridden by subclass
         """
@@ -159,10 +158,10 @@ class Backend:
 
             if pyext:
                 # Use Python source for module.
-                self._install_module_py(metadata)
+                self.install_module_py(metadata)
             else:
                 # Use pre-compiled mpy modules.
-                self._install_module_mpy(bundle, metadata)
+                self.install_module_mpy(bundle, metadata)
             click.echo("Installed '{}'.".format(name))
         else:
             click.echo("Unknown module named, '{}'.".format(name))
@@ -218,6 +217,12 @@ class Backend:
         else:
             board_id = ""
         return circuit_python, board_id
+
+    def file_exists(self, filepath):
+        """
+        To be overriden by subclass
+        """
+        raise NotImplementedError
 
 
 def _writeable_error():
@@ -282,7 +287,7 @@ class WebBackend(Backend):
                 _writeable_error()
             r.raise_for_status()
 
-    def install_dir_http(self, source, location=None ):
+    def install_dir_http(self, source, location=None):
         """
         Install directory to device using web workflow.
         :param source source directory.
@@ -498,7 +503,7 @@ class WebBackend(Backend):
                 _writeable_error()
             r.raise_for_status()
 
-    def _install_module_mpy(self, bundle, metadata):
+    def install_module_mpy(self, bundle, metadata):
         """
         :param bundle library bundle.
         :param library_path library path
@@ -522,7 +527,7 @@ class WebBackend(Backend):
             raise IOError("Cannot find compiled version of module.")
 
     # pylint: enable=too-many-locals,too-many-branches
-    def _install_module_py(self, metadata, location=None):
+    def install_module_py(self, metadata, location=None):
         """
         :param library_path library path
         :param metadata dictionary.
@@ -567,6 +572,18 @@ class WebBackend(Backend):
         The caller is expected to handle any exceptions raised.
         """
         self._update_http(module)
+
+    def file_exists(self, filepath):
+        """
+        return True if the file exists, otherwise False.
+        """
+        auth = HTTPBasicAuth("", self.password)
+        resp = requests.get(
+            self.get_file_path(filepath), auth=auth, timeout=self.timeout
+        )
+        if resp.status_code == 200:
+            return True
+        return False
 
     def _update_http(self, module):
         """
@@ -741,7 +758,7 @@ class DiskBackend(Backend):
         if not os.path.exists(library_path):  # pragma: no cover
             os.makedirs(library_path)
 
-    def _install_module_mpy(self, bundle, metadata):
+    def install_module_mpy(self, bundle, metadata):
         """
         :param bundle library bundle.
         :param library_path library path
@@ -771,7 +788,7 @@ class DiskBackend(Backend):
             raise IOError("Cannot find compiled version of module.")
 
     # pylint: enable=too-many-locals,too-many-branches
-    def _install_module_py(self, metadata, location=None):
+    def install_module_py(self, metadata, location=None):
         """
         :param library_path library path
         :param metadata dictionary.
@@ -836,6 +853,12 @@ class DiskBackend(Backend):
             # Delete and copy file.
             os.remove(module.path)
             shutil.copyfile(module.bundle_path, module.path)
+
+    def file_exists(self, filepath):
+        """
+        return True if the file exists, otherwise False.
+        """
+        return os.path.exists(os.path.join(self.device_location, filepath))
 
     def get_file_path(self, filename):
         """

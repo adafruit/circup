@@ -350,24 +350,40 @@ def install(ctx, modules, pyext, requirement, auto, auto_file):  # pragma: no co
 
 
 @main.command()
+@click.option("--overwrite", is_flag=True, help="Overwrite the file if it exists.")
 @click.argument(
     "examples", required=True, nargs=-1, shell_complete=completion_for_example
 )
 @click.pass_context
-def example(ctx, examples):
-    print(f"context: {ctx}")
-    for example in examples:
+def example(ctx, examples, overwrite):
+    """
+    Copy named example(s) from a bundle onto the device. Multiple examples
+    can be installed at once by providing more than one example name, each
+    separated by a space.
+    """
+
+    for example_arg in examples:
         available_examples = get_bundle_examples(
             get_bundles_list(), avoid_download=True
         )
-        if example in available_examples:
-            click.echo(available_examples[example])
-            ctx.obj["backend"]._install_module_py(
-                {"path": available_examples[example]}, location=""
-            )
+        if example_arg in available_examples:
+            filename = available_examples[example_arg].split(os.path.sep)[-1]
+
+            if overwrite or not ctx.obj["backend"].file_exists(filename):
+                click.echo(
+                    f"{'Copying' if not overwrite else 'Overwriting'}: {filename}"
+                )
+                ctx.obj["backend"].install_module_py(
+                    {"path": available_examples[example_arg]}, location=""
+                )
+            else:
+                click.secho(
+                    f"File: {filename} already exists. Use --overwrite if you wish to replace it.",
+                    fg="red",
+                )
         else:
             click.secho(
-                f"Error: {example} was not found in any local bundle examples.",
+                f"Error: {example_arg} was not found in any local bundle examples.",
                 fg="red",
             )
 

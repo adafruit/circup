@@ -95,6 +95,8 @@ To get help, just type the command::
       --host TEXT         Hostname or IP address of a device. Overrides automatic
                           path detection.
       --password TEXT     Password to use for authentication when --host is used.
+      --timeout INTEGER   Specify the timeout in seconds for any network
+                          operations.
       --board-id TEXT     Manual Board ID of the CircuitPython device. If provided
                           in combination with --cpy-version, it overrides the
                           detected board ID.
@@ -107,6 +109,7 @@ To get help, just type the command::
       bundle-add     Add bundles to the local bundles list, by "user/repo"...
       bundle-remove  Remove one or more bundles from the local bundles list.
       bundle-show    Show the list of bundles, default and local, with URL,...
+      example        Copy named example(s) from a bundle onto the device.
       freeze         Output details of all the modules found on the connected...
       install        Install a named module(s) onto the device.
       list           Lists all out of date modules found on the connected...

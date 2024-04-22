@@ -270,6 +270,8 @@ class WebBackend(Backend):
         """
         Install file to device using web workflow.
         :param source source file.
+        :param location the location on the device to copy the source
+          directory in to. If omitted is CIRCUITPY/lib/ used.
         """
         file_name = source.split(os.path.sep)
         file_name = file_name[-2] if file_name[-1] == "" else file_name[-1]
@@ -291,6 +293,8 @@ class WebBackend(Backend):
         """
         Install directory to device using web workflow.
         :param source source directory.
+        :param location the location on the device to copy the source
+          directory in to. If omitted is CIRCUITPY/lib/ used.
         """
         mod_name = source.split(os.path.sep)
         mod_name = mod_name[-2] if mod_name[-1] == "" else mod_name[-1]
@@ -761,7 +765,6 @@ class DiskBackend(Backend):
     def install_module_mpy(self, bundle, metadata):
         """
         :param bundle library bundle.
-        :param library_path library path
         :param metadata dictionary.
         """
         module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
@@ -790,8 +793,9 @@ class DiskBackend(Backend):
     # pylint: enable=too-many-locals,too-many-branches
     def install_module_py(self, metadata, location=None):
         """
-        :param library_path library path
         :param metadata dictionary.
+        :param location the location on the device to copy the py module to.
+          If omitted is CIRCUITPY/lib/ used.
         """
         if location is None:
             location = self.library_path

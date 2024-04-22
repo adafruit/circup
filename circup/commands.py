@@ -285,7 +285,7 @@ def list_cli(ctx):  # pragma: no cover
     "--auto", "-a", is_flag=True, help="Install the modules imported in code.py."
 )
 @click.option(
-    "--upgrade", "-u", is_flag=True, help="Upgrade modules that are already installed."
+    "--upgrade", "-U", is_flag=True, help="Upgrade modules that are already installed."
 )
 @click.option(
     "--auto-file",

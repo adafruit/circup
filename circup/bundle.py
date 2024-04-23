@@ -61,6 +61,20 @@ class Bundle:
             "lib",
         )
 
+    def examples_dir(self, platform):
+        """
+        This bundle's examples directory for the platform.
+
+        :param str platform: The platform identifier (py/6mpy/...).
+        :return: The path to the examples directory for the platform.
+        """
+        tag = self.current_tag
+        return os.path.join(
+            self.dir.format(platform=platform),
+            self.basename.format(platform=PLATFORMS[platform], tag=tag),
+            "examples",
+        )
+
     def requirements_for(self, library_name, toml_file=False):
         """
         The requirements file for this library.

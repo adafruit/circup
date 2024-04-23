@@ -16,7 +16,6 @@ import requests
 from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 
-
 from circup.shared import DATA_DIR, BAD_FILE_FORMAT, extract_metadata, _get_modules_file
 
 #: The location to store a local copy of code.py for use with --auto and
@@ -79,13 +78,13 @@ class Backend:
         """
         raise NotImplementedError
 
-    def _install_module_py(self, metadata):
+    def install_module_py(self, metadata, location=None):
         """
         To be overridden by subclass
         """
         raise NotImplementedError
 
-    def _install_module_mpy(self, bundle, metadata):
+    def install_module_mpy(self, bundle, metadata):
         """
         To be overridden by subclass
         """
@@ -159,10 +158,10 @@ class Backend:
 
             if pyext:
                 # Use Python source for module.
-                self._install_module_py(metadata)
+                self.install_module_py(metadata)
             else:
                 # Use pre-compiled mpy modules.
-                self._install_module_mpy(bundle, metadata)
+                self.install_module_mpy(bundle, metadata)
             click.echo("Installed '{}'.".format(name))
         else:
             click.echo("Unknown module named, '{}'.".format(name))
@@ -219,6 +218,12 @@ class Backend:
             board_id = ""
         return circuit_python, board_id
 
+    def file_exists(self, filepath):
+        """
+        To be overriden by subclass
+        """
+        raise NotImplementedError
+
 
 def _writeable_error():
     click.secho(
@@ -250,7 +255,8 @@ class WebBackend(Backend):
                 else "Could not find or connect to specified device"
             ) from exc
 
-        self.LIB_DIR_PATH = "fs/lib/"
+        self.FS_PATH = "fs/"
+        self.LIB_DIR_PATH = f"{self.FS_PATH}lib/"
         self.host = host
         self.password = password
         self.device_location = f"http://:{self.password}@{self.host}"
@@ -260,14 +266,20 @@ class WebBackend(Backend):
         self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
         self.timeout = timeout
 
-    def install_file_http(self, source):
+    def install_file_http(self, source, location=None):
         """
         Install file to device using web workflow.
         :param source source file.
+        :param location the location on the device to copy the source
+          directory in to. If omitted is CIRCUITPY/lib/ used.
         """
         file_name = source.split(os.path.sep)
         file_name = file_name[-2] if file_name[-1] == "" else file_name[-1]
-        target = self.device_location + "/" + self.LIB_DIR_PATH + file_name
+
+        if location is None:
+            target = self.device_location + "/" + self.LIB_DIR_PATH + file_name
+        else:
+            target = self.device_location + "/" + self.FS_PATH + location + file_name
 
         auth = HTTPBasicAuth("", self.password)
 
@@ -277,14 +289,19 @@ class WebBackend(Backend):
                 _writeable_error()
             r.raise_for_status()
 
-    def install_dir_http(self, source):
+    def install_dir_http(self, source, location=None):
         """
         Install directory to device using web workflow.
         :param source source directory.
+        :param location the location on the device to copy the source
+          directory in to. If omitted is CIRCUITPY/lib/ used.
         """
         mod_name = source.split(os.path.sep)
         mod_name = mod_name[-2] if mod_name[-1] == "" else mod_name[-1]
-        target = self.device_location + "/" + self.LIB_DIR_PATH + mod_name
+        if location is None:
+            target = self.device_location + "/" + self.LIB_DIR_PATH + mod_name
+        else:
+            target = self.device_location + "/" + self.FS_PATH + location + mod_name
         target = target + "/" if target[:-1] != "/" else target
         url = urlparse(target)
         auth = HTTPBasicAuth("", url.password)
@@ -490,7 +507,7 @@ class WebBackend(Backend):
                 _writeable_error()
             r.raise_for_status()
 
-    def _install_module_mpy(self, bundle, metadata):
+    def install_module_mpy(self, bundle, metadata):
         """
         :param bundle library bundle.
         :param library_path library path
@@ -514,7 +531,7 @@ class WebBackend(Backend):
             raise IOError("Cannot find compiled version of module.")
 
     # pylint: enable=too-many-locals,too-many-branches
-    def _install_module_py(self, metadata):
+    def install_module_py(self, metadata, location=None):
         """
         :param library_path library path
         :param metadata dictionary.
@@ -522,10 +539,10 @@ class WebBackend(Backend):
 
         source_path = metadata["path"]  # Path to Python source version.
         if os.path.isdir(source_path):
-            self.install_dir_http(source_path)
+            self.install_dir_http(source_path, location=location)
 
         else:
-            self.install_file_http(source_path)
+            self.install_file_http(source_path, location=location)
 
     def get_auto_file_path(self, auto_file_path):
         """
@@ -559,6 +576,18 @@ class WebBackend(Backend):
         The caller is expected to handle any exceptions raised.
         """
         self._update_http(module)
+
+    def file_exists(self, filepath):
+        """
+        return True if the file exists, otherwise False.
+        """
+        auth = HTTPBasicAuth("", self.password)
+        resp = requests.get(
+            self.get_file_path(filepath), auth=auth, timeout=self.timeout
+        )
+        if resp.status_code == 200:
+            return True
+        return False
 
     def _update_http(self, module):
         """
@@ -733,10 +762,9 @@ class DiskBackend(Backend):
         if not os.path.exists(library_path):  # pragma: no cover
             os.makedirs(library_path)
 
-    def _install_module_mpy(self, bundle, metadata):
+    def install_module_mpy(self, bundle, metadata):
         """
         :param bundle library bundle.
-        :param library_path library path
         :param metadata dictionary.
         """
         module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
@@ -763,21 +791,26 @@ class DiskBackend(Backend):
             raise IOError("Cannot find compiled version of module.")
 
     # pylint: enable=too-many-locals,too-many-branches
-    def _install_module_py(self, metadata):
+    def install_module_py(self, metadata, location=None):
         """
-        :param library_path library path
         :param metadata dictionary.
+        :param location the location on the device to copy the py module to.
+          If omitted is CIRCUITPY/lib/ used.
         """
+        if location is None:
+            location = self.library_path
+        else:
+            location = os.path.join(self.device_location, location)
 
         source_path = metadata["path"]  # Path to Python source version.
         if os.path.isdir(source_path):
             target = os.path.basename(os.path.dirname(source_path))
-            target_path = os.path.join(self.library_path, target)
+            target_path = os.path.join(location, target)
             # Copy the directory.
             shutil.copytree(source_path, target_path)
         else:
             target = os.path.basename(source_path)
-            target_path = os.path.join(self.library_path, target)
+            target_path = os.path.join(location, target)
             # Copy file.
             shutil.copyfile(source_path, target_path)
 
@@ -824,6 +857,12 @@ class DiskBackend(Backend):
             # Delete and copy file.
             os.remove(module.path)
             shutil.copyfile(module.bundle_path, module.path)
+
+    def file_exists(self, filepath):
+        """
+        return True if the file exists, otherwise False.
+        """
+        return os.path.exists(os.path.join(self.device_location, filepath))
 
     def get_file_path(self, filename):
         """

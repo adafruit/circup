@@ -4,5 +4,5 @@
 # pylint: disable=all
 import adafruit_bus_device
 from adafruit_button import Button
-import adafruit_esp32spi.adafruit_esp32spi_socket as socket
+from adafruit_esp32spi import adafruit_esp32spi_socketpool
 import adafruit_hid.consumer_control

@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "circup"
+dynamic = ["version"]
+description = "A tool to manage/update libraries on CircuitPython devices."
+readme = "README.rst"
+authors = [{ name = "Adafruit Industries", email = "circuitpython@adafruit.com" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Topic :: Education",
+    "Topic :: Software Development :: Embedded Systems",
+    "Topic :: System :: Software Distribution"
+]
+keywords = ["adafruit", "blinka", "circuitpython", "micropython", "libraries"]
+
+
+dependencies = [
+    "semver~=3.0",
+    "Click>=8.0",
+    "appdirs>=1.4.3",
+    "requests>=2.22.0",
+    "findimports>=2.1.0",
+    "toml>=0.10.2",
+    "update_checker",
+    "importlib_metadata; python_version == '3.7'"
+]
+requires-python = ">=3.6"
+
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pylint",
+    "pytest-cov",
+    "pytest-random-order>=1.0.0",
+    "pytest-faulthandler",
+    "coverage",
+    "black",
+    "sphinx",
+    "wheel",
+    "twine"
+]
+
+
+[project.scripts]
+circup = "circup:main"
+
+[project.urls]
+homepage = "https://github.com/adafruit/circup"
+
+[tool.setuptools.packages.find]
+where = ["."]  # This tells setuptools to look in the project root directory
+include = ["circup"]  # This pattern includes your main package and any sub-packages within it
+

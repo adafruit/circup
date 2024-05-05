@@ -31,7 +31,8 @@ keywords = ["adafruit", "blinka", "circuitpython", "micropython", "libraries"]
 
 dependencies = [
     "semver~=3.0",
-    "Click>=8.0",
+    "build",
+    "click>=8.0",
     "appdirs>=1.4.3",
     "requests>=2.22.0",
     "findimports>=2.1.0",

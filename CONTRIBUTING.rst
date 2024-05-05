@@ -35,9 +35,6 @@ Developer Setup
 Clone the repository and from the root of the project,
 
 
-Local Environment
-^^^^^^^^^^^^^^^^^^
-
 setup a virtual environment and activate it.::
 
     python3 -m venv .env

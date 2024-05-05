@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024 Jev Kuznetsov, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
+
 FROM python:3-slim
 
 ARG USERNAME=dev

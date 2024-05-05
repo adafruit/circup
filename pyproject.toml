@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024 Jev Kuznetsov, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
+
 [build-system]
 requires = ["setuptools>=61.0", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
@@ -67,4 +71,3 @@ homepage = "https://github.com/adafruit/circup"
 [tool.setuptools.packages.find]
 where = ["."]  # This tells setuptools to look in the project root directory
 include = ["circup"]  # This pattern includes your main package and any sub-packages within it
-

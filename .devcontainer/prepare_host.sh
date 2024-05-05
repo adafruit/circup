@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# SPDX-FileCopyrightText: 2024 Jev Kuznetsov, written for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
+
+
 # this script prepares the host for the devcontainer.
 
 

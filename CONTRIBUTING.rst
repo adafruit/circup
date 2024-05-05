@@ -48,16 +48,10 @@ install the requirements::
     pip install -e ".[dev]"
 
 
-VSCode devcontainer
-^^^^^^^^^^^^^^^^^^^^^
+.. note::
+    This repository provides a `devcontainer` environment that can be used in VSCode. For more information, read `VSCode containers docs <https://code.visualstudio.com/docs/devcontainers/containers>`_.
+    Everything is installed and setup automatically when you launch VSCode in the devcontainer.
 
-This repository provides a `.devcontainer` environment that can be used in VSCode. For more information, read [VSCode containers docs](https://code.visualstudio.com/docs/devcontainers/containers)
-
-
-Everything is installed and setup automatically when you launch VSCode in the devcontainer.
-
-
-------------------------------------------------------------------------
 
 Run the test suite::
 

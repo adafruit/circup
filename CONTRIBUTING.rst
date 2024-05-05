@@ -46,7 +46,7 @@ install the requirements::
 
 
 .. note::
-    This repository provides a `devcontainer` environment that can be used in VSCode. For more information, read `VSCode containers docs <https://code.visualstudio.com/docs/devcontainers/containers>`_.
+    This repository provides a devcontainer environment that can be used in VSCode. For more information, read `VSCode containers docs <https://code.visualstudio.com/docs/devcontainers/containers>`_.
     This provides a ready to use development environment when you launch VSCode in the devcontainer.
 
 

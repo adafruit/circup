@@ -1,0 +1,13 @@
+bump2version
+coverage
+invoke
+ipython
+mypy
+pre-commit
+pytest
+pytest-asyncio
+pytest-cov
+pytest-coverage
+pytest-faulthandler
+pytest-random-order
+ruff

@@ -30,10 +30,34 @@ Developer Setup
     `Black code formatter <https://black.readthedocs.io/en/stable/index.html>`_
     (which only works with Python 3.6+).
 
+
+
 Clone the repository and from the root of the project,
+
+
+Local Environment
+^^^^^^^^^^^^^^^^^^
+
+setup a virtual environment and activate it.::
+
+    python3 -m venv .env
+    source .env/bin/activate
+
 install the requirements::
 
     pip install -e ".[dev]"
+
+
+VSCode devcontainer
+^^^^^^^^^^^^^^^^^^
+
+This repository provides a `.devcontainer` environment that can be used in VSCode. For more information, read [VSCode containers docs](https://code.visualstudio.com/docs/devcontainers/containers)
+
+
+Everything is installed and setup automatically when you launch VSCode in the devcontainer.
+
+
+------------------------------------------------------------------------
 
 Run the test suite::
 

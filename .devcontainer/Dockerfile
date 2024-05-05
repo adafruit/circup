@@ -3,7 +3,7 @@ FROM python:3-slim
 ARG USERNAME=dev
 ARG UID=1000
 ARG GID=1000
-ARG VERSION="circup"
+ARG VERSION="circup-dev"
 
 # Create the user
 RUN groupadd --gid $GID $USERNAME \

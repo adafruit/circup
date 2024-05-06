@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2024 Jev Kuznetsov, written for Adafruit Industries
+# SPDX-FileCopyrightText: 2024 Jev Kuznetsov, ROX Automation
 #
 # SPDX-License-Identifier: MIT
 

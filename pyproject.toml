@@ -32,34 +32,11 @@ classifiers = [
 ]
 keywords = ["adafruit", "blinka", "circuitpython", "micropython", "libraries"]
 
-
-dependencies = [
-    "semver~=3.0",
-    "click>=8.0",
-    "appdirs>=1.4.3",
-    "requests>=2.22.0",
-    "findimports>=2.1.0",
-    "toml>=0.10.2",
-    "update_checker",
-    "importlib_metadata; python_version == '3.7'"
-]
 requires-python = ">=3.6"
 
-
-[project.optional-dependencies]
-dev = [
-    "build",
-    "pytest",
-    "pylint",
-    "pytest-cov",
-    "pytest-random-order>=1.0.0",
-    "pytest-faulthandler",
-    "coverage",
-    "black",
-    "sphinx",
-    "wheel",
-    "twine"
-]
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+optional-dependencies = {optional = {file = ["optional_requirements.txt"]}}
 
 
 [project.scripts]

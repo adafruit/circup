@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2024 Jev Kuznetsov, ROX Automation
+#
+# SPDX-License-Identifier: MIT
+
+
+# DON'T ADD REQUIREMENTS HERE
+# THE RIGHT PLACE IS `pyproject.toml`.
+
+# This is a dummy file to satisfy CI script at
+# https://github.com/adafruit/actions-ci-circuitpython-libs/blob/master/install.sh
+#
+# the script expects `requirements.txt` and crashes if there is none.
+#
+#  A fix could be  to add an 'if' statement:
+
+# if test -f "requrements.txt"; then
+#     pip install -r reuirements.txt
+# fi
+
+# but for the time being, this is the workaround.

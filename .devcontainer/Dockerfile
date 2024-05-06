@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
-FROM python:3-slim
+# note: using 3.11 because pre-commit is not compatible with 3.12
+FROM python:3.11-slim
 
 ARG USERNAME=dev
 ARG UID=1000

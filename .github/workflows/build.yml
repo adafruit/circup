@@ -10,50 +10,48 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Dump GitHub context
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-        run: echo "$GITHUB_CONTEXT"
-      - name: Translate Repo Name For Build Tools filename_prefix
-        id: repo-name
-        run: echo ::set-output name=repo-name::circup
-      - name: Set up Python 3.7
-        uses: actions/setup-python@v1
-        with:
-          python-version: 3.7
-      - name: Pip install Sphinx & pre-commit
-        run: |
-          pip install --force-reinstall Sphinx sphinx-rtd-theme pre-commit
-      - name: Versions
-        run: |
-          python3 --version
-          pre-commit --version
-      - name: Checkout Current Repo
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-          show-progress: false
-      - name: Library version
-        run: git describe --dirty --always --tags
-      - name: Pre-commit hooks
-        run: |
-          pre-commit run --all-files
-      - name: Install dev requirements
-        run: pip install -e '.[dev]'
-      - name: Checkout tools repo
-        uses: actions/checkout@v4
-        with:
-          repository: adafruit/actions-ci-circuitpython-libs
-          path: actions-ci
-          show-progress: false
-      - name: Install dependencies
-        # (e.g. - apt-get: gettext, etc; pip: circuitpython-build-tools, requirements.txt; etc.)
-        run: |
-          source actions-ci/install.sh
-      - name: Run Test Suite
-        run: |
-          pytest --random-order --cov-config .coveragerc --cov-report term-missing --cov=circup
-      - name: Build docs
-        working-directory: docs
-        run: |
-          sphinx-build -E -W -b html . _build/html
+    - name: Dump GitHub context
+      env:
+        GITHUB_CONTEXT: ${{ toJson(github) }}
+      run: echo "$GITHUB_CONTEXT"
+    - name: Translate Repo Name For Build Tools filename_prefix
+      id: repo-name
+      run: echo ::set-output name=repo-name::circup
+    - name: Set up Python 3.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+    - name: Pip install Sphinx & pre-commit
+      run: |
+        pip install --force-reinstall Sphinx sphinx-rtd-theme pre-commit
+    - name: Versions
+      run: |
+        python3 --version
+        pre-commit --version
+    - name: Checkout Current Repo
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+        show-progress: false
+    - name: Library version
+      run: git describe --dirty --always --tags
+    - name: Pre-commit hooks
+      run: |
+        pre-commit run --all-files
+    - name: Checkout tools repo
+      uses: actions/checkout@v4
+      with:
+        repository: adafruit/actions-ci-circuitpython-libs
+        path: actions-ci
+        show-progress: false
+    - name: Install dependencies
+      # (e.g. - apt-get: gettext, etc; pip: circuitpython-build-tools, requirements.txt; etc.)
+      run: |
+        source actions-ci/install.sh
+    - name: Run Test Suite
+      run: |
+        pytest --random-order --cov-config .coveragerc --cov-report term-missing --cov=circup
+    - name: Build docs
+      working-directory: docs
+      run: |
+        sphinx-build -E -W -b html . _build/html

@@ -89,14 +89,13 @@ class Backend:
         To be overridden by subclass
         """
         raise NotImplementedError
-    
+
     def copy_file(self, target_file, location_to_paste):
-        """Paste a copy of the specified file at the location given"""
-        """
+        """Paste a copy of the specified file at the location given
         To be overridden by subclass
         """
         raise NotImplementedError
-    
+
     # pylint: disable=too-many-locals,too-many-branches,too-many-arguments,too-many-nested-blocks
     def install_module(
         self, device_path, device_modules, name, pyext, mod_names, upgrade=False
@@ -142,20 +141,19 @@ class Backend:
                     _metadata = _mod_names[name]
                     module_path = _metadata["path"]
                     self.uninstall(device_path, module_path)
-            
+
             new_module_size = 0
+            library_path = (
+                os.path.join(device_path, self.LIB_DIR_PATH)
+                if not isinstance(self, WebBackend)
+                else urljoin(device_path, self.LIB_DIR_PATH)
+            )
             if local_path is None:
-                library_path = (
-                    os.path.join(device_path, self.LIB_DIR_PATH)
-                    if not isinstance(self, WebBackend)
-                    else urljoin(device_path, self.LIB_DIR_PATH)
-                )
                 metadata = mod_names[name]
                 bundle = metadata["bundle"]
             else:
-                library_path = local_path
                 metadata = {"path": local_path}
-                
+
             new_module_size = os.path.getsize(metadata["path"])
             if os.path.isdir(metadata["path"]):
                 # pylint: disable=unused-variable
@@ -196,7 +194,7 @@ class Backend:
                     # Use pre-compiled mpy modules.
                     self.install_module_mpy(bundle, metadata)
             else:
-                self.copy_file(library_path, "lib")
+                self.copy_file(metadata["path"], "lib")
             click.echo("Installed '{}'.".format(name))
         else:
             click.echo("Unknown module named, '{}'.".format(name))
@@ -542,6 +540,17 @@ class WebBackend(Backend):
                 _writeable_error()
             r.raise_for_status()
 
+    def copy_file(self, target_file, location_to_paste):
+        if os.path.isdir(target_file):
+            create_directory_url = urljoin(
+                self.device_location,
+                "/".join(("fs", location_to_paste, target_file, "")),
+            )
+            self._create_library_directory(self.device_location, create_directory_url)
+            self.install_dir_http(target_file)
+        else:
+            self.install_file_http(target_file)
+
     def install_module_mpy(self, bundle, metadata):
         """
         :param bundle library bundle.
@@ -800,9 +809,15 @@ class DiskBackend(Backend):
     def copy_file(self, target_file, location_to_paste):
         target_filename = target_file.split(os.path.sep)[-1]
         if os.path.isdir(target_file):
-            shutil.copytree(target_file, os.path.join(self.device_location, location_to_paste, target_filename))
+            shutil.copytree(
+                target_file,
+                os.path.join(self.device_location, location_to_paste, target_filename),
+            )
         else:
-            shutil.copyfile(target_file, os.path.join(self.device_location, location_to_paste))
+            shutil.copyfile(
+                target_file,
+                os.path.join(self.device_location, location_to_paste, target_filename),
+            )
 
     def install_module_mpy(self, bundle, metadata):
         """

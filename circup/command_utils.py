@@ -446,6 +446,7 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
     :param list(str) to_install: Modules already selected for installation.
     :return: tuple of module names to install which we build
     """
+    # pylint: disable=too-many-branches
     # Internal variables
     _to_install = to_install
     _requested_libraries = []
@@ -475,7 +476,8 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
                         _requested_libraries.append(canonical_lib_name)
                     else:
                         click.secho(
-                            f"WARNING:\n\t{canonical_lib_name} is not a known CircuitPython library.",
+                            f"WARNING:\n\t{canonical_lib_name} "
+                            f"is not a known CircuitPython library.",
                             fg="yellow",
                         )
 

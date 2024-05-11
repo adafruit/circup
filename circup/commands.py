@@ -302,7 +302,7 @@ def install(
     """
     Install a named module(s) onto the device. Multiple modules
     can be installed at once by providing more than one module name, each
-    separated by a space.
+    separated by a space. Modules can be from a Bundle or local filepaths.
     """
 
     # TODO: Ensure there's enough space on the device

@@ -96,7 +96,7 @@ class Backend:
         """
         raise NotImplementedError
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-arguments,too-many-nested-blocks
+    # pylint: disable=too-many-locals,too-many-branches,too-many-arguments,too-many-nested-blocks,too-many-statements
     def install_module(
         self, device_path, device_modules, name, pyext, mod_names, upgrade=False
     ):  # pragma: no cover
@@ -116,14 +116,17 @@ class Backend:
         :param bool upgrade: Upgrade the specified modules if they're already installed.
         """
         local_path = None
+        if os.path.exists(name):
+            # local file exists use that.
+            local_path = name
+            name = local_path.split(os.path.sep)[-1]
+            name = name.replace(".py", "").replace(".mpy", "")
+            click.echo(f"Installing from local path: {local_path}")
+
         if not name:
             click.echo("No module name(s) provided.")
-        elif name in mod_names or os.path.exists(name):
-            if os.path.exists(name):
-                # local file exists use that.
-                local_path = name
-                name = local_path.split(os.path.sep)[-1]
-                name = name.replace(".py", "").replace(".mpy", "")
+            return
+        if name in mod_names or local_path is not None:
 
             # Grab device modules to check if module already installed
             if name in device_modules:

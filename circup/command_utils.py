@@ -6,6 +6,7 @@ Functions called from commands in order to provide behaviors and return informat
 """
 
 import ctypes
+import glob
 import os
 
 from subprocess import check_output
@@ -90,6 +91,7 @@ def completion_for_install(ctx, param, incomplete):
     module_names = {m.replace(".py", "") for m in available_modules}
     if incomplete:
         module_names = [name for name in module_names if name.startswith(incomplete)]
+        module_names.extend(glob.glob(f"{incomplete}*"))
     return sorted(module_names)
 
 

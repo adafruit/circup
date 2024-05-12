@@ -6,6 +6,7 @@ Functions called from commands in order to provide behaviors and return informat
 """
 
 import ctypes
+import glob
 import os
 
 from subprocess import check_output
@@ -90,6 +91,7 @@ def completion_for_install(ctx, param, incomplete):
     module_names = {m.replace(".py", "") for m in available_modules}
     if incomplete:
         module_names = [name for name in module_names if name.startswith(incomplete)]
+        module_names.extend(glob.glob(f"{incomplete}*"))
     return sorted(module_names)
 
 
@@ -446,6 +448,7 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
     :param list(str) to_install: Modules already selected for installation.
     :return: tuple of module names to install which we build
     """
+    # pylint: disable=too-many-branches
     # Internal variables
     _to_install = to_install
     _requested_libraries = []
@@ -471,10 +474,14 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
                 _requested_libraries.append(canonical_lib_name)
             except KeyError:
                 if canonical_lib_name not in WARNING_IGNORE_MODULES:
-                    click.secho(
-                        f"WARNING:\n\t{canonical_lib_name} is not a known CircuitPython library.",
-                        fg="yellow",
-                    )
+                    if os.path.exists(canonical_lib_name):
+                        _requested_libraries.append(canonical_lib_name)
+                    else:
+                        click.secho(
+                            f"WARNING:\n\t{canonical_lib_name} "
+                            f"is not a known CircuitPython library.",
+                            fg="yellow",
+                        )
 
     if not _requested_libraries:
         # If nothing is requested, we're done
@@ -484,16 +491,20 @@ def get_dependencies(*requested_libraries, mod_names, to_install=()):
         if library not in _to_install:
             _to_install = _to_install + (library,)
             # get the requirements.txt from bundle
-            bundle = mod_names[library]["bundle"]
-            requirements_txt = bundle.requirements_for(library)
-            if requirements_txt:
-                _requested_libraries.extend(
-                    libraries_from_requirements(requirements_txt)
-                )
+            try:
+                bundle = mod_names[library]["bundle"]
+                requirements_txt = bundle.requirements_for(library)
+                if requirements_txt:
+                    _requested_libraries.extend(
+                        libraries_from_requirements(requirements_txt)
+                    )
 
-            circup_dependencies = get_circup_dependencies(bundle, library)
-            for circup_dependency in circup_dependencies:
-                _requested_libraries.append(circup_dependency)
+                circup_dependencies = get_circup_dependencies(bundle, library)
+                for circup_dependency in circup_dependencies:
+                    _requested_libraries.append(circup_dependency)
+            except KeyError:
+                # don't check local file for further dependencies
+                pass
 
         # we've processed this library, remove it from the list
         _requested_libraries.remove(library)

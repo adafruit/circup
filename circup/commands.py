@@ -57,7 +57,10 @@ from circup.command_utils import (
     help="Hostname or IP address of a device. Overrides automatic path detection.",
 )
 @click.option(
-    "--password", help="Password to use for authentication when --host is used."
+    "--password",
+    help="Password to use for authentication when --host is used."
+    " You can optionally set an environment variable CIRCUP_WEBWORKFLOW_PASSWORD"
+    " instead of passing this argument. If both exist the CLI arg takes precedent.",
 )
 @click.option(
     "--timeout",
@@ -90,6 +93,10 @@ def main(  # pylint: disable=too-many-locals
     # pylint: disable=too-many-arguments,too-many-branches,too-many-statements,too-many-locals
     ctx.ensure_object(dict)
     ctx.obj["TIMEOUT"] = timeout
+
+    if password is None:
+        password = os.getenv("CIRCUP_WEBWORKFLOW_PASSWORD")
+
     device_path = get_device_path(host, password, path)
 
     using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None

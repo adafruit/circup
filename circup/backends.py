@@ -29,9 +29,10 @@ class Backend:
     implementations
     """
 
-    def __init__(self, logger):
+    def __init__(self, logger, version_override=None):
         self.device_location = None
         self.LIB_DIR_PATH = None
+        self.version_override = version_override
         self.logger = logger
 
     def get_circuitpython_version(self):
@@ -275,7 +276,9 @@ class WebBackend(Backend):
     Backend for interacting with a device via Web Workflow
     """
 
-    def __init__(self, host, password, logger, timeout=10):
+    def __init__(  # pylint: disable=too-many-arguments
+        self, host, password, logger, timeout=10, version_override=None
+    ):
         super().__init__(logger)
         if password is None:
             raise ValueError("--host needs --password")
@@ -301,6 +304,7 @@ class WebBackend(Backend):
         self.session.mount(self.device_location, HTTPAdapter(max_retries=5))
         self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
         self.timeout = timeout
+        self.version_override = version_override
 
     def install_file_http(self, source, location=None):
         """
@@ -401,6 +405,9 @@ class WebBackend(Backend):
 
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
+        if self.version_override is not None:
+            return self.version_override
+
         # pylint: disable=arguments-renamed
         with self.session.get(
             self.device_location + "/cp/version.json", timeout=self.timeout
@@ -741,9 +748,10 @@ class DiskBackend(Backend):
     :param logger: logger to use for outputting messages
     :param String boot_out: Optional mock contents of a boot_out.txt file
         to use for version information.
+    :param String version_override: Optional mock version to use.
     """
 
-    def __init__(self, device_location, logger, boot_out=None):
+    def __init__(self, device_location, logger, boot_out=None, version_override=None):
         if device_location is None:
             raise ValueError(
                 "Auto locating USB Disk based device failed. "
@@ -757,6 +765,7 @@ class DiskBackend(Backend):
         self.version_info = None
         if boot_out is not None:
             self.version_info = self.parse_boot_out_file(boot_out)
+        self.version_override = version_override
 
     def get_circuitpython_version(self):
         """
@@ -773,6 +782,9 @@ class DiskBackend(Backend):
 
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
+        if self.version_override is not None:
+            return self.version_override
+
         if not self.version_info:
             try:
                 with open(

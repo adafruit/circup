@@ -91,7 +91,7 @@ subsequently used to facilitate the various commands the tool makes available.
 
 These commands are defined at the very end of the ``circup.py`` code.
 
-Unit tests can be found in the ``tests`` directory. CircUp uses
+Unit tests can be found in the ``tests`` directory. Circup uses
 `pytest <http://www.pytest.org/en/latest/>`_ style testing conventions. Test
 functions should include a comment to describe its *intention*. We currently
 have 100% unit test coverage for all the core functionality (excluding
@@ -115,7 +115,7 @@ available options to help you work with the code base.
 Before submitting a PR, please remember to ``pre-commit run --all-files``.
 But if  you forget the CI process in Github will run it for you. ;-)
 
-CircUp uses the `Click <https://click.palletsprojects.com/en/7.x/>`_ module to
+Circup uses the `Click <https://click.palletsprojects.com/en/7.x/>`_ module to
 run command-line interaction. The
 `AppDirs <https://pypi.org/project/appdirs/>`_ module is used to determine
 where to store user-specific assets created by the tool in such a way that

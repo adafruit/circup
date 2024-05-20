@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 """
-CircUp -- a utility to manage and update libraries on a CircuitPython device.
+Circup -- a utility to manage and update libraries on a CircuitPython device.
 """
 
 

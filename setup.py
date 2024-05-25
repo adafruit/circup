@@ -94,7 +94,9 @@ setup(
         "Topic :: Software Development :: Embedded Systems",
         "Topic :: System :: Software Distribution",
     ],
-    entry_points={"console_scripts": ["circup=circup:main"]},
+    entry_points={
+        "console_scripts": ["circup=circup:main", "wwshell=circup.wwshell:main"]
+    },
     # What does your project relate to?
     keywords="adafruit, blinka, circuitpython, micropython, libraries",
     # You can just specify the packages manually here if your project is

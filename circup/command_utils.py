@@ -625,3 +625,29 @@ def get_device_path(host, password, path):
     else:
         device_path = find_device()
     return device_path
+
+
+def sorted_by_directory_then_alpha(list_of_files):
+    """
+    Sort the list of files into alphabetical seperated
+    with directories grouped together before files.
+    """
+    dirs = {}
+    files = {}
+
+    for cur_file in list_of_files:
+        if cur_file["directory"]:
+            dirs[cur_file["name"]] = cur_file
+        else:
+            files[cur_file["name"]] = cur_file
+
+    sorted_dir_names = sorted(dirs.keys())
+    sorted_file_names = sorted(files.keys())
+
+    sorted_full_list = []
+    for cur_name in sorted_dir_names:
+        sorted_full_list.append(dirs[cur_name])
+    for cur_name in sorted_file_names:
+        sorted_full_list.append(files[cur_name])
+
+    return sorted_full_list

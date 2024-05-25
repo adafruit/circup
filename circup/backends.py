@@ -97,6 +97,12 @@ class Backend:
         """
         raise NotImplementedError
 
+    def upload_file(self, target_file, location_to_paste):
+        """Paste a copy of the specified file at the location given
+        To be overridden by subclass
+        """
+        raise NotImplementedError
+
     # pylint: disable=too-many-locals,too-many-branches,too-many-arguments,too-many-nested-blocks,too-many-statements
     def install_module(
         self, device_path, device_modules, name, pyext, mod_names, upgrade=False
@@ -281,7 +287,9 @@ class WebBackend(Backend):
     ):
         super().__init__(logger)
         if password is None:
-            raise ValueError("--host needs --password")
+            raise ValueError(
+                "Must pass --password or set CIRCUP_WEBWORKFLOW_PASSWORD environment variable"
+            )
 
         # pylint: disable=no-member
         # verify hostname/address
@@ -305,6 +313,7 @@ class WebBackend(Backend):
         self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
         self.timeout = timeout
         self.version_override = version_override
+        self.FS_URL = urljoin(self.device_location, self.FS_PATH)
 
     def install_file_http(self, source, location=None):
         """
@@ -316,6 +325,7 @@ class WebBackend(Backend):
         file_name = source.split(os.path.sep)
         file_name = file_name[-2] if file_name[-1] == "" else file_name[-1]
 
+        print(f"inside install_file_http location: '{location}'")
         if location is None:
             target = self.device_location + "/" + self.LIB_DIR_PATH + file_name
         else:
@@ -324,7 +334,10 @@ class WebBackend(Backend):
         auth = HTTPBasicAuth("", self.password)
 
         with open(source, "rb") as fp:
+            print(f"upload file PUT URL: {target}")
             r = self.session.put(target, fp.read(), auth=auth, timeout=self.timeout)
+            print(f"install_file_http response status: {r.status_code}")
+            print(r.content)
             if r.status_code == 409:
                 _writeable_error()
             r.raise_for_status()
@@ -561,6 +574,52 @@ class WebBackend(Backend):
         else:
             self.install_file_http(target_file)
 
+    def upload_file(self, target_file, location_to_paste):
+        """
+        copy a file from the host PC to the microcontroller
+        :param target_file: file on the host PC to copy
+        :param location_to_paste: Location on the microcontroller to paste it.
+        :return:
+        """
+        print(f"inside upload_file location_to_paste: '{location_to_paste}'")
+        if os.path.isdir(target_file):
+            create_directory_url = urljoin(
+                self.device_location,
+                "/".join(("fs", location_to_paste, target_file, "")),
+            )
+            self._create_library_directory(self.device_location, create_directory_url)
+            self.install_dir_http(target_file, location_to_paste)
+        else:
+            self.install_file_http(target_file, location_to_paste)
+
+    def download_file(self, target_file, location_to_paste):
+        """
+        Download a file from the MCU device to the local host PC
+        :param target_file: The file on the MCU to download
+        :param location_to_paste: The location on the host PC to put the downloaded copy.
+        :return:
+        """
+        auth = HTTPBasicAuth("", self.password)
+        with self.session.get(
+            self.FS_URL + target_file, timeout=self.timeout, auth=auth
+        ) as r:
+            if r.status_code == 404:
+                click.secho(f"{target_file} was not found on the device", "red")
+
+            file_name = target_file.split("/")[-1]
+            if location_to_paste is None:
+                with open(file_name, "wb") as f:
+                    f.write(r.content)
+
+                click.echo(f"Downloaded File: {file_name}")
+            else:
+                with open(os.path.join(location_to_paste, file_name), "wb") as f:
+                    f.write(r.content)
+
+                click.echo(
+                    f"Downloaded File: {os.path.join(location_to_paste, file_name)}"
+                )
+
     def install_module_mpy(self, bundle, metadata):
         """
         :param bundle library bundle.
@@ -636,6 +695,7 @@ class WebBackend(Backend):
         return True if the file exists, otherwise False.
         """
         auth = HTTPBasicAuth("", self.password)
+        print(f"URL: {self.get_file_path(filepath)}")
         resp = requests.get(
             self.get_file_path(filepath), auth=auth, timeout=self.timeout
         )
@@ -664,11 +724,8 @@ class WebBackend(Backend):
         """
         retuns the full path on the device to a given file name.
         """
-        return urljoin(
-            urljoin(self.device_location, "fs/", allow_fragments=False),
-            filename,
-            allow_fragments=False,
-        )
+        return "/".join((self.device_location, "fs", filename))
+
 
     def is_device_present(self):
         """
@@ -738,6 +795,17 @@ class WebBackend(Backend):
             else:
                 return r.json()["free"] * r.json()["block_size"]  # bytes
             sys.exit(1)
+
+    def list_dir(self, dirpath):
+        auth = HTTPBasicAuth("", self.password)
+        with self.session.get(
+            urljoin(self.device_location, f"fs/{dirpath if dirpath else ''}"),
+            auth=auth,
+            headers={"Accept": "application/json"},
+            timeout=self.timeout,
+        ) as r:
+            print(r.content)
+            return r.json()["files"]
 
 
 class DiskBackend(Backend):

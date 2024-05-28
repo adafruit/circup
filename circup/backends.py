@@ -726,7 +726,6 @@ class WebBackend(Backend):
         """
         return "/".join((self.device_location, "fs", filename))
 
-
     def is_device_present(self):
         """
         returns True if the device is currently connected and running supported version

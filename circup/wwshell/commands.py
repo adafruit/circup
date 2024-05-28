@@ -211,25 +211,13 @@ def get_cli(ctx, file, location):  # pragma: no cover
 
 
 @main.command("rm")
-@click.argument("file", nargs=-1)
+@click.argument("file", nargs=1)
 @click.pass_context
-def rm_cli(ctx, module):  # pragma: no cover
+def rm_cli(ctx, file):  # pragma: no cover
     """
     Delete a file on the device.
     """
-    # device_path = ctx.obj["DEVICE_PATH"]
-    # print(f"Uninstalling {module} from {device_path}")
-    # for name in module:
-    #     device_modules = ctx.obj["backend"].get_device_versions()
-    #     name = name.lower()
-    #     mod_names = {}
-    #     for module_item, metadata in device_modules.items():
-    #         mod_names[module_item.replace(".py", "").lower()] = metadata
-    #     if name in mod_names:
-    #         metadata = mod_names[name]
-    #         module_path = metadata["path"]
-    #         ctx.obj["backend"].uninstall(device_path, module_path)
-    #         click.echo("Uninstalled '{}'.".format(name))
-    #     else:
-    #         click.echo("Module '{}' not found on device.".format(name))
-    #     continue
+    click.echo(f"running: rm {file}")
+    ctx.obj["backend"].uninstall(
+        ctx.obj["backend"].device_location, ctx.obj["backend"].get_file_path(file)
+    )

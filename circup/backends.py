@@ -796,6 +796,9 @@ class WebBackend(Backend):
             sys.exit(1)
 
     def list_dir(self, dirpath):
+        """
+        Returns the list of files located in the given dirpath.
+        """
         auth = HTTPBasicAuth("", self.password)
         with self.session.get(
             urljoin(self.device_location, f"fs/{dirpath if dirpath else ''}"),
@@ -900,6 +903,9 @@ class DiskBackend(Backend):
                 target_file,
                 os.path.join(self.device_location, location_to_paste, target_filename),
             )
+
+    def upload_file(self, target_file, location_to_paste):
+        self.copy_file(target_file, location_to_paste)
 
     def install_module_mpy(self, bundle, metadata):
         """

@@ -13,23 +13,19 @@ functions is to prepare things for presentation to / interaction with the user.
 import os
 import time
 import sys
-import re
 import logging
 import update_checker
-from semver import VersionInfo
 import click
 import requests
 
 
 from circup.backends import WebBackend
 from circup.logging import logger, log_formatter, LOGFILE
-from circup.shared import BOARDLESS_COMMANDS, get_latest_release_from_url
+from circup.shared import BOARDLESS_COMMANDS
 
 from circup.command_utils import (
     get_device_path,
     get_circup_version,
-    completion_for_install,
-    completion_for_example,
     sorted_by_directory_then_alpha,
 )
 
@@ -132,9 +128,6 @@ def main(  # pylint: disable=too-many-locals
         return
 
     ctx.obj["DEVICE_PATH"] = device_path
-    latest_version = get_latest_release_from_url(
-        "https://github.com/adafruit/circuitpython/releases/latest", logger
-    )
 
     if device_path is None or not ctx.obj["backend"].is_device_present():
         click.secho("Could not find a connected CircuitPython device.", fg="red")
@@ -157,7 +150,7 @@ def ls_cli(ctx, file):  # pragma: no cover
     click.echo(f"running: ls {file}")
 
     files = ctx.obj["backend"].list_dir(file)
-    click.echo(f"Size\tName")
+    click.echo("Size\tName")
     for cur_file in sorted_by_directory_then_alpha(files):
         click.echo(
             f"{cur_file['file_size']}\t{cur_file['name']}{'/' if cur_file['directory'] else ''}"
@@ -203,11 +196,9 @@ def get_cli(ctx, file, location):  # pragma: no cover
     """
     Download a copy of a file or directory from the device to the local computer.
     """
-    # click.echo(f"file: {file}")
-    # click.echo(f"location: {location}")
+
     click.echo(f"running: get {file} {location}")
     ctx.obj["backend"].download_file(file, location)
-    pass
 
 
 @main.command("rm")

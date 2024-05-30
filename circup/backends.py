@@ -73,7 +73,7 @@ class Backend:
         """
         return self.get_modules(os.path.join(self.device_location, self.LIB_DIR_PATH))
 
-    def _create_library_directory(self, device_path, library_path):
+    def create_directory(self, device_path, directory):
         """
         To be overridden by subclass
         """
@@ -195,7 +195,7 @@ class Backend:
                 return
 
             # Create the library directory first.
-            self._create_library_directory(device_path, library_path)
+            self.create_directory(device_path, library_path)
             if local_path is None:
                 if pyext:
                     # Use Python source for module.
@@ -555,10 +555,9 @@ class WebBackend(Backend):
             metadata["path"] = sfm_url
             result[sfm[:idx]] = metadata
 
-    def _create_library_directory(self, device_path, library_path):
-        url = urlparse(device_path)
-        auth = HTTPBasicAuth("", url.password)
-        with self.session.put(library_path, auth=auth, timeout=self.timeout) as r:
+    def create_directory(self, device_path, directory):
+        auth = HTTPBasicAuth("", self.password)
+        with self.session.put(directory, auth=auth, timeout=self.timeout) as r:
             if r.status_code == 409:
                 _writeable_error()
             r.raise_for_status()
@@ -569,7 +568,7 @@ class WebBackend(Backend):
                 self.device_location,
                 "/".join(("fs", location_to_paste, target_file, "")),
             )
-            self._create_library_directory(self.device_location, create_directory_url)
+            self.create_directory(self.device_location, create_directory_url)
             self.install_dir_http(target_file)
         else:
             self.install_file_http(target_file)
@@ -587,7 +586,7 @@ class WebBackend(Backend):
                 self.device_location,
                 "/".join(("fs", location_to_paste, target_file, "")),
             )
-            self._create_library_directory(self.device_location, create_directory_url)
+            self.create_directory(self.device_location, create_directory_url)
             self.install_dir_http(target_file, location_to_paste)
         else:
             self.install_file_http(target_file, location_to_paste)
@@ -887,9 +886,9 @@ class DiskBackend(Backend):
         """
         return _get_modules_file(device_lib_path, self.logger)
 
-    def _create_library_directory(self, device_path, library_path):
-        if not os.path.exists(library_path):  # pragma: no cover
-            os.makedirs(library_path)
+    def create_directory(self, device_path, directory):
+        if not os.path.exists(directory):  # pragma: no cover
+            os.makedirs(directory)
 
     def copy_file(self, target_file, location_to_paste):
         target_filename = target_file.split(os.path.sep)[-1]

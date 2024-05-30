@@ -212,3 +212,16 @@ def rm_cli(ctx, file):  # pragma: no cover
     ctx.obj["backend"].uninstall(
         ctx.obj["backend"].device_location, ctx.obj["backend"].get_file_path(file)
     )
+
+
+@main.command("mkdir")
+@click.argument("directory", nargs=1)
+@click.pass_context
+def mkdir_cli(ctx, directory):  # pragma: no cover
+    """
+    Create
+    """
+    click.echo(f"running: mkdir {directory}")
+    ctx.obj["backend"].create_directory(
+        ctx.obj["backend"].device_location, ctx.obj["backend"].get_file_path(directory)
+    )

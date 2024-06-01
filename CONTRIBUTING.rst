@@ -31,23 +31,17 @@ Developer Setup
     (which only works with Python 3.6+).
 
 
-
 Clone the repository and from the root of the project,
 
 
-setup a virtual environment and activate it.::
+If you'd like you can setup a virtual environment and activate it.::
 
     python3 -m venv .env
     source .env/bin/activate
 
-install the requirements::
+install the development requirements::
 
-    pip install -e ".[dev]"
-
-
-.. note::
-    This repository provides a devcontainer environment that can be used in VSCode. For more information, read `VSCode containers docs <https://code.visualstudio.com/docs/devcontainers/containers>`_.
-    This provides a ready to use development environment when you launch VSCode in the devcontainer.
+    pip install -r optional_requirements.txt
 
 
 Run the test suite::

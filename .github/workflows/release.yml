@@ -1,39 +1,42 @@
-# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, written for Adafruit Industries
-
+# SPDX-FileCopyrightText: 2017 Scott Shawcroft, written for Adafruit Industries
+#
 # SPDX-License-Identifier: MIT
 
-name: Release Actions
-
-on:
-  release:
-    types: [published]
-
-jobs:
-  upload-pypi:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-      with:
+name: 'PyPI Release CI'
+description: 'Release CI used for PyPI releases'
+inputs:
+  python-version:
+    description: 'The version of Python to use in the CI'
+    required: true
+    default: '3.11'
+runs:
+  using: "composite"
+  steps:
+  - uses: actions/checkout@v4
+    with:
         show-progress: false
-    - name: Check For setup.py
-      id: need-pypi
-      run: |
-        echo ::set-output name=setup-py::$( find . -wholename './setup.py' )
-    - name: Set up Python
-      if: contains(steps.need-pypi.outputs.setup-py, 'setup.py')
-      uses: actions/setup-python@v1
-      with:
-        python-version: '3.x'
-    - name: Install dependencies
-      if: contains(steps.need-pypi.outputs.setup-py, 'setup.py')
-      run: |
-        python -m pip install --upgrade pip
-        pip install setuptools wheel twine
-    - name: Build and publish
-      if: contains(steps.need-pypi.outputs.setup-py, 'setup.py')
-      env:
-        TWINE_USERNAME: ${{ secrets.pypi_username }}
-        TWINE_PASSWORD: ${{ secrets.pypi_password }}
-      run: |
-        python setup.py sdist
-        twine upload dist/*
+  - name: Check For pyproject.toml
+    id: need-pypi
+    shell: bash
+    run: |
+      echo pyproject-toml=$( find . -wholename './pyproject.toml' ) >> $GITHUB_OUTPUT
+  - name: Set up Python
+    if: contains(steps.need-pypi.outputs.pyproject-toml, 'pyproject.toml')
+    uses: actions/setup-python@v5
+    with:
+      python-version: ${{ inputs.python-version }}
+  - name: Install dependencies
+    if: contains(steps.need-pypi.outputs.pyproject-toml, 'pyproject.toml')
+    shell: bash
+    run: |
+      python -m pip install --upgrade pip
+      pip install --upgrade build twine
+  - name: Build and publish
+    if: contains(steps.need-pypi.outputs.pyproject-toml, 'pyproject.toml')
+    env:
+      TWINE_USERNAME: ${{ secrets.pypi_username }}
+      TWINE_PASSWORD: ${{ secrets.pypi_password }}
+    shell: bash
+    run: |
+      python -m build
+      twine upload dist/*

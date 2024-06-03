@@ -38,6 +38,7 @@ requires-python = ">=3.9"
 dependencies = {file = ["requirements.txt"]}
 optional-dependencies = {optional = {file = ["optional_requirements.txt"]}}
 
+[tool.setuptools_scm]
 
 [project.scripts]
 circup = "circup:main"

@@ -3,6 +3,11 @@
 # SPDX-License-Identifier: MIT
 
 name: 'PyPI Release CI'
+
+on:
+  release:
+    types: [published]
+
 description: 'Release CI used for PyPI releases'
 inputs:
   python-version:

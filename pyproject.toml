@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "circup"
-dynamic = ["version"]
+dynamic = ["version", "dependencies", "optional-dependencies"]
 description = "A tool to manage/update libraries on CircuitPython devices."
 readme = "README.rst"
 authors = [{ name = "Adafruit Industries", email = "circuitpython@adafruit.com" }]

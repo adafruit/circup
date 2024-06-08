@@ -1,5 +1,5 @@
 
-CircUp
+Circup
 ======
 
 .. image:: https://readthedocs.org/projects/circup/badge/?version=latest
@@ -28,7 +28,7 @@ A tool to manage and update libraries (modules) on a CircuitPython device.
 Installation
 ------------
 
-Circup requires Python 3.5 or higher.
+Circup requires Python 3.9 or higher.
 
 In a `virtualenv <https://virtualenv.pypa.io/en/latest/>`_,
 ``pip install circup`` should do the trick. This is the simplest way to make it
@@ -39,7 +39,7 @@ If you have no idea what a virtualenv is, try the following command,
 
 .. note::
 
-    If you use the ``pip3`` command to install CircUp you must make sure that
+    If you use the ``pip3`` command to install Circup you must make sure that
     your path contains the directory into which the script will be installed.
     To discover this path,
 
@@ -76,7 +76,7 @@ Usage
 -----
 
 If you need more detailed help using Circup see the Learn Guide article
-`"Use CircUp to easily keep your CircuitPython libraries up to date" <https://learn.adafruit.com/keep-your-circuitpython-libraries-on-devices-up-to-date-with-circup/>`_.
+`"Use Circup to easily keep your CircuitPython libraries up to date" <https://learn.adafruit.com/keep-your-circuitpython-libraries-on-devices-up-to-date-with-circup/>`_.
 
 First, plug in a device running CircuiPython. This should appear as a mounted
 storage device called ``CIRCUITPY``.
@@ -230,7 +230,7 @@ The ``--version`` flag will tell you the current version of the
 ``circup`` command itself::
 
     $ circup --version
-    CircUp, A CircuitPython module updater. Version 0.0.1
+    Circup, A CircuitPython module updater. Version 0.0.1
 
 
 To use circup via the `Web Workflow <https://learn.adafruit.com/getting-started-with-web-workflow-using-the-code-editor>`_. on devices that support it. Use the ``--host`` and ``--password`` arguments before your circup command.::
@@ -263,6 +263,7 @@ For Bash, add this to ~/.bashrc::
 
 For Zsh, add this to ~/.zshrc::
 
+    autoload -U compinit; compinit
     eval "$(_CIRCUP_COMPLETE=zsh_source circup)"
 
 For Fish, add this to ~/.config/fish/completions/foo-bar.fish::

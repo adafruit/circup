@@ -124,7 +124,7 @@ available options to help you work with the code base.
 Before submitting a PR, please remember to ``pre-commit run --all-files``.
 But if  you forget the CI process in Github will run it for you. ;-)
 
-Circup uses the `Click <https://click.palletsprojects.com/en/7.x/>`_ module to
+Circup uses the `Click <https://click.palletsprojects.com>`_ module to
 run command-line interaction. The
 `AppDirs <https://pypi.org/project/appdirs/>`_ module is used to determine
 where to store user-specific assets created by the tool in such a way that

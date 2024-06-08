@@ -17,10 +17,10 @@ jobs:
     - name: Translate Repo Name For Build Tools filename_prefix
       id: repo-name
       run: echo ::set-output name=repo-name::circup
-    - name: Set up Python 3.7
+    - name: Set up Python 3.11
       uses: actions/setup-python@v1
       with:
-        python-version: 3.7
+        python-version: 3.11
     - name: Pip install Sphinx & pre-commit
       run: |
         pip install --force-reinstall Sphinx sphinx-rtd-theme pre-commit

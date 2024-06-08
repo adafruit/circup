@@ -112,7 +112,11 @@ def main(  # pylint: disable=too-many-locals
             device_path = device_path.replace("circuitpython.local", host)
         try:
             ctx.obj["backend"] = WebBackend(
-                host=host, password=password, logger=logger, timeout=timeout
+                host=host,
+                password=password,
+                logger=logger,
+                timeout=timeout,
+                version_override=cpy_version,
             )
         except ValueError as e:
             click.secho(e, fg="red")
@@ -123,7 +127,11 @@ def main(  # pylint: disable=too-many-locals
             sys.exit(1)
     else:
         try:
-            ctx.obj["backend"] = DiskBackend(device_path, logger)
+            ctx.obj["backend"] = DiskBackend(
+                device_path,
+                logger,
+                version_override=cpy_version,
+            )
         except ValueError as e:
             print(e)
 

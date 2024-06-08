@@ -25,15 +25,24 @@ Developer Setup
 
 .. note::
 
-    Please try to use Python 3.6+ while developing CircUp. This is so we can
+    Please try to use Python 3.9+ while developing CircUp. This is so we can
     use the
     `Black code formatter <https://black.readthedocs.io/en/stable/index.html>`_
-    (which only works with Python 3.6+).
+    and so that we're supporting versions which still receive security updates.
+
 
 Clone the repository and from the root of the project,
-install the requirements::
 
-    pip install -e ".[dev]"
+
+If you'd like you can setup a virtual environment and activate it.::
+
+    python3 -m venv .env
+    source .env/bin/activate
+
+install the development requirements::
+
+    pip install -r optional_requirements.txt
+
 
 Run the test suite::
 

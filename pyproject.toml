@@ -42,6 +42,7 @@ optional-dependencies = {optional = {file = ["optional_requirements.txt"]}}
 
 [project.scripts]
 circup = "circup:main"
+wwshell = "circup.wwshell:main"
 
 [project.urls]
 homepage = "https://github.com/adafruit/circup"

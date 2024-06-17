@@ -5,6 +5,8 @@
 
 .. include:: ../README.rst
 
+.. include:: ../circup/wwshell/README.rst
+
 .. include:: ../CONTRIBUTING.rst
 
 API

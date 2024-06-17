@@ -1,5 +1,6 @@
-# SPDX-FileCopyrightText: 2019 Nicholas Tollervey, written for Adafruit Industries
-
+# SPDX-FileCopyrightText: 2017 Scott Shawcroft, written for Adafruit Industries
+# SPDX-FileCopyrightText: 2021 James Carr
+#
 # SPDX-License-Identifier: MIT
 
 name: Release Actions
@@ -14,26 +15,20 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        show-progress: false
-    - name: Check For setup.py
-      id: need-pypi
-      run: |
-        echo ::set-output name=setup-py::$( find . -wholename './setup.py' )
+        filter: 'blob:none'
+        depth: 0
     - name: Set up Python
-      if: contains(steps.need-pypi.outputs.setup-py, 'setup.py')
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.x'
+        python-version: '3.11'
     - name: Install dependencies
-      if: contains(steps.need-pypi.outputs.setup-py, 'setup.py')
       run: |
         python -m pip install --upgrade pip
-        pip install setuptools wheel twine
+        pip install build setuptools wheel twine
     - name: Build and publish
-      if: contains(steps.need-pypi.outputs.setup-py, 'setup.py')
       env:
         TWINE_USERNAME: ${{ secrets.pypi_username }}
         TWINE_PASSWORD: ${{ secrets.pypi_password }}
       run: |
-        python setup.py sdist
+        python -m build
         twine upload dist/*

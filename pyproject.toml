@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2024 Jev Kuznetsov, ROX Automation
+#
+# SPDX-License-Identifier: MIT
+
+[build-system]
+requires = ["setuptools>=61.0", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "circup"
+dynamic = ["version", "dependencies", "optional-dependencies"]
+description = "A tool to manage/update libraries on CircuitPython devices."
+readme = "README.rst"
+authors = [{ name = "Adafruit Industries", email = "circuitpython@adafruit.com" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Education",
+    "Topic :: Software Development :: Embedded Systems",
+    "Topic :: System :: Software Distribution"
+]
+keywords = ["adafruit", "blinka", "circuitpython", "micropython", "libraries"]
+
+requires-python = ">=3.9"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+optional-dependencies = {optional = {file = ["optional_requirements.txt"]}}
+
+[tool.setuptools_scm]
+
+[project.scripts]
+circup = "circup:main"
+
+[project.urls]
+homepage = "https://github.com/adafruit/circup"
+
+[tool.setuptools.packages.find]
+where = ["."]  # This tells setuptools to look in the project root directory
+include = ["circup"]  # This pattern includes your main package and any sub-packages within it

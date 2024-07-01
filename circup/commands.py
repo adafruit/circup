@@ -11,6 +11,7 @@ and the respective Backends which *are* tested. Most of the logic of the followi
 functions is to prepare things for presentation to / interaction with the user.
 """
 import os
+import subprocess
 import time
 import sys
 import re
@@ -305,6 +306,12 @@ def list_cli(ctx):  # pragma: no cover
     "--upgrade", "-U", is_flag=True, help="Upgrade modules that are already installed."
 )
 @click.option(
+    "--stubs",
+    "-s",
+    is_flag=True,
+    help="Install stubs module from PyPi for context in IDE.",
+)
+@click.option(
     "--auto-file",
     default=None,
     help="Specify the name of a file on the board to read for auto install."
@@ -312,7 +319,7 @@ def list_cli(ctx):  # pragma: no cover
 )
 @click.pass_context
 def install(
-    ctx, modules, pyext, requirement, auto, auto_file, upgrade=False
+    ctx, modules, pyext, requirement, auto, auto_file, upgrade=False, stubs=False
 ):  # pragma: no cover
     """
     Install a named module(s) onto the device. Multiple modules
@@ -320,6 +327,7 @@ def install(
     separated by a space. Modules can be from a Bundle or local filepaths.
     """
 
+    # pylint: disable=too-many-branches
     # TODO: Ensure there's enough space on the device
     available_modules = get_bundle_versions(get_bundles_list())
     mod_names = {}
@@ -372,6 +380,24 @@ def install(
                 mod_names,
                 upgrade,
             )
+
+            if stubs:
+                library_stubs = "adafruit-circuitpython-{}".format(
+                    library.replace("adafruit_", "")
+                )
+                try:
+                    output = subprocess.check_output(["pip", "install", library_stubs])
+                    if (
+                        f"Requirement already satisfied: {library_stubs}"
+                        in output.decode()
+                    ):
+                        click.echo(f"'{library}' stubs already installed.")
+                    else:
+                        click.echo(f"Installed '{library}' stubs.")
+                except subprocess.CalledProcessError:
+                    click.secho(
+                        f"Could not install stubs module {library_stubs}", fg="yellow"
+                    )
 
 
 @main.command()
@@ -697,7 +723,7 @@ def bundle_remove(bundle, reset):
     bundles_local_dict = get_bundles_local_dict()
     modified = False
     for bun in bundle:
-        # cleanup in case seombody pastes the URL to the repo/releases
+        # cleanup in case somebody pastes the URL to the repo/releases
         bun = re.sub(r"https?://github.com/([^/]+/[^/]+)(/.*)?", r"\1", bun)
         found = False
         for name, repo in list(bundles_local_dict.items()):

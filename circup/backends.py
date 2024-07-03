@@ -277,7 +277,7 @@ class WebBackend(Backend):
     """
 
     def __init__(  # pylint: disable=too-many-arguments
-        self, host, password, logger, timeout=10, version_override=None
+        self, host, port, password, logger, timeout=10, version_override=None
     ):
         super().__init__(logger)
         if password is None:
@@ -297,14 +297,18 @@ class WebBackend(Backend):
         self.FS_PATH = "fs/"
         self.LIB_DIR_PATH = f"{self.FS_PATH}lib/"
         self.host = host
+        self.port = port
         self.password = password
-        self.device_location = f"http://:{self.password}@{self.host}"
+        self.device_location = f"http://:{self.password}@{self.host}:{self.port}"
 
         self.session = requests.Session()
         self.session.mount(self.device_location, HTTPAdapter(max_retries=5))
         self.library_path = self.device_location + "/" + self.LIB_DIR_PATH
         self.timeout = timeout
         self.version_override = version_override
+
+    def __repr__(self):
+        return f"<WebBackend @{self.device_location}>"
 
     def install_file_http(self, source, location=None):
         """

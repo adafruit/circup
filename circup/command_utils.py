@@ -610,7 +610,7 @@ def libraries_from_code_py(code_py, mod_names):
     return [r for r in imports if r in mod_names]
 
 
-def get_device_path(host, password, path):
+def get_device_path(host, port, password, path):
     """
     :param host Hostname or IP address.
     :param password REST API password.
@@ -621,7 +621,7 @@ def get_device_path(host, password, path):
         device_path = path
     elif host:
         # pylint: enable=no-member
-        device_path = f"http://:{password}@" + host
+        device_path = f"http://:{password}@{host}:{port}"
     else:
         device_path = find_device()
     return device_path

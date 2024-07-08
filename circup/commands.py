@@ -58,6 +58,9 @@ from circup.command_utils import (
     help="Hostname or IP address of a device. Overrides automatic path detection.",
 )
 @click.option(
+    "--port", help="Port to contact. Overrides automatic path detection.", default=80
+)
+@click.option(
     "--password",
     help="Password to use for authentication when --host is used."
     " You can optionally set an environment variable CIRCUP_WEBWORKFLOW_PASSWORD"
@@ -86,7 +89,7 @@ from circup.command_utils import (
 )
 @click.pass_context
 def main(  # pylint: disable=too-many-locals
-    ctx, verbose, path, host, password, timeout, board_id, cpy_version
+    ctx, verbose, path, host, port, password, timeout, board_id, cpy_version
 ):  # pragma: no cover
     """
     A tool to manage and update libraries on a CircuitPython device.
@@ -98,7 +101,7 @@ def main(  # pylint: disable=too-many-locals
     if password is None:
         password = os.getenv("CIRCUP_WEBWORKFLOW_PASSWORD")
 
-    device_path = get_device_path(host, password, path)
+    device_path = get_device_path(host, port, password, path)
 
     using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
 
@@ -114,6 +117,7 @@ def main(  # pylint: disable=too-many-locals
         try:
             ctx.obj["backend"] = WebBackend(
                 host=host,
+                port=port,
                 password=password,
                 logger=logger,
                 timeout=timeout,

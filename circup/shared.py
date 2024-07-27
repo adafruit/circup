@@ -10,8 +10,8 @@ import glob
 import os
 import re
 import json
+import importlib.resources
 import appdirs
-import pkg_resources
 import requests
 
 #: Version identifier for a bad MPY file format
@@ -27,9 +27,8 @@ PLATFORMS = {"py": "py", "8mpy": "8.x-mpy", "9mpy": "9.x-mpy"}
 REQUESTS_TIMEOUT = 30
 
 #: The path to the JSON file containing the metadata about the bundles.
-BUNDLE_CONFIG_FILE = pkg_resources.resource_filename(
-    "circup", "config/bundle_config.json"
-)
+BUNDLE_CONFIG_FILE = importlib.resources.files("circup") / "config/bundle_config.json"
+
 #: Overwrite the bundles list with this file (only done manually)
 BUNDLE_CONFIG_OVERWRITE = os.path.join(DATA_DIR, "bundle_config.json")
 #: The path to the JSON file containing the local list of bundles.

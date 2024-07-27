@@ -9,7 +9,7 @@ repos:
     -   id: black
         exclude: "^tests/bad_python.py$"
 -   repo: https://github.com/pycqa/pylint
-    rev: v2.15.5
+    rev: v3.1.0
     hooks:
     -   id: pylint
         name: lint (examples)

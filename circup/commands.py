@@ -84,7 +84,7 @@ from circup.command_utils import (
     "with --board-id, it overrides the detected CPy version.",
 )
 @click.version_option(
-    prog_name="CircUp",
+    prog_name="Circup",
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )
 @click.pass_context

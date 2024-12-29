@@ -79,14 +79,18 @@ def _get_modules_file(path, logger):
         py_files = glob.glob(os.path.join(package_path, "**/*.py"), recursive=True)
         mpy_files = glob.glob(os.path.join(package_path, "**/*.mpy"), recursive=True)
         all_files = py_files + mpy_files
+        # put __init__ first if any, assumed to have the version number
+        all_files.sort()
         # default value
         result[name] = {"path": package_path, "mpy": bool(mpy_files)}
         # explore all the submodules to detect bad ones
         for source in [f for f in all_files if not os.path.basename(f).startswith(".")]:
             metadata = extract_metadata(source, logger)
             if "__version__" in metadata:
-                metadata["path"] = package_path
-                result[name] = metadata
+                # don't replace metadata if already found
+                if "__version__" not in result[name]:
+                    metadata["path"] = package_path
+                    result[name] = metadata
                 # break now if any of the submodules has a bad format
                 if metadata["__version__"] == BAD_FILE_FORMAT:
                     break

@@ -94,7 +94,7 @@ def main(  # pylint: disable=too-many-locals
     """
     A tool to manage and update libraries on a CircuitPython device.
     """
-    # pylint: disable=too-many-arguments,too-many-branches,too-many-statements,too-many-locals
+    # pylint: disable=too-many-arguments,too-many-branches,too-many-statements,too-many-locals, R0801
     ctx.ensure_object(dict)
     ctx.obj["TIMEOUT"] = timeout
 

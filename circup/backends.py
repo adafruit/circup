@@ -329,7 +329,6 @@ class WebBackend(Backend):
         file_name = source.split(os.path.sep)
         file_name = file_name[-2] if file_name[-1] == "" else file_name[-1]
 
-        print(f"inside install_file_http location: '{location}'")
         if location is None:
             target = self.device_location + "/" + self.LIB_DIR_PATH + file_name
         else:
@@ -338,10 +337,7 @@ class WebBackend(Backend):
         auth = HTTPBasicAuth("", self.password)
 
         with open(source, "rb") as fp:
-            print(f"upload file PUT URL: {target}")
             r = self.session.put(target, fp.read(), auth=auth, timeout=self.timeout)
-            print(f"install_file_http response status: {r.status_code}")
-            print(r.content)
             if r.status_code == 409:
                 _writeable_error()
             r.raise_for_status()
@@ -584,7 +580,6 @@ class WebBackend(Backend):
         :param location_to_paste: Location on the microcontroller to paste it.
         :return:
         """
-        print(f"inside upload_file location_to_paste: '{location_to_paste}'")
         if os.path.isdir(target_file):
             create_directory_url = urljoin(
                 self.device_location,
@@ -698,7 +693,6 @@ class WebBackend(Backend):
         return True if the file exists, otherwise False.
         """
         auth = HTTPBasicAuth("", self.password)
-        print(f"URL: {self.get_file_path(filepath)}")
         resp = requests.get(
             self.get_file_path(filepath), auth=auth, timeout=self.timeout
         )
@@ -809,7 +803,6 @@ class WebBackend(Backend):
             headers={"Accept": "application/json"},
             timeout=self.timeout,
         ) as r:
-            print(r.content)
             return r.json()["files"]
 
 

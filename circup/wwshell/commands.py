@@ -45,6 +45,11 @@ from circup.command_utils import (
     default="circuitpython.local",
 )
 @click.option(
+    "--port",
+    help="HTTP port that the web workflow is listening on.",
+    default=80,
+)
+@click.option(
     "--password",
     help="Password to use for authentication when --host is used."
     " You can optionally set an environment variable CIRCUP_WEBWORKFLOW_PASSWORD"
@@ -65,24 +70,23 @@ def main(  # pylint: disable=too-many-locals
     verbose,
     path,
     host,
+    port,
     password,
     timeout,
 ):  # pragma: no cover
     """
     A tool to manage files CircuitPython device over web workflow.
     """
-    # pylint: disable=too-many-arguments,too-many-branches,too-many-statements,too-many-locals
+    # pylint: disable=too-many-arguments,too-many-branches,too-many-statements,too-many-locals, R0801
     ctx.ensure_object(dict)
     ctx.obj["TIMEOUT"] = timeout
 
     if password is None:
         password = os.getenv("CIRCUP_WEBWORKFLOW_PASSWORD")
 
-    device_path = get_device_path(host, password, path)
+    device_path = get_device_path(host, port, password, path)
 
     using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
-    print(f"host: {ctx.params['host']}")
-    print(f"using webworkflow: {using_webworkflow}")
     if using_webworkflow:
         if host == "circuitpython.local":
             click.echo("Checking versions.json on circuitpython.local to find hostname")
@@ -94,7 +98,7 @@ def main(  # pylint: disable=too-many-locals
             device_path = device_path.replace("circuitpython.local", host)
         try:
             ctx.obj["backend"] = WebBackend(
-                host=host, password=password, logger=logger, timeout=timeout
+                host=host, port=port, password=password, logger=logger, timeout=timeout
             )
         except ValueError as e:
             click.secho(e, fg="red")

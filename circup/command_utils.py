@@ -127,7 +127,7 @@ def completion_for_example(ctx, param, incomplete):
         for example_key in sorted(matching_examples.keys()):
             lib = example_key.split(os.path.sep)[0] + "_"
             example_path_split = matching_examples[example_key].split(os.path.sep)
-            for idx, example_path_part in enumerate(example_path_split):
+            for example_path_part in example_path_split:
                 if example_path_part.startswith(lib):
                     examples_list += [example_key]
 

@@ -411,30 +411,30 @@ def install(
     "example", required=False, nargs=1, shell_complete=completion_for_example
 )
 @click.pass_context
-def example(ctx, list, example, overwrite):
+def example(ctx, list_option, example_name, overwrite):
     """
     Copy named example from a bundle onto the device.
     Option --list will show available examples.  --list will also
     support partial searches.
     """
 
-    if list and not example:
+    if list_option and not example_name:
         click.echo("\n".join(completion_for_example(ctx, "", "")))
         return
 
-    if list:
-        click.echo("\n".join(completion_for_example(ctx, "", example)))
+    if list_option:
+        click.echo("\n".join(completion_for_example(ctx, "", example_name)))
         return
 
     available_examples = get_bundle_examples(get_bundles_list(), avoid_download=True)
 
-    if example in available_examples:
-        install_metadata = {"path": available_examples[example]}
+    if example_name in available_examples:
+        install_metadata = {"path": available_examples[example_name]}
 
         # check of we are dealing with a file that needs to be pushed as code.py
         # or a directory that needs to be copied raw
-        filename = available_examples[example].split(os.path.sep)[-1]
-        if os.path.isfile(available_examples[example]):
+        filename = available_examples[example_name].split(os.path.sep)[-1]
+        if os.path.isfile(available_examples[example_name]):
             filename = "code.py"
             install_metadata["target_name"] = filename
 
@@ -448,7 +448,7 @@ def example(ctx, list, example, overwrite):
             )
     else:
         click.secho(
-            f"Error: {example} was not found in any local bundle examples.",
+            f"Error: {example_name} was not found in any local bundle examples.",
             fg="red",
         )
 

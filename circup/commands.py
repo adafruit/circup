@@ -178,8 +178,8 @@ def main(  # pylint: disable=too-many-locals
             else (cpy_version, board_id)
         )
         click.echo(
-            "Found device at {}, running CircuitPython {}.".format(
-                device_path, cpy_version
+            "Found device {} at {}, running CircuitPython {}.".format(
+                board_id, device_path, cpy_version
             )
         )
     try:
@@ -406,41 +406,53 @@ def install(
 
 @main.command()
 @click.option("--overwrite", is_flag=True, help="Overwrite the file if it exists.")
+@click.option("--list", is_flag=True, help="List available examples.")
 @click.argument(
-    "examples", required=True, nargs=-1, shell_complete=completion_for_example
+    "example", required=False, nargs=1, shell_complete=completion_for_example
 )
 @click.pass_context
-def example(ctx, examples, overwrite):
+def example(ctx, list, example, overwrite):
     """
-    Copy named example(s) from a bundle onto the device. Multiple examples
-    can be installed at once by providing more than one example name, each
-    separated by a space.
+    Copy named example from a bundle onto the device.
+    Option --list will show available examples.  --list will also
+    support partial searches.
     """
 
-    for example_arg in examples:
-        available_examples = get_bundle_examples(
-            get_bundles_list(), avoid_download=True
-        )
-        if example_arg in available_examples:
-            filename = available_examples[example_arg].split(os.path.sep)[-1]
+    if list and not example:
+        click.echo("\n".join(completion_for_example(ctx, "", "")))
+        return
 
-            if overwrite or not ctx.obj["backend"].file_exists(filename):
-                click.echo(
-                    f"{'Copying' if not overwrite else 'Overwriting'}: {filename}"
-                )
-                ctx.obj["backend"].install_module_py(
-                    {"path": available_examples[example_arg]}, location=""
-                )
-            else:
-                click.secho(
-                    f"File: {filename} already exists. Use --overwrite if you wish to replace it.",
-                    fg="red",
-                )
+    if list:
+        click.echo("\n".join(completion_for_example(ctx, "", example)))
+        return
+
+    available_examples = get_bundle_examples(get_bundles_list(), avoid_download=True)
+
+    if example in available_examples:
+        install_metadata = {"path": available_examples[example]}
+
+        # check of we are dealing with a file that needs to be pushed as code.py
+        # or a directory that needs to be copied raw
+        filename = available_examples[example].split(os.path.sep)[-1]
+        if os.path.isfile(available_examples[example]):
+            filename = "code.py"
+            install_metadata["target_name"] = filename
+
+        if overwrite or not ctx.obj["backend"].file_exists(filename):
+            click.echo(f"{'Copying' if not overwrite else 'Overwriting'}: {filename}")
+            ctx.obj["backend"].install_module_py(install_metadata, location="")
         else:
             click.secho(
-                f"Error: {example_arg} was not found in any local bundle examples.",
+                f"File: {filename} already exists. Use --overwrite if you wish to replace it.",
                 fg="red",
             )
+    else:
+        click.secho(
+            f"Error: {example} was not found in any local bundle examples.",
+            fg="red",
+        )
+
+    return
 
 
 # pylint: enable=too-many-arguments,too-many-locals

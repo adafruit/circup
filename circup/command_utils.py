@@ -97,19 +97,39 @@ def completion_for_install(ctx, param, incomplete):
 
 def completion_for_example(ctx, param, incomplete):
     """
-    Returns the list of available modules for the command line tab-completion
+    Returns the list of available example modules searched by partial name
+    and filtered for valid examples.
     with the ``circup example`` command.
+    or for the ``circup example`` --list command.
     """
-    # pylint: disable=unused-argument, consider-iterating-dictionary
+    # pylint: disable=unused-argument
+
+    # just do this once, as it's a bit slow
     available_examples = get_bundle_examples(get_bundles_list(), avoid_download=True)
+    examples_list = []
 
-    matching_examples = [
-        example_path
-        for example_path in available_examples.keys()
-        if example_path.startswith(incomplete)
-    ]
+    if not incomplete or incomplete == "":
+        lib_names = {
+            str(key.split(os.path.sep)[0]): value
+            for key, value in available_examples.items()
+        }
+        examples_list = lib_names.keys()
+    else:
+        matching_examples = {
+            example_key: example_path
+            for example_key, example_path in available_examples.items()
+            if example_key.startswith(incomplete)
+            and example_key.split(os.path.sep)[0] in example_key[1:]
+            and example_path.endswith(".py")
+        }
+        for example_key, example_path in matching_examples.items():
+            lib = example_key.split(os.path.sep)[0] + "_"
+            example_path_split = example_path.split(os.path.sep)
+            for example_path_part in example_path_split:
+                if example_path_part.startswith(lib):
+                    examples_list += [example_key]
 
-    return sorted(matching_examples)
+    return sorted(examples_list)
 
 
 def ensure_latest_bundle(bundle):
@@ -293,9 +313,12 @@ def get_bundle(bundle, tag):
         # pylint: enable=no-member
         total_size = int(r.headers.get("Content-Length"))
         temp_zip = bundle.zip.format(platform=platform)
-        with click.progressbar(
-            r.iter_content(1024), label="Extracting:", length=total_size
-        ) as pbar, open(temp_zip, "wb") as zip_fp:
+        with (
+            click.progressbar(
+                r.iter_content(1024), label="Extracting:", length=total_size
+            ) as pbar,
+            open(temp_zip, "wb") as zip_fp,
+        ):
             for chunk in pbar:
                 zip_fp.write(chunk)
                 pbar.update(len(chunk))

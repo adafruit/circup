@@ -950,7 +950,10 @@ class DiskBackend(Backend):
             # Copy the directory.
             shutil.copytree(source_path, target_path)
         else:
-            target = os.path.basename(source_path)
+            if "target_name" in metadata:
+                target = metadata["target_name"]
+            else:
+                target = os.path.basename(source_path)
             target_path = os.path.join(location, target)
             # Copy file.
             shutil.copyfile(source_path, target_path)

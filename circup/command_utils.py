@@ -331,7 +331,7 @@ def get_bundle_examples(bundles_list, avoid_download=False):
             path = bundle.examples_dir("py")
             meta_saved = os.path.join(path, "../bundle_examples.json")
             if os.path.exists(meta_saved):
-                with open(meta_saved, "r") as f:
+                with open(meta_saved, "r", encoding="utf-8") as f:
                     bundle_examples = json.load(f)
                 all_the_examples.update(bundle_examples)
                 bundle_examples.clear()
@@ -349,7 +349,7 @@ def get_bundle_examples(bundles_list, avoid_download=False):
                         bundle_examples[slug] = os.path.join(_dir_level[0], _file)
                         all_the_examples[slug] = os.path.join(_dir_level[0], _file)
 
-            with open(meta_saved, "w") as f:
+            with open(meta_saved, "w", encoding="utf-8") as f:
                 json.dump(bundle_examples, f)
             bundle_examples.clear()
 

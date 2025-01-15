@@ -8,7 +8,6 @@ Functions called from commands in order to provide behaviors and return informat
 import ctypes
 import glob
 import os
-import pickle
 
 from subprocess import check_output
 import sys
@@ -330,10 +329,10 @@ def get_bundle_examples(bundles_list, avoid_download=False):
             if not avoid_download or not os.path.isdir(bundle.lib_dir("py")):
                 ensure_latest_bundle(bundle)
             path = bundle.examples_dir("py")
-            meta_saved = os.path.join(path, "../bundle_examples.pickle")
+            meta_saved = os.path.join(path, "../bundle_examples.json")
             if os.path.exists(meta_saved):
-                with open(meta_saved, "rb") as f:
-                    bundle_examples = pickle.load(f)
+                with open(meta_saved, "r") as f:
+                    bundle_examples = json.load(f)
                 all_the_examples.update(bundle_examples)
                 bundle_examples.clear()
                 continue
@@ -349,8 +348,9 @@ def get_bundle_examples(bundles_list, avoid_download=False):
                         slug = f"{os.path.sep}".join(_dirs + [_file.replace(".py", "")])
                         bundle_examples[slug] = os.path.join(_dir_level[0], _file)
                         all_the_examples[slug] = os.path.join(_dir_level[0], _file)
-            with open(meta_saved, "wb") as f:
-                pickle.dump(bundle_examples, f)
+
+            with open(meta_saved, "w") as f:
+                json.dump(bundle_examples, f)
             bundle_examples.clear()
 
     except NotADirectoryError:

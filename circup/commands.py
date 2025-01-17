@@ -442,8 +442,6 @@ def example(ctx, examples, op_list, rename, overwrite):
             filename = available_examples[example_arg].split(os.path.sep)[-1]
             install_metadata = {"path": available_examples[example_arg]}
 
-            # check of we are dealing with a file that needs to be pushed as code.py
-            # or a directory that needs to be copied raw
             filename = available_examples[example_arg].split(os.path.sep)[-1]
             if rename:
                 if os.path.isfile(available_examples[example_arg]):

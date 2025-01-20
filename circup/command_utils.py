@@ -100,6 +100,7 @@ def completion_for_example(ctx, param, incomplete):
     Returns the list of available modules for the command line tab-completion
     with the ``circup example`` command.
     """
+
     # pylint: disable=unused-argument, consider-iterating-dictionary
     available_examples = get_bundle_examples(get_bundles_list(), avoid_download=True)
 
@@ -319,14 +320,22 @@ def get_bundle_examples(bundles_list, avoid_download=False):
     :return: A dictionary of metadata about the examples available in the
              library bundle.
     """
-    # pylint: disable=too-many-nested-blocks
+    # pylint: disable=too-many-nested-blocks,too-many-locals
     all_the_examples = dict()
+    bundle_examples = dict()
 
     try:
         for bundle in bundles_list:
             if not avoid_download or not os.path.isdir(bundle.lib_dir("py")):
                 ensure_latest_bundle(bundle)
             path = bundle.examples_dir("py")
+            meta_saved = os.path.join(path, "../bundle_examples.json")
+            if os.path.exists(meta_saved):
+                with open(meta_saved, "r", encoding="utf-8") as f:
+                    bundle_examples = json.load(f)
+                all_the_examples.update(bundle_examples)
+                bundle_examples.clear()
+                continue
             path_examples = _get_modules_file(path, logger)
             for lib_name, lib_metadata in path_examples.items():
                 for _dir_level in os.walk(lib_metadata["path"]):
@@ -337,7 +346,12 @@ def get_bundle_examples(bundles_list, avoid_download=False):
                         if _dirs[-1] == "":
                             _dirs.pop(-1)
                         slug = f"{os.path.sep}".join(_dirs + [_file.replace(".py", "")])
+                        bundle_examples[slug] = os.path.join(_dir_level[0], _file)
                         all_the_examples[slug] = os.path.join(_dir_level[0], _file)
+
+            with open(meta_saved, "w", encoding="utf-8") as f:
+                json.dump(bundle_examples, f)
+            bundle_examples.clear()
 
     except NotADirectoryError:
         # Bundle does not have new style examples directory

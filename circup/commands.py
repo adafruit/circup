@@ -178,8 +178,8 @@ def main(  # pylint: disable=too-many-locals
             else (cpy_version, board_id)
         )
         click.echo(
-            "Found device at {}, running CircuitPython {}.".format(
-                device_path, cpy_version
+            "Found device {} at {}, running CircuitPython {}.".format(
+                board_id, device_path, cpy_version
             )
         )
     try:
@@ -406,16 +406,33 @@ def install(
 
 @main.command()
 @click.option("--overwrite", is_flag=True, help="Overwrite the file if it exists.")
+@click.option("--list", "-ls", "op_list", is_flag=True, help="List available examples.")
+@click.option("--rename", is_flag=True, help="Install the example as code.py.")
 @click.argument(
-    "examples", required=True, nargs=-1, shell_complete=completion_for_example
+    "examples", required=False, nargs=-1, shell_complete=completion_for_example
 )
 @click.pass_context
-def example(ctx, examples, overwrite):
+def example(ctx, examples, op_list, rename, overwrite):
     """
     Copy named example(s) from a bundle onto the device. Multiple examples
     can be installed at once by providing more than one example name, each
     separated by a space.
     """
+
+    if op_list:
+        if examples:
+            click.echo("\n".join(completion_for_example(ctx, "", examples)))
+        else:
+            click.echo("Available example libraries:")
+            available_examples = get_bundle_examples(
+                get_bundles_list(), avoid_download=True
+            )
+            lib_names = {
+                str(key.split(os.path.sep)[0]): value
+                for key, value in available_examples.items()
+            }
+            click.echo("\n".join(sorted(lib_names.keys())))
+        return
 
     for example_arg in examples:
         available_examples = get_bundle_examples(
@@ -423,14 +440,19 @@ def example(ctx, examples, overwrite):
         )
         if example_arg in available_examples:
             filename = available_examples[example_arg].split(os.path.sep)[-1]
+            install_metadata = {"path": available_examples[example_arg]}
+
+            filename = available_examples[example_arg].split(os.path.sep)[-1]
+            if rename:
+                if os.path.isfile(available_examples[example_arg]):
+                    filename = "code.py"
+                    install_metadata["target_name"] = filename
 
             if overwrite or not ctx.obj["backend"].file_exists(filename):
                 click.echo(
                     f"{'Copying' if not overwrite else 'Overwriting'}: {filename}"
                 )
-                ctx.obj["backend"].install_module_py(
-                    {"path": available_examples[example_arg]}, location=""
-                )
+                ctx.obj["backend"].install_module_py(install_metadata, location="")
             else:
                 click.secho(
                     f"File: {filename} already exists. Use --overwrite if you wish to replace it.",

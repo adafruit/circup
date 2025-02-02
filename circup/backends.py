@@ -233,6 +233,12 @@ class Backend:
         """
         raise NotImplementedError
 
+    def get_file_content(self, target_file):
+        """
+        To be overridden by subclass
+        """
+        raise NotImplementedError
+
     def get_free_space(self):
         """
         To be overridden by subclass
@@ -618,6 +624,20 @@ class WebBackend(Backend):
                     f"Downloaded File: {os.path.join(location_to_paste, file_name)}"
                 )
 
+    def get_file_content(self, target_file):
+        """
+        Get the content of a file from the MCU drive
+        :param target_file: The file on the MCU to download
+        :return:
+        """
+        auth = HTTPBasicAuth("", self.password)
+        with self.session.get(
+            self.FS_URL + target_file, timeout=self.timeout, auth=auth
+        ) as r:
+            if r.status_code == 404:
+                return None
+            return r.content  # .decode("utf8")
+
     def install_module_mpy(self, bundle, metadata):
         """
         :param bundle library bundle.
@@ -654,19 +674,6 @@ class WebBackend(Backend):
 
         else:
             self.install_file_http(source_path, location=location)
-
-    def get_auto_file_path(self, auto_file_path):
-        """
-        Make a local temp copy of the --auto file from the device.
-        Returns the path to the local copy.
-        """
-        url = auto_file_path
-        auth = HTTPBasicAuth("", self.password)
-        with self.session.get(url, auth=auth, timeout=self.timeout) as r:
-            r.raise_for_status()
-            with open(LOCAL_CODE_PY_COPY, "w", encoding="utf-8") as f:
-                f.write(r.text)
-        return LOCAL_CODE_PY_COPY
 
     def uninstall(self, device_path, module_path):
         """
@@ -958,12 +965,6 @@ class DiskBackend(Backend):
             # Copy file.
             shutil.copyfile(source_path, target_path)
 
-    def get_auto_file_path(self, auto_file_path):
-        """
-        Returns the path on the device to the file to be read for --auto.
-        """
-        return auto_file_path
-
     def uninstall(self, device_path, module_path):
         """
         Uninstall module using local file system.
@@ -1014,6 +1015,18 @@ class DiskBackend(Backend):
         """
         return os.path.join(self.device_location, filename)
 
+    def get_file_content(self, target_file):
+        """
+        Get the content of a file from the MCU drive
+        :param target_file: The file on the MCU to download
+        :return:
+        """
+        file_path = self.get_file_path(target_file)
+        if os.path.exists(file_path):
+            with open(file_path, "rb") as file:
+                return file.read()
+        return None
+
     def is_device_present(self):
         """
         returns True if the device is currently connected
@@ -1027,3 +1040,22 @@ class DiskBackend(Backend):
         # pylint: disable=unused-variable
         _, total, free = shutil.disk_usage(self.device_location)
         return free
+
+    def list_dir(self, dirpath):
+        """
+        Returns the list of files located in the given dirpath.
+        """
+        files_list = []
+        files = os.listdir(os.path.join(self.device_location, dirpath))
+        for file_name in files:
+            file = os.path.join(self.device_location, dirpath, file_name)
+            stat = os.stat(file)
+            files_list.append(
+                {
+                    "name": file_name,
+                    "directory": os.path.isdir(file),
+                    "modified_ns": stat.st_mtime_ns,
+                    "file_size": stat.st_size,
+                }
+            )
+        return files_list

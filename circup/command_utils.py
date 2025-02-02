@@ -5,6 +5,7 @@
 Functions called from commands in order to provide behaviors and return information.
 """
 
+import ast
 import ctypes
 import glob
 import os
@@ -16,7 +17,6 @@ import zipfile
 import json
 import re
 import toml
-import findimports
 import requests
 import click
 
@@ -40,6 +40,25 @@ WARNING_IGNORE_MODULES = (
     "pyasn1",
     "circuitpython-typing",
 )
+
+CODE_FILES = [
+    "code.txt",
+    "code.py",
+    "main.py",
+    "main.txt",
+    "code.txt.py",
+    "code.py.txt",
+    "code.txt.txt",
+    "code.py.py",
+    "main.txt.py",
+    "main.py.txt",
+    "main.txt.txt",
+    "main.py.py",
+]
+
+
+class CodeParsingException(Exception):
+    """Exception thrown when parsing code with ast fails"""
 
 
 def clean_library_name(assumed_library_name):
@@ -605,23 +624,138 @@ def tags_data_save_tag(key, tag):
         json.dump(tags_data, data)
 
 
-def libraries_from_code_py(code_py, mod_names):
+def imports_from_code(full_content):
     """
     Parse the given code.py file and return the imported libraries
+    Note that it's impossible at that level to differentiate between
+    import module.property and import module.submodule, so we try both
 
-    :param str code_py: Full path of the code.py file
+    :param str full_content: Code to read imports from
+    :param str module_name: Name of the module the code is from
     :return: sequence of library names
     """
-    # pylint: disable=broad-except
     try:
-        found_imports = findimports.find_imports(code_py)
-    except Exception as ex:  # broad exception because anything could go wrong
-        logger.exception(ex)
-        click.secho('Unable to read the auto file: "{}"'.format(str(ex)), fg="red")
+        par = ast.parse(full_content)
+    except (SyntaxError, ValueError) as err:
+        raise CodeParsingException(err) from err
+
+    imports = set()
+    for thing in ast.walk(par):
+        if isinstance(thing, ast.Import):
+            for alias in thing.names:
+                imports.add(alias.name)
+        if isinstance(thing, ast.ImportFrom):
+            if thing.module is None:
+                for alias in thing.names:
+                    imports.add(alias.name)
+            else:
+                imports.add(("." * thing.level) + thing.module)
+
+    # import parent modules (in practice it's the __init__.py)
+    for name in list(imports):
+        names = name.split(".")
+        for i in range(len(names)):
+            module = ".".join(names[: i + 1])
+            if module:
+                imports.add(module)
+
+    return sorted(imports)
+
+
+def get_all_imports(
+    backend, auto_file_content, mod_names, current_module, visited=None
+):
+    """
+    Recursively retrieve imports from files on the backend
+
+    :param Backend backend: The current backend object
+    :param str auto_file_content: Content of the python file to analyse
+    :param list mod_names: Lits of supported bundle mod names
+    :param str current_module: Name of the call context module if recursive call
+    :param set visited: Modules previously visited
+    :return: sequence of library names
+    """
+    if visited is None:
+        visited = set()
+    visited.add(current_module)
+
+    requested_installs = []
+    try:
+        imports = imports_from_code(auto_file_content)
+    except CodeParsingException as err:
+        click.secho(f"Error parsing {current_module}:\n  {err}", fg="red")
         sys.exit(2)
-    # pylint: enable=broad-except
-    imports = [info.name.split(".", 1)[0] for info in found_imports]
-    return [r for r in imports if r in mod_names]
+
+    for install in imports:
+        if install in visited:
+            continue
+        if install in mod_names:
+            requested_installs.append(install)
+        else:
+            # relative module paths
+            if install.startswith(".."):
+                install_module = "/".join(current_module.split(".")[:-1])
+                install_module = install_module + "." + install[2:]
+            elif install.startswith("."):
+                install_module = current_module + "." + install[1:]
+            else:
+                install_module = install
+            # possible files for the module: .py or __init__.py (if directory)
+            file_name = install_module.replace(".", "/") + ".py"
+            exists = backend.file_exists(file_name)
+            if not exists:
+                file_name = install_module.replace(".", "/") + "/__init__.py"
+                exists = backend.file_exists(file_name)
+                if not exists:
+                    continue
+            # get the content and parse it recursively
+            auto_file_content = backend.get_file_content(file_name)
+            if auto_file_content:
+                sub_imports = get_all_imports(
+                    backend, auto_file_content, mod_names, install_module, visited
+                )
+                requested_installs.extend(sub_imports)
+
+    return requested_installs
+    # [r for r in requested_installs if r in mod_names]
+
+
+def libraries_from_auto_file(backend, auto_file, mod_names):
+    """
+    Parse the input auto_file path and/or use the workflow to find the most
+    appropriate code.py script. Then return the list of imports
+
+    :param Backend backend: The current backend object
+    :param str auto_file: Path of the candidate auto file or None
+    :return: sequence of library names
+    """
+    # find the current main file based on Circuitpython's rules
+    if auto_file is None:
+        root_files = [
+            file["name"] for file in backend.list_dir("") if not file["directory"]
+        ]
+        for main_file in CODE_FILES:
+            if main_file in root_files:
+                auto_file = main_file
+                break
+    # still no code file found
+    if auto_file is None:
+        click.secho("No default code file found (code.py, main.py, etc.)", fg="red")
+        sys.exit(1)
+
+    # pass a local file with "./" or "../"
+    is_relative = auto_file.split(os.sep)[0] in [os.path.curdir, os.path.pardir]
+    if os.path.isabs(auto_file) or is_relative:
+        with open(auto_file, "r", encoding="UTF8") as fp:
+            auto_file_content = fp.read()
+    else:
+        auto_file_content = backend.get_file_content(auto_file)
+
+    if auto_file_content is None:
+        click.secho(f"Auto file not found: {auto_file}", fg="red")
+        sys.exit(1)
+
+    return get_all_imports(backend, auto_file_content, mod_names, auto_file)
 
 
 def get_device_path(host, port, password, path):

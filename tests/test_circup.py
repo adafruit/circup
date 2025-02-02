@@ -119,7 +119,7 @@ def test_get_bundles_dict():
     """
     with mock.patch(
         "circup.command_utils.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON
-    ), mock.patch("circup.shared.BUNDLE_CONFIG_LOCAL", ""):
+    ), mock.patch("circup.command_utils.BUNDLE_CONFIG_LOCAL", ""):
         bundles_dict = get_bundles_dict()
         assert bundles_dict == TEST_BUNDLE_DATA
 

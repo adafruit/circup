@@ -634,6 +634,7 @@ def imports_from_code(full_content):
     :param str module_name: Name of the module the code is from
     :return: sequence of library names
     """
+    # pylint: disable=too-many-branches
     try:
         par = ast.parse(full_content)
     except (SyntaxError, ValueError) as err:
@@ -641,18 +642,28 @@ def imports_from_code(full_content):
 
     imports = set()
     for thing in ast.walk(par):
+        # import module and import module.submodule
         if isinstance(thing, ast.Import):
             for alias in thing.names:
                 imports.add(alias.name)
+        # from x import y
         if isinstance(thing, ast.ImportFrom):
-            if thing.module is None:
+            if thing.module:
+                # from [.][.]module import names
+                module = ("." * thing.level) + thing.module
+                imports.add(module)
+                for alias in thing.names:
+                    imports.add(".".join([module, alias.name]))
+            else:
+                # from . import names
                 for alias in thing.names:
                     imports.add(alias.name)
-            else:
-                imports.add(("." * thing.level) + thing.module)
 
     # import parent modules (in practice it's the __init__.py)
     for name in list(imports):
+        if "*" in name:
+            imports.remove(name)
+            continue
         names = name.split(".")
         for i in range(len(names)):
             module = ".".join(names[: i + 1])
@@ -694,20 +705,22 @@ def get_all_imports(
         else:
             # relative module paths
             if install.startswith(".."):
-                install_module = "/".join(current_module.split(".")[:-1])
+                install_module = ".".join(current_module.split(".")[:-2])
                 install_module = install_module + "." + install[2:]
             elif install.startswith("."):
-                install_module = current_module + "." + install[1:]
+                install_module = ".".join(current_module.split(".")[:-1])
+                install_module = install_module + "." + install[1:]
             else:
                 install_module = install
             # possible files for the module: .py or __init__.py (if directory)
-            file_name = install_module.replace(".", "/") + ".py"
+            file_name = os.path.join(*install_module.split(".")) + ".py"
             exists = backend.file_exists(file_name)
             if not exists:
-                file_name = install_module.replace(".", "/") + "/__init__.py"
+                file_name = os.path.join(*install_module.split("."), "__init__.py")
                 exists = backend.file_exists(file_name)
                 if not exists:
                     continue
+                install_module += ".__init__"
             # get the content and parse it recursively
             auto_file_content = backend.get_file_content(file_name)
             if auto_file_content:
@@ -755,7 +768,9 @@ def libraries_from_auto_file(backend, auto_file, mod_names):
         click.secho(f"Auto file not found: {auto_file}", fg="red")
         sys.exit(1)
 
-    return get_all_imports(backend, auto_file_content, mod_names, auto_file)
+    # from file name to module name (in case it's in a subpackage)
+    current_module = auto_file.rstrip(".py").replace(os.path.sep, ".")
+    return get_all_imports(backend, auto_file_content, mod_names, current_module)
 
 
 def get_device_path(host, port, password, path):

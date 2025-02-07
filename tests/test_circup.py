@@ -1244,9 +1244,9 @@ def test_libraries_from_auto_file_board():
         "adafruit_display_shapes",
         "adafruit_display_text",
         "adafruit_esp32spi",
-        "adafruit_hid",
-        "adafruit_oauth2",
-        "adafruit_requests",
+        "adafruit_ssd1675",
+        "adafruit_spd1656",
+        "adafruit_spd1608",
         "adafruit_touchscreen",
         "adafruit_ntp",
     ]
@@ -1265,11 +1265,9 @@ def test_libraries_from_auto_file_board():
         result = libraries_from_auto_file(backend, auto_file, mod_names)
 
     assert result == [
-        "adafruit_bus_device",
-        "adafruit_button",
-        "adafruit_display_text",
-        "adafruit_esp32spi",
-        "adafruit_hid",
+        "adafruit_spd1608",
+        "adafruit_spd1656",
+        "adafruit_ssd1675",
     ]
 
 

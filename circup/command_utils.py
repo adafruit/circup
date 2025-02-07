@@ -729,7 +729,7 @@ def get_all_imports(
                 )
                 requested_installs.extend(sub_imports)
 
-    return requested_installs
+    return sorted(requested_installs)
     # [r for r in requested_installs if r in mod_names]
 
 

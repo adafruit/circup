@@ -2,6 +2,4 @@
 #
 # SPDX-License-Identifier: MIT
 # pylint: disable=all
-import adafruit_ssd1675
-import import_styles_sub
-import package
+import adafruit_spd1608

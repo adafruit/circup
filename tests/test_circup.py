@@ -1139,11 +1139,16 @@ def test_imports_from_code():
         test_data = fp.read()
 
     result = imports_from_code(test_data)
+    print(result)
     assert result == [
         "adafruit_bus_device",
         "adafruit_button",
+        "adafruit_button.Button",
         "adafruit_display_text",
+        "adafruit_display_text.wrap_text_to_lines",
+        "adafruit_display_text.wrap_text_to_pixels",
         "adafruit_esp32spi",
+        "adafruit_esp32spi.adafruit_esp32spi_socketpool",
         "adafruit_hid",
         "adafruit_hid.consumer_control",
         "import_styles_sub",

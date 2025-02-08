@@ -94,10 +94,10 @@ def test_Bundle_lib_dir():
             "adafruit/adafruit-circuitpython-bundle-py/"
             "adafruit-circuitpython-bundle-py-TESTTAG/lib"
         )
-        assert bundle.lib_dir("8mpy") == (
+        assert bundle.lib_dir("9mpy") == (
             circup.shared.DATA_DIR + "/"
-            "adafruit/adafruit-circuitpython-bundle-8mpy/"
-            "adafruit-circuitpython-bundle-8.x-mpy-TESTTAG/lib"
+            "adafruit/adafruit-circuitpython-bundle-9mpy/"
+            "adafruit-circuitpython-bundle-9.x-mpy-TESTTAG/lib"
         )
 
 
@@ -378,6 +378,16 @@ def test_Module_mpy_mismatch():
         assert m2.outofdate is False
         assert m3.mpy_mismatch is True
         assert m3.outofdate is True
+    with mock.patch(
+        "circup.backends.DiskBackend.get_circuitpython_version",
+        return_value=("9.0.0", ""),
+    ):
+        assert m1.mpy_mismatch is False
+        assert m1.outofdate is False
+        assert m2.mpy_mismatch is True
+        assert m2.outofdate is True
+        assert m3.mpy_mismatch is True
+        assert m3.outofdate is True
 
 
 def test_Module_major_update_bad_versions():
@@ -419,14 +429,16 @@ def test_Module_row():
     repo = "https://github.com/adafruit/SomeLibrary.git"
     with mock.patch("circup.os.path.isfile", return_value=True), mock.patch(
         "circup.backends.DiskBackend.get_circuitpython_version",
-        return_value=("8.0.0", ""),
+        return_value=("9.0.0", ""),
     ), mock.patch("circup.logger.warning") as mock_logger:
         backend = DiskBackend("mock_device", mock_logger)
         m = Module(name, backend, repo, "1.2.3", None, False, bundle, (None, None))
         assert m.row == ("module", "1.2.3", "unknown", "Major Version")
         m = Module(name, backend, repo, "1.2.3", "1.3.4", False, bundle, (None, None))
         assert m.row == ("module", "1.2.3", "1.3.4", "Minor Version")
-        m = Module(name, backend, repo, "1.2.3", "1.2.3", True, bundle, ("9.0.0", None))
+        m = Module(
+            name, backend, repo, "1.2.3", "1.2.3", True, bundle, ("8.0.0", "9.0.0")
+        )
         assert m.row == ("module", "1.2.3", "1.2.3", "MPY Format")
 
 
@@ -806,7 +818,7 @@ def test_get_circuitpython_version():
     with mock.patch("circup.logger.warning") as mock_logger:
         backend = DiskBackend("tests/mock_device", mock_logger)
         assert backend.get_circuitpython_version() == (
-            "8.1.0",
+            "9.0.0",
             "this_is_a_board",
         )
 

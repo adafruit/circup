@@ -16,7 +16,7 @@ jobs:
       run: echo "$GITHUB_CONTEXT"
     - name: Translate Repo Name For Build Tools filename_prefix
       id: repo-name
-      run: echo ::set-output name=repo-name::circup
+      run: echo "repo-name=circup" >> $GITHUB_OUTPUT
     - name: Set up Python 3.11
       uses: actions/setup-python@v1
       with:

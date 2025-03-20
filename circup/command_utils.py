@@ -753,7 +753,11 @@ def libraries_from_auto_file(backend, auto_file, mod_names):
                 break
     # still no code file found
     if auto_file is None:
-        click.secho("No default code file found (code.py, main.py, etc.)", fg="red")
+        click.secho(
+            "No default code file found. See valid names:\n"
+            "https://docs.circuitpython.org/en/latest/README.html#behavior",
+            fg="red",
+        )
         sys.exit(1)
 
     # pass a local file with "./" or "../"
@@ -769,6 +773,7 @@ def libraries_from_auto_file(backend, auto_file, mod_names):
         sys.exit(1)
 
     # from file name to module name (in case it's in a subpackage)
+    click.secho(f"Finding imports from: {auto_file}", fg="green")
     current_module = auto_file.rstrip(".py").replace(os.path.sep, ".")
     return get_all_imports(backend, auto_file_content, mod_names, current_module)
 

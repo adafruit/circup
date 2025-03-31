@@ -42,6 +42,9 @@ from circup.command_utils import (
     ensure_latest_bundle,
     get_bundle,
     get_bundles_dict,
+    imports_from_code,
+    get_all_imports,
+    libraries_from_auto_file,
 )
 from circup.shared import PLATFORMS
 from circup.module import Module
@@ -119,7 +122,7 @@ def test_get_bundles_dict():
     """
     with mock.patch(
         "circup.command_utils.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON
-    ), mock.patch("circup.shared.BUNDLE_CONFIG_LOCAL", ""):
+    ), mock.patch("circup.command_utils.BUNDLE_CONFIG_LOCAL", ""):
         bundles_dict = get_bundles_dict()
         assert bundles_dict == TEST_BUNDLE_DATA
 
@@ -1129,8 +1132,33 @@ def test_show_match_py_command():
     assert "0 shown" in result.output
 
 
-def test_libraries_from_imports():
+def test_imports_from_code():
     """Ensure that various styles of import all work"""
+    test_file = str(pathlib.Path(__file__).parent / "import_styles.py")
+    with open(test_file, "r", encoding="utf8") as fp:
+        test_data = fp.read()
+
+    result = imports_from_code(test_data)
+    print(result)
+    assert result == [
+        "adafruit_bus_device",
+        "adafruit_button",
+        "adafruit_button.Button",
+        "adafruit_display_text",
+        "adafruit_display_text.wrap_text_to_lines",
+        "adafruit_display_text.wrap_text_to_pixels",
+        "adafruit_esp32spi",
+        "adafruit_esp32spi.adafruit_esp32spi_socketpool",
+        "adafruit_hid",
+        "adafruit_hid.consumer_control",
+        "import_styles_sub",
+        "os",
+        "sys",
+    ]
+
+
+def test_get_all_imports():
+    """List all libraries from auto file recursively"""
     mod_names = [
         "adafruit_bus_device",
         "adafruit_button",
@@ -1141,20 +1169,131 @@ def test_libraries_from_imports():
         "adafruit_oauth2",
         "adafruit_requests",
         "adafruit_touchscreen",
+        "adafruit_ntp",
     ]
-    test_file = str(pathlib.Path(__file__).parent / "import_styles.py")
 
-    result = circup.libraries_from_code_py(test_file, mod_names)
+    with mock.patch("circup.logger.info") as mock_logger, mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ), mock.patch(
+        "circup.bundle.Bundle.lib_dir",
+        return_value="tests",
+    ):
+        tests_dir = pathlib.Path(__file__).parent
+        backend = DiskBackend(tests_dir / "mock_device", mock_logger)
+
+        test_file = str(tests_dir / "import_styles.py")
+        with open(test_file, "r", encoding="utf8") as fp:
+            test_data = fp.read()
+
+        result = get_all_imports(backend, test_data, mod_names, current_module="")
+
     assert result == [
         "adafruit_bus_device",
         "adafruit_button",
+        "adafruit_display_text",
         "adafruit_esp32spi",
         "adafruit_hid",
+        "adafruit_ntp",
     ]
 
 
-def test_libraries_from_imports_bad():
-    """Ensure that we catch an import error"""
+def test_libraries_from_auto_file_local():
+    """Check that we get all libraries from auto file argument.
+    Testing here with a local file"""
+    mod_names = [
+        "adafruit_bus_device",
+        "adafruit_button",
+        "adafruit_display_shapes",
+        "adafruit_display_text",
+        "adafruit_esp32spi",
+        "adafruit_hid",
+        "adafruit_oauth2",
+        "adafruit_requests",
+        "adafruit_touchscreen",
+        "adafruit_ntp",
+    ]
+
+    auto_file = "./tests/import_styles.py"
+
+    with mock.patch("circup.logger.info") as mock_logger, mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ), mock.patch(
+        "circup.bundle.Bundle.lib_dir",
+        return_value="tests",
+    ):
+        tests_dir = pathlib.Path(__file__).parent
+        backend = DiskBackend(tests_dir / "mock_device", mock_logger)
+
+        result = libraries_from_auto_file(backend, auto_file, mod_names)
+
+    assert result == [
+        "adafruit_bus_device",
+        "adafruit_button",
+        "adafruit_display_text",
+        "adafruit_esp32spi",
+        "adafruit_hid",
+        "adafruit_ntp",
+    ]
+
+
+def test_libraries_from_auto_file_board():
+    """Check that we find code.py on the board if we give no auto_file argument"""
+    mod_names = [
+        "adafruit_bus_device",
+        "adafruit_button",
+        "adafruit_display_shapes",
+        "adafruit_display_text",
+        "adafruit_esp32spi",
+        "adafruit_ssd1675",
+        "adafruit_spd1656",
+        "adafruit_spd1608",
+        "adafruit_touchscreen",
+        "adafruit_ntp",
+    ]
+
+    auto_file = None
+
+    with mock.patch("circup.logger.info") as mock_logger, mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ), mock.patch(
+        "circup.bundle.Bundle.lib_dir",
+        return_value="tests",
+    ):
+        tests_dir = pathlib.Path(__file__).parent
+        backend = DiskBackend(tests_dir / "mock_device_2", mock_logger)
+
+        result = libraries_from_auto_file(backend, auto_file, mod_names)
+
+    assert result == [
+        "adafruit_spd1608",
+        "adafruit_spd1656",
+        "adafruit_ssd1675",
+    ]
+
+
+def test_libraries_from_auto_file_none():
+    """Check that we exit if we give no auto_file argument
+    and there's no default code file"""
+    mod_names = []
+    auto_file = None
+
+    with mock.patch("circup.logger.info") as mock_logger, mock.patch(
+        "circup.os.path.isfile", return_value=True
+    ), mock.patch(
+        "circup.bundle.Bundle.lib_dir",
+        return_value="tests",
+    ):
+        tests_dir = pathlib.Path(__file__).parent
+        backend = DiskBackend(tests_dir / "mock_device", mock_logger)
+        try:
+            libraries_from_auto_file(backend, auto_file, mod_names)
+            raise Exception("Did not call exit")
+        except SystemExit as ex:
+            assert ex.code == 1
+
+
+def test_install_auto_file_bad():
+    """Ensure that we catch an error when parsing auto file"""
     TEST_BUNDLE_MODULES = {"one.py": {}, "two.py": {}, "three.py": {}}
     runner = CliRunner()
 

@@ -34,7 +34,7 @@ from circup.command_utils import (
     completion_for_install,
     get_bundle_versions,
     libraries_from_requirements,
-    libraries_from_code_py,
+    libraries_from_auto_file,
     get_dependencies,
     get_bundles_local_dict,
     save_local_bundles,
@@ -342,32 +342,12 @@ def install(
             requirements_txt = rfile.read()
         requested_installs = libraries_from_requirements(requirements_txt)
     elif auto or auto_file:
-        if auto_file is None:
-            auto_file = "code.py"
-            print(f"Auto file: {auto_file}")
-        # pass a local file with "./" or "../"
-        is_relative = not isinstance(ctx.obj["backend"], WebBackend) or auto_file.split(
-            os.sep
-        )[0] in [os.path.curdir, os.path.pardir]
-        if not os.path.isabs(auto_file) and not is_relative:
-            auto_file = ctx.obj["backend"].get_file_path(auto_file or "code.py")
-
-        auto_file_path = ctx.obj["backend"].get_auto_file_path(auto_file)
-        print(f"Auto file path: {auto_file_path}")
-        if not os.path.isfile(auto_file_path):
-            # fell through to here when run from random folder on windows - ask backend.
-            new_auto_file = ctx.obj["backend"].get_file_path(auto_file)
-            if os.path.isfile(new_auto_file):
-                auto_file = new_auto_file
-                auto_file_path = ctx.obj["backend"].get_auto_file_path(auto_file)
-                print(f"Auto file path: {auto_file_path}")
-            else:
-                click.secho(f"Auto file not found: {auto_file}", fg="red")
-                sys.exit(1)
-
-        requested_installs = libraries_from_code_py(auto_file_path, mod_names)
+        requested_installs = libraries_from_auto_file(
+            ctx.obj["backend"], auto_file, mod_names
+        )
     else:
         requested_installs = modules
+
     requested_installs = sorted(set(requested_installs))
     click.echo(f"Searching for dependencies for: {requested_installs}")
     to_install = get_dependencies(requested_installs, mod_names=mod_names)

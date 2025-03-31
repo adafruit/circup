@@ -1311,6 +1311,3 @@ def test_install_auto_file_bad():
             ],
         )
     assert result.exit_code == 2
-
-
-# test_install_auto_file_good ?

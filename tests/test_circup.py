@@ -1185,7 +1185,9 @@ def test_get_all_imports():
         with open(test_file, "r", encoding="utf8") as fp:
             test_data = fp.read()
 
-        result = get_all_imports(backend, test_data, mod_names, current_module="")
+        result = get_all_imports(
+            backend, test_data, test_file, mod_names, current_module=""
+        )
 
     assert result == [
         "adafruit_bus_device",

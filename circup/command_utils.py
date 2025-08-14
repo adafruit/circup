@@ -721,7 +721,9 @@ def get_all_imports(  # pylint: disable=too-many-arguments,too-many-locals, too-
                         "/"
                     )[:-1]
                 )
+
                 full_location = os.path.join(file_location, file_name)
+
             except TypeError:
                 # file is in root of CIRCUITPY
                 full_location = file_name
@@ -729,7 +731,7 @@ def get_all_imports(  # pylint: disable=too-many-arguments,too-many-locals, too-
             exists = backend.file_exists(full_location)
             if not exists:
                 file_name = os.path.join(*install_module.split("."), "__init__.py")
-                full_location = os.path.join(file_location, file_name)
+                full_location = file_name
                 exists = backend.file_exists(full_location)
                 if not exists:
                     continue

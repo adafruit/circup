@@ -1185,7 +1185,13 @@ def test_get_all_imports():
         with open(test_file, "r", encoding="utf8") as fp:
             test_data = fp.read()
 
-        result = get_all_imports(backend, test_data, mod_names, current_module="")
+        result = get_all_imports(
+            backend,
+            test_data,
+            os.path.join(backend.device_location, "import_styles.py"),
+            mod_names,
+            current_module="",
+        )
 
     assert result == [
         "adafruit_bus_device",
@@ -1213,7 +1219,7 @@ def test_libraries_from_auto_file_local():
         "adafruit_ntp",
     ]
 
-    auto_file = "./tests/import_styles.py"
+    auto_file = "apps/test_app/import_styles.py"
 
     with mock.patch("circup.logger.info") as mock_logger, mock.patch(
         "circup.os.path.isfile", return_value=True
@@ -1265,6 +1271,7 @@ def test_libraries_from_auto_file_board():
         result = libraries_from_auto_file(backend, auto_file, mod_names)
 
     assert result == [
+        "adafruit_ntp",
         "adafruit_spd1608",
         "adafruit_spd1656",
         "adafruit_ssd1675",

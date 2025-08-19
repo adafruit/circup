@@ -673,14 +673,15 @@ def imports_from_code(full_content):
     return sorted(imports)
 
 
-def get_all_imports(
-    backend, auto_file_content, mod_names, current_module, visited=None
+def get_all_imports(  # pylint: disable=too-many-arguments,too-many-locals, too-many-branches
+    backend, auto_file_content, auto_file_path, mod_names, current_module, visited=None
 ):
     """
     Recursively retrieve imports from files on the backend
 
     :param Backend backend: The current backend object
     :param str auto_file_content: Content of the python file to analyse
+    :param str auto_file_path: Path to the python file to analyse
     :param list mod_names: Lits of supported bundle mod names
     :param str current_module: Name of the call context module if recursive call
     :param set visited: Modules previously visited
@@ -714,18 +715,37 @@ def get_all_imports(
                 install_module = install
             # possible files for the module: .py or __init__.py (if directory)
             file_name = os.path.join(*install_module.split(".")) + ".py"
-            exists = backend.file_exists(file_name)
+            try:
+                file_location = os.path.join(
+                    *auto_file_path.replace(str(backend.device_location), "").split(
+                        "/"
+                    )[:-1]
+                )
+
+                full_location = os.path.join(file_location, file_name)
+
+            except TypeError:
+                # file is in root of CIRCUITPY
+                full_location = file_name
+
+            exists = backend.file_exists(full_location)
             if not exists:
                 file_name = os.path.join(*install_module.split("."), "__init__.py")
-                exists = backend.file_exists(file_name)
+                full_location = file_name
+                exists = backend.file_exists(full_location)
                 if not exists:
                     continue
                 install_module += ".__init__"
             # get the content and parse it recursively
-            auto_file_content = backend.get_file_content(file_name)
+            auto_file_content = backend.get_file_content(full_location)
             if auto_file_content:
                 sub_imports = get_all_imports(
-                    backend, auto_file_content, mod_names, install_module, visited
+                    backend,
+                    auto_file_content,
+                    auto_file_path,
+                    mod_names,
+                    install_module,
+                    visited,
                 )
                 requested_installs.extend(sub_imports)
 
@@ -775,7 +795,9 @@ def libraries_from_auto_file(backend, auto_file, mod_names):
     # from file name to module name (in case it's in a subpackage)
     click.secho(f"Finding imports from: {auto_file}", fg="green")
     current_module = auto_file.rstrip(".py").replace(os.path.sep, ".")
-    return get_all_imports(backend, auto_file_content, mod_names, current_module)
+    return get_all_imports(
+        backend, auto_file_content, auto_file, mod_names, current_module
+    )
 
 
 def get_device_path(host, port, password, path):

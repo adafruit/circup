@@ -408,9 +408,9 @@ def example(ctx, examples, op_list, rename, overwrite):
     ex: circup example mlx --list
     """
     examples = list(examples)
-    for i, example in enumerate(examples):
-        if example.startswith("adafruit_"):
-            examples[i] = example.replace("adafruit_", "")
+    for i, cur_example in enumerate(examples):
+        if cur_example.startswith("adafruit_"):
+            examples[i] = cur_example.replace("adafruit_", "")
 
     if op_list:
         if examples:

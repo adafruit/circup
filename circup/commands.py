@@ -41,6 +41,7 @@ from circup.command_utils import (
     get_bundles_dict,
     completion_for_example,
     get_bundle_examples,
+    is_virtual_env_active,
 )
 
 
@@ -354,6 +355,7 @@ def install(
     device_modules = ctx.obj["backend"].get_device_versions()
     if to_install is not None:
         to_install = sorted(to_install)
+        is_global_install_ok = None
         click.echo(f"Ready to install: {to_install}\n")
         for library in to_install:
             ctx.obj["backend"].install_module(
@@ -366,6 +368,25 @@ def install(
             )
 
             if stubs:
+                # Check we are in a virtual environment
+                if not is_virtual_env_active():
+                    if is_global_install_ok is None:
+                        click.secho(
+                            (
+                                "No virtual environment detected.\n"
+                                "It is recommended to run circup inside a virtual environment when installing stubs. "
+                                "Without a virtual environment, the stubs will be installed to the global python."
+                            ),
+                            fg="yellow",
+                        )
+                        is_global_install_ok = click.confirm(
+                            click.style(
+                                "Would you still like to install stubs (to the global python)?",
+                                fg="yellow",
+                            )
+                        )
+                    if not is_global_install_ok:
+                        continue
                 library_stubs = "adafruit-circuitpython-{}".format(
                     library.replace("adafruit_", "")
                 )

@@ -374,8 +374,9 @@ def install(
                         click.secho(
                             (
                                 "No virtual environment detected.\n"
-                                "It is recommended to run circup inside a virtual environment when installing stubs. "
-                                "Without a virtual environment, the stubs will be installed to the global python."
+                                "It is recommended to run circup inside a virtual environment "
+                                "when installing stubs. Without a virtual environment, the stubs "
+                                "will be installed to the global python."
                             ),
                             fg="yellow",
                         )

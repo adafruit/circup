@@ -12,10 +12,10 @@ import os
 
 from subprocess import check_output
 import sys
-import shutil
 import zipfile
 import json
 import re
+from pathlib import Path
 import toml
 import requests
 import click
@@ -29,7 +29,6 @@ from circup.shared import (
     BUNDLE_CONFIG_LOCAL,
     BUNDLE_DATA,
     NOT_MCU_LIBRARIES,
-    tags_data_load,
 )
 from circup.logging import logger
 from circup.module import Module
@@ -132,17 +131,18 @@ def completion_for_example(ctx, param, incomplete):
     return sorted(matching_examples)
 
 
-def ensure_latest_bundle(bundle):
+def ensure_bundle_tag(bundle, tag):
     """
-    Ensure that there's a copy of the latest library bundle available so circup
-    can check the metadata contained therein.
+    Ensure that there's a copy of the library bundle with the version referenced
+    by the tag.
 
     :param Bundle bundle: the target Bundle object.
+    :param tag: the target bundle's tag (version).
+
+    :return: If the bundle is available.
     """
-    logger.info("Checking library updates for %s.", bundle.key)
-    tag = bundle.latest_tag
     do_update = False
-    if tag == bundle.current_tag:
+    if tag in bundle.available_tags:
         for platform in PLATFORMS:
             # missing directories (new platform added on an existing install
             # or side effect of pytest or network errors)
@@ -154,19 +154,78 @@ def ensure_latest_bundle(bundle):
         logger.info("New version available (%s).", tag)
         try:
             get_bundle(bundle, tag)
-            tags_data_save_tag(bundle.key, tag)
+            tags_data_save_tags(bundle.key, bundle.available_tags)
         except requests.exceptions.HTTPError as ex:
-            # See #20 for reason for this
             click.secho(
-                (
-                    "There was a problem downloading that platform bundle. "
-                    "Skipping and using existing download if available."
-                ),
-                fg="red",
+                f"There was a problem downloading the {bundle.key} bundle.", fg="red"
             )
             logger.exception(ex)
+            return False
     else:
-        logger.info("Current bundle up to date %s.", tag)
+        logger.info("Current bundle version available (%s).", tag)
+    return True
+
+
+def ensure_latest_bundle(bundle):
+    """
+    Ensure that there's a copy of the latest library bundle available so circup
+    can check the metadata contained therein.
+
+    :param Bundle bundle: the target Bundle object.
+    """
+    logger.info("Checking library updates for %s.", bundle.key)
+    tag = bundle.latest_tag
+    is_available = ensure_bundle_tag(bundle, tag)
+    if is_available:
+        click.echo(f"Using latest bundle for {bundle.key} ({tag}).")
+    else:
+        if bundle.current_tag is None:
+            # See issue #20 for reason for this
+            click.secho("Please try again in a moment.", fg="red")
+            sys.exit(1)
+        else:
+            # See PR #184 for reason for this
+            click.secho(
+                f"Skipping and using existing bundle for {bundle.key} ({bundle.current_tag}).",
+                fg="red",
+            )
+
+
+def ensure_pinned_bundle(bundle):
+    """
+    Ensure that there's a copy of the pinned library bundle available so circup
+    can check the metadata contained therein.
+
+    :param Bundle bundle: the target Bundle object.
+    """
+    logger.info("Checking library for %s.", bundle.key)
+    tag = bundle.pinned_tag
+    is_available = ensure_bundle_tag(bundle, tag)
+    if is_available:
+        click.echo(f"Using pinned bundle for {bundle.key} ({tag}).")
+    else:
+        click.secho(
+            (
+                "Check pinned version to make sure it is correct and check "
+                f"{bundle.url} to make sure the version ({tag}) exists."
+            ),
+            fg="red",
+        )
+        sys.exit(1)
+
+
+def ensure_bundle(bundle):
+    """
+    Ensure that there's a copy of either the pinned library bundle, or if no
+    version is pinned, the latest library bundle available so circup can check
+    the metadata contained therein.
+
+    :param Bundle bundle: the target Bundle object.
+    """
+    if bundle.pinned_tag is not None:
+        ensure_pinned_bundle(bundle)
+    else:
+        ensure_latest_bundle(bundle)
 
 
 def find_device():
@@ -299,7 +358,7 @@ def get_bundle(bundle, tag):
     :param Bundle bundle: the target Bundle object.
     :param str tag: The GIT tag to use to download the bundle.
     """
-    click.echo(f"Downloading latest bundles for {bundle.key} ({tag}).")
+    click.echo(f"Downloading bundles for {bundle.key} ({tag}).")
     for platform, github_string in PLATFORMS.items():
         # Report the platform: "8.x-mpy", etc.
         click.echo(f"{github_string}:")
@@ -321,10 +380,9 @@ def get_bundle(bundle, tag):
                 pbar.update(len(chunk))
         logger.info("Saved to %s", temp_zip)
         temp_dir = bundle.dir.format(platform=platform)
-        if os.path.isdir(temp_dir):
-            shutil.rmtree(temp_dir)
         with zipfile.ZipFile(temp_zip, "r") as zfile:
             zfile.extractall(temp_dir)
+    bundle.available_tags.append(tag)
     bundle.current_tag = tag
     click.echo("\nOK\n")
 
@@ -346,7 +404,7 @@ def get_bundle_examples(bundles_list, avoid_download=False):
     try:
         for bundle in bundles_list:
             if not avoid_download or not os.path.isdir(bundle.lib_dir("py")):
-                ensure_latest_bundle(bundle)
+                ensure_bundle(bundle)
             path = bundle.examples_dir("py")
             meta_saved = os.path.join(path, "../bundle_examples.json")
             if os.path.exists(meta_saved):
@@ -381,9 +439,10 @@ def get_bundle_examples(bundles_list, avoid_download=False):
 
 def get_bundle_versions(bundles_list, avoid_download=False):
     """
-    Returns a dictionary of metadata from modules in the latest known release
-    of the library bundle. Uses the Python version (rather than the compiled
-    version) of the library modules.
+    Returns a dictionary of metadata from modules in either the pinned release
+    if one is present in 'pyproject.toml', or the latest known release of the
+    library bundle. Uses the Python version (rather than the compiled version)
+    of the library modules.
 
     :param List[Bundle] bundles_list: List of supported bundles as Bundle objects.
     :param bool avoid_download: if True, download the bundle only if missing.
@@ -393,7 +452,7 @@ def get_bundle_versions(bundles_list, avoid_download=False):
     all_the_modules = dict()
     for bundle in bundles_list:
         if not avoid_download or not os.path.isdir(bundle.lib_dir("py")):
-            ensure_latest_bundle(bundle)
+            ensure_bundle(bundle)
         path = bundle.lib_dir("py")
         path_modules = _get_modules_file(path, logger)
         for name, module in path_modules.items():
@@ -448,7 +507,17 @@ def get_bundles_list():
     :return: List of supported bundles as Bundle objects.
     """
     bundle_config = get_bundles_dict()
+    tags = tags_data_load()
+    pyproject = find_pyproject()
+    pinned_tags = (
+        pyproject_bundle_versions(pyproject) if pyproject is not None else None
+    )
+
     bundles_list = [Bundle(bundle_config[b]) for b in bundle_config]
+    for bundle in bundles_list:
+        bundle.available_tags = tags.get(bundle.key, [])
+        if pinned_tags is not None:
+            bundle.pinned_tag = pinned_tags.get(bundle.key)
     logger.info("Using bundles: %s", ", ".join(b.key for b in bundles_list))
     return bundles_list
 
@@ -611,15 +680,38 @@ def save_local_bundles(bundles_data):
             os.unlink(BUNDLE_CONFIG_LOCAL)
 
 
-def tags_data_save_tag(key, tag):
+def tags_data_load():
     """
-    Add or change the saved tag value for a bundle.
+    Load the list of the version tags of the bundles on disk.
+
+    :return: a dict() of tags indexed by Bundle identifiers/keys.
+    """
+    tags_data = None
+    try:
+        with open(BUNDLE_DATA, encoding="utf-8") as data:
+            try:
+                tags_data = json.load(data)
+            except json.decoder.JSONDecodeError as ex:
+                # Sometimes (why?) the JSON file becomes corrupt. In which case
+                # log it and carry on as if setting up for first time.
+                logger.error("Could not parse %s", BUNDLE_DATA)
+                logger.exception(ex)
+    except FileNotFoundError:
+        pass
+    if not isinstance(tags_data, dict):
+        tags_data = {}
+    return tags_data
+
+
+def tags_data_save_tags(key, tags):
+    """
+    Add or change the saved available tags value for a bundle.
 
     :param str key: The bundle's identifier/key.
-    :param str tag: The new tag for the bundle.
+    :param List[str] tags: The new tags for the bundle.
     """
-    tags_data = tags_data_load(logger)
-    tags_data[key] = tag
+    tags_data = tags_data_load()
+    tags_data[key] = tags
     with open(BUNDLE_DATA, "w", encoding="utf-8") as data:
         json.dump(tags_data, data)
 
@@ -841,3 +933,34 @@ def sorted_by_directory_then_alpha(list_of_files):
         sorted_full_list.append(files[cur_name])
 
     return sorted_full_list
+
+
+def find_pyproject():
+    """
+    Look for a pyproject.toml in the current directory or its parent directories.
+
+    :return: The path to the pyproject.toml for the project, or None if it
+        couldn't be found.
+    """
+    logger.info("Looking for pyproject.toml file.")
+    cwd = Path.cwd()
+    candidates = [cwd]
+    candidates.extend(cwd.parents)
+
+    for path in candidates:
+        pyproject_file = path / "pyproject.toml"
+
+        if pyproject_file.exists():
+            logger.info("Found pyproject.toml at '%s'", str(pyproject_file))
+            return pyproject_file
+
+    logger.info("No pyproject.toml file found.")
+    return None
+
+
+def pyproject_bundle_versions(pyproject_file):
+    """
+    Check for specified bundle versions.
+    """
+    pyproject_toml_data = toml.load(pyproject_file)
+    return pyproject_toml_data.get("tool", {}).get("circup", {}).get("bundle-versions")

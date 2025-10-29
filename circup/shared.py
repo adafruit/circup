@@ -9,7 +9,6 @@ and Backend class functions.
 import glob
 import os
 import re
-import json
 import importlib.resources
 import appdirs
 import requests
@@ -178,29 +177,6 @@ def extract_metadata(path, logger):
             # not a valid MPY file
             result["__version__"] = BAD_FILE_FORMAT
     return result
-
-
-def tags_data_load(logger):
-    """
-    Load the list of the version tags of the bundles on disk.
-
-    :return: a dict() of tags indexed by Bundle identifiers/keys.
-    """
-    tags_data = None
-    try:
-        with open(BUNDLE_DATA, encoding="utf-8") as data:
-            try:
-                tags_data = json.load(data)
-            except json.decoder.JSONDecodeError as ex:
-                # Sometimes (why?) the JSON file becomes corrupt. In which case
-                # log it and carry on as if setting up for first time.
-                logger.error("Could not parse %s", BUNDLE_DATA)
-                logger.exception(ex)
-    except FileNotFoundError:
-        pass
-    if not isinstance(tags_data, dict):
-        tags_data = {}
-    return tags_data
 
 
 def get_latest_release_from_url(url, logger):

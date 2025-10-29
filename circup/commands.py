@@ -621,8 +621,8 @@ def update(ctx, update_all):  # pragma: no cover
 @click.option("--modules", is_flag=True, help="List all the modules per bundle.")
 def bundle_show(modules):
     """
-    Show the list of bundles, default and local, with URL, current version
-    and latest version retrieved from the web.
+    Show the list of bundles, default and local, with URL, current version,
+    available versions, and latest version retrieved from the web.
     """
     local_bundles = get_bundles_local_dict().values()
     bundles = get_bundles_list()
@@ -634,7 +634,13 @@ def bundle_show(modules):
         else:
             click.secho(bundle.key, fg="green")
         click.echo("    " + bundle.url)
-        click.echo("    version = " + bundle.current_tag)
+        click.echo(
+            "    version = "
+            + bundle.current_tag
+            + (" (pinned)" if bundle.pinned_tag is not None else "")
+        )
+        click.echo("    available versions:")
+        click.echo("        " + "\n        ".join(bundle.available_tags))
         if modules:
             click.echo("Modules:")
             for name, mod in sorted(available_modules.items()):

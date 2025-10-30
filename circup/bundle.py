@@ -101,9 +101,8 @@ class Bundle:
     def current_tag(self):
         """
         The current tag for the project. If the tag hasn't been explicitly set
-        this will start out as the pinned tag if one is present. If there is no
-        pinned tag, this will be the latest available tag that is locally
-        available.
+        this will be the pinned tag, if one is set. If there is no pinned tag,
+        this will be the latest available tag that is locally available.
 
         :return: The current tag value for the project.
         """
@@ -159,6 +158,15 @@ class Bundle:
         self._available = tags
 
     def add_tag(self, tag: str) -> None:
+        """
+        Add a tag to the list of available tags.
+
+        This will add the tag if it isn't already present in the list of
+        available tags. The tag will be added so that the list is sorted in an
+        increasing order. This ensures that that last tag is always the latest.
+
+        :param str tag: The tag to add to the list of available tags.
+        """
         if tag in self._available:
             # The tag is already stored for some reason, lets not add it again
             return

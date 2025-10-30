@@ -382,7 +382,7 @@ def get_bundle(bundle, tag):
         temp_dir = bundle.dir.format(platform=platform)
         with zipfile.ZipFile(temp_zip, "r") as zfile:
             zfile.extractall(temp_dir)
-    bundle.available_tags.append(tag)
+    bundle.add_tag(tag)
     bundle.current_tag = tag
     click.echo("\nOK\n")
 

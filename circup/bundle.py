@@ -158,6 +158,19 @@ class Bundle:
             tags = [tags]
         self._available = tags
 
+    def add_tag(self, tag: str) -> None:
+        if tag in self._available:
+            # The tag is already stored for some reason, lets not add it again
+            return
+
+        for rev_i, available_tag in enumerate(reversed(self._available)):
+            if int(tag) > int(available_tag):
+                i = len(self._available) - rev_i
+                self._available.insert(i, tag)
+                break
+        else:
+            self._available.insert(0, tag)
+
     def validate(self):
         """
         Test the existence of the expected URLs (not their content)

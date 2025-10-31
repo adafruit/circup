@@ -115,6 +115,9 @@ venv.bak/
 # VSCode
 .vscode/
 
+# Zed
+.zed/
+
 .DS_STORE
 
 # emacs

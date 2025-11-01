@@ -144,7 +144,7 @@ class Bundle:
 
         :return: All tags available for the project.
         """
-        return self._available
+        return tuple(self._available)
 
     @available_tags.setter
     def available_tags(self, tags):
@@ -155,7 +155,7 @@ class Bundle:
         """
         if isinstance(tags, str):
             tags = [tags]
-        self._available = tags
+        self._available = sorted(tags)
 
     def add_tag(self, tag: str) -> None:
         """

@@ -45,6 +45,7 @@ from circup.command_utils import (
     imports_from_code,
     get_all_imports,
     libraries_from_auto_file,
+    tags_data_load,
 )
 from circup.shared import PLATFORMS
 from circup.module import Module
@@ -80,6 +81,8 @@ def test_Bundle_init():
             "adafruit-circuitpython-bundle-{platform}-{tag}.zip",
             "current": None,
             "latest": None,
+            "pinned": None,
+            "available": [],
         }
     )
 
@@ -88,9 +91,8 @@ def test_Bundle_lib_dir():
     """
     Check the return of Bundle.lib_dir with a test tag.
     """
-    bundle_data = {TEST_BUNDLE_NAME: "TESTTAG"}
-    with mock.patch("circup.bundle.tags_data_load", return_value=bundle_data):
-        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
+    with mock.patch.object(bundle, "_available", ["TESTTAG"]):
         assert bundle.current_tag == "TESTTAG"
         assert bundle.lib_dir("py") == (
             circup.shared.DATA_DIR + "/"
@@ -111,7 +113,7 @@ def test_Bundle_latest_tag():
     bundle_data = {TEST_BUNDLE_NAME: "TESTTAG"}
     with mock.patch(
         "circup.bundle.get_latest_release_from_url", return_value="BESTESTTAG"
-    ), mock.patch("circup.bundle.tags_data_load", return_value=bundle_data):
+    ), mock.patch("circup.command_utils.tags_data_load", return_value=bundle_data):
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         assert bundle.latest_tag == "BESTESTTAG"
 
@@ -162,7 +164,11 @@ def test_get_bundles_list():
     """
     with mock.patch(
         "circup.command_utils.BUNDLE_CONFIG_FILE", TEST_BUNDLE_CONFIG_JSON
-    ), mock.patch("circup.command_utils.BUNDLE_CONFIG_LOCAL", ""):
+    ), mock.patch("circup.command_utils.BUNDLE_CONFIG_LOCAL", ""), mock.patch(
+        "circup.command_utils.tags_data_load", return_value=dict()
+    ), mock.patch(
+        "circup.command_utils.find_pyproject", return_value=None
+    ):
         bundles_list = circup.get_bundles_list()
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         assert repr(bundles_list) == repr([bundle])
@@ -942,15 +948,19 @@ def test_ensure_latest_bundle_bad_bundle_data():
     manual testing) then default to update.
     """
     with mock.patch("circup.bundle.Bundle.latest_tag", "12345"), mock.patch(
-        "circup.command_utils.open"
-    ), mock.patch("circup.command_utils.get_bundle") as mock_gb, mock.patch(
+        "circup.command_utils.get_bundle"
+    ) as mock_gb, mock.patch(
         "builtins.open", mock.mock_open(read_data="}{INVALID_JSON")
     ), mock.patch(
         "circup.command_utils.json.dump"
     ), mock.patch(
-        "circup.bundle.logger"
+        "circup.command_utils.tags_data_save_tags"
+    ), mock.patch(
+        "circup.command_utils.logger"
     ) as mock_logger:
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        tags = tags_data_load()
+        bundle.available_tags = tags.get(bundle.key, [])
         ensure_latest_bundle(bundle)
         mock_gb.assert_called_once_with(bundle, "12345")
 
@@ -994,13 +1004,14 @@ def test_ensure_latest_bundle_to_update_http_error():
     ) as mock_json, mock.patch(
         "circup.click.secho"
     ) as mock_click:
-        circup.Bundle.tags_data = dict()
         mock_json.load.return_value = tags_data
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        tags = tags_data_load()
+        bundle.available_tags = tags.get(bundle.key, [])
         ensure_latest_bundle(bundle)
         mock_gb.assert_called_once_with(bundle, "54321")
         assert mock_json.dump.call_count == 0  # not saved.
-        assert mock_click.call_count == 1  # friendly message.
+        assert mock_click.call_count == 2  # friendly message.
 
 
 def test_ensure_latest_bundle_no_update():
@@ -1015,7 +1026,7 @@ def test_ensure_latest_bundle_no_update():
     ) as mock_gb, mock.patch(
         "circup.command_utils.os.path.isfile", return_value=True
     ), mock.patch(
-        "circup.bundle.Bundle.current_tag", "12345"
+        "circup.bundle.Bundle.available_tags", ["12345"]
     ), mock.patch(
         "circup.command_utils.logger"
     ) as mock_logger:
@@ -1044,8 +1055,6 @@ def test_get_bundle():
     ) as mock_open, mock.patch(
         "circup.os.path.isdir", return_value=True
     ), mock.patch(
-        "circup.command_utils.shutil"
-    ) as mock_shutil, mock.patch(
         "circup.command_utils.zipfile"
     ) as mock_zipfile:
         mock_click.progressbar = mock_progress
@@ -1058,7 +1067,6 @@ def test_get_bundle():
         _bundle_count = len(PLATFORMS)
         assert mock_requests.get.call_count == _bundle_count
         assert mock_open.call_count == _bundle_count
-        assert mock_shutil.rmtree.call_count == _bundle_count
         assert mock_zipfile.ZipFile.call_count == _bundle_count
         assert mock_zipfile.ZipFile().__enter__().extractall.call_count == _bundle_count
 
@@ -1069,7 +1077,7 @@ def test_get_bundle_network_error():
     then the error is logged and re-raised for the HTTP status code.
     """
     with mock.patch("circup.command_utils.requests") as mock_requests, mock.patch(
-        "circup.shared.tags_data_load", return_value=dict()
+        "circup.command_utils.tags_data_load", return_value=dict()
     ), mock.patch("circup.command_utils.logger") as mock_logger:
         # Force failure with != requests.codes.ok
         mock_requests.get().status_code = mock_requests.codes.BANG

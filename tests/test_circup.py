@@ -38,13 +38,17 @@ import requests
 import circup
 from circup import DiskBackend
 from circup.command_utils import (
+    ensure_bundle,
+    ensure_pinned_bundle,
     find_device,
     ensure_latest_bundle,
+    find_pyproject,
     get_bundle,
     get_bundles_dict,
     imports_from_code,
     get_all_imports,
     libraries_from_auto_file,
+    pyproject_bundle_versions,
     tags_data_load,
 )
 from circup.shared import PLATFORMS
@@ -987,10 +991,10 @@ def test_ensure_latest_bundle_to_update():
 
 def test_ensure_latest_bundle_to_update_http_error():
     """
-    If an HTTP error happens during a bundle update, print a friendly
-    error message, and use existing bundle.
+    If an HTTP error happens during a bundle update for the latest version,
+    print a friendly error message, and use latest existing bundle.
     """
-    tags_data = {TEST_BUNDLE_NAME: "12345"}
+    tags_data = {TEST_BUNDLE_NAME: ["12345", "67890"]}
     with mock.patch("circup.Bundle.latest_tag", "54321"), mock.patch(
         #         "circup.tags_data_load", return_value=tags_data
         #     ), mock.patch(
@@ -1010,8 +1014,39 @@ def test_ensure_latest_bundle_to_update_http_error():
         bundle.available_tags = tags.get(bundle.key, [])
         ensure_latest_bundle(bundle)
         mock_gb.assert_called_once_with(bundle, "54321")
+        assert bundle.current_tag == "67890"
         assert mock_json.dump.call_count == 0  # not saved.
         assert mock_click.call_count == 2  # friendly message.
+
+
+def test_ensure_pinned_bundle_to_exit_http_error():
+    """
+    If an HTTP error happens during a bundle update for the pinned version,
+    print a friendly error message, and exit.
+    """
+    tags_data = {TEST_BUNDLE_NAME: ["12345"]}
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
+    with mock.patch.object(bundle, "pinned_tag", "54321"), mock.patch(
+        "circup.os.path.isfile",
+        return_value=True,
+    ), mock.patch("circup.command_utils.open"), mock.patch(
+        "circup.command_utils.get_bundle",
+        side_effect=requests.exceptions.HTTPError("404"),
+    ) as mock_gb, mock.patch(
+        "circup.command_utils.json"
+    ) as mock_json, mock.patch(
+        "circup.click.secho"
+    ) as mock_click, mock.patch(
+        "circup.sys.exit"
+    ) as mock_exit:
+        mock_json.load.return_value = tags_data
+        tags = tags_data_load()
+        bundle.available_tags = tags.get(bundle.key, [])
+        ensure_pinned_bundle(bundle)
+        mock_gb.assert_called_once_with(bundle, "54321")
+        assert mock_json.dump.call_count == 0  # not saved.
+        assert mock_click.call_count == 2  # friendly message.
+        mock_exit.assert_called_once_with(1)
 
 
 def test_ensure_latest_bundle_no_update():
@@ -1056,7 +1091,9 @@ def test_get_bundle():
         "circup.os.path.isdir", return_value=True
     ), mock.patch(
         "circup.command_utils.zipfile"
-    ) as mock_zipfile:
+    ) as mock_zipfile, mock.patch(
+        "circup.Bundle.add_tag"
+    ) as mock_add_tag:
         mock_click.progressbar = mock_progress
         mock_requests.get().status_code = mock_requests.codes.ok
         mock_requests.get.reset_mock()
@@ -1069,6 +1106,7 @@ def test_get_bundle():
         assert mock_open.call_count == _bundle_count
         assert mock_zipfile.ZipFile.call_count == _bundle_count
         assert mock_zipfile.ZipFile().__enter__().extractall.call_count == _bundle_count
+        assert mock_add_tag.call_count == 1
 
 
 def test_get_bundle_network_error():
@@ -1326,3 +1364,97 @@ def test_install_auto_file_bad():
             ],
         )
     assert result.exit_code == 2
+
+
+def test_current_tag():
+    """
+    Make sure the current tag is the pinned tag if there is a pinned tag and
+    the last available_tag when there is no pinned tag.
+    """
+    available_tags = ["PINNED_TAG", "LATEST_TAG"]
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
+    with mock.patch.object(bundle, "_available", available_tags), mock.patch.object(
+        bundle, "pinned_tag", "PINNED_TAG"
+    ):
+        assert bundle.current_tag == "PINNED_TAG"
+
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
+    with mock.patch.object(bundle, "_available", available_tags):
+        assert bundle.current_tag == "LATEST_TAG"
+
+
+def test_ensure_bundle():
+    """Make sure the correct path is taken when calling ensure_bundle."""
+    with mock.patch(
+        "circup.command_utils.ensure_bundle_tag", return_value=True
+    ), mock.patch("circup.bundle.Bundle.latest_tag", "LATEST_TAG"), mock.patch(
+        "circup.command_utils.click"
+    ) as mock_click:
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        ensure_bundle(bundle)
+        mock_click.echo.assert_called_once_with(
+            f"Using latest bundle for {TEST_BUNDLE_NAME} (LATEST_TAG)."
+        )
+
+        mock_click.echo.reset_mock()
+        with mock.patch.object(bundle, "pinned_tag", "PINNED_TAG"):
+            ensure_bundle(bundle)
+            mock_click.echo.assert_called_once_with(
+                f"Using pinned bundle for {TEST_BUNDLE_NAME} (PINNED_TAG)."
+            )
+
+
+def test_available_tag_order():
+    """Make sure available tags are always correctly sorted."""
+    tags = ["7", "1", "4", "3", "8", "9", "5", "2"]
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
+    while len(tags) > 0:
+        tag = tags.pop()
+        bundle.add_tag(tag)
+        assert bundle.available_tags == tuple(sorted(bundle.available_tags))
+
+    tag_count = len(bundle.available_tags)
+    # Duplicate tags are not added again
+    bundle.add_tag("7")
+    assert len(bundle.available_tags) == tag_count
+
+
+def test_pyproject_handling(tmp_path):
+    """
+    Make sure the pyproject file is found as expected and is correctly
+    parsed for any pinned versions.
+    """
+    bundle_data = {TEST_BUNDLE_NAME: "TESTTAG"}
+
+    # Mock project directory
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+
+    # Create a pyproject.toml at the root
+    pyproject_path = project_root / "pyproject.toml"
+    pyproject_path.write_text(
+        "[tool.circup.bundle-versions]\n"
+        f"'{TEST_BUNDLE_NAME}' = '{bundle_data[TEST_BUNDLE_NAME]}'\n"
+    )
+
+    # Create nested subdirectories
+    subdirectory = project_root / "inner"
+    subdirectory.mkdir()
+
+    # Make sure we find the pyproject file from both the project directory
+    # and a subdirectory.
+    for cwd in [project_root, subdirectory]:
+        with mock.patch("circup.command_utils.Path.cwd", return_value=cwd):
+            found_pyproject = find_pyproject()
+            assert found_pyproject == pyproject_path
+
+            pinned_tags = pyproject_bundle_versions(found_pyproject)
+
+            assert len(pinned_tags) == 1
+            assert TEST_BUNDLE_NAME in pinned_tags
+            assert bundle_data[TEST_BUNDLE_NAME] == pinned_tags[TEST_BUNDLE_NAME]
+
+    with mock.patch("circup.command_utils.Path.cwd", return_value=project_root.parent):
+        # Make sure it works when there is no pyproject
+        found_pyproject = find_pyproject()
+        assert found_pyproject is None

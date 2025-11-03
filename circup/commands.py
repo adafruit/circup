@@ -69,6 +69,16 @@ from circup.command_utils import (
     " instead of passing this argument. If both exist the CLI arg takes precedent.",
 )
 @click.option(
+    "--offline",
+    is_flag=True,
+    help="Prevents Circup from accessing the internet for any reason. "
+    "Without this flag, Circup will fail with an error if it needs to access "
+    "the network and the network is not available. With this flag, Circup "
+    "will attempt to proceed without the network if possible. Circup will "
+    "only use bundles downloaded locally even if there might be newer "
+    "versions available.",
+)
+@click.option(
     "--timeout",
     default=30,
     help="Specify the timeout in seconds for any network operations.",
@@ -107,6 +117,7 @@ def main(  # pylint: disable=too-many-locals
     host,
     port,
     password,
+    offline,
     timeout,
     board_id,
     cpy_version,
@@ -121,6 +132,7 @@ def main(  # pylint: disable=too-many-locals
     ctx.obj["BUNDLE_TAGS"] = (
         parse_cli_bundle_tags(bundle_versions) if len(bundle_versions) > 0 else None
     )
+    Bundle.offline = offline
 
     if password is None:
         password = os.getenv("CIRCUP_WEBWORKFLOW_PASSWORD")
@@ -177,20 +189,22 @@ def main(  # pylint: disable=too-many-locals
 
     logger.info("### Started Circup ###")
 
-    # If a newer version of circup is available, print a message.
-    logger.info("Checking for a newer version of circup")
-    version = get_circup_version()
-    if version:
-        update_checker.update_check("circup", version)
+    if offline:
+        logger.info(
+            "'--offline' flag present, all update checks requiring the network will be skipped."
+        )
+    else:
+        # If a newer version of circup is available, print a message.
+        logger.info("Checking for a newer version of circup")
+        version = get_circup_version()
+        if version:
+            update_checker.update_check("circup", version)
 
     # stop early if the command is boardless
     if ctx.invoked_subcommand in BOARDLESS_COMMANDS or "--help" in sys.argv:
         return
 
     ctx.obj["DEVICE_PATH"] = device_path
-    latest_version = get_latest_release_from_url(
-        "https://github.com/adafruit/circuitpython/releases/latest", logger
-    )
 
     if device_path is None or not ctx.obj["backend"].is_device_present():
         click.secho("Could not find a connected CircuitPython device.", fg="red")
@@ -206,22 +220,27 @@ def main(  # pylint: disable=too-many-locals
                 board_id, device_path, cpy_version
             )
         )
-    try:
-        if VersionInfo.parse(cpy_version) < VersionInfo.parse(latest_version):
-            click.secho(
-                "A newer version of CircuitPython ({}) is available.".format(
-                    latest_version
-                ),
-                fg="green",
-            )
-            if board_id:
-                url_download = f"https://circuitpython.org/board/{board_id}"
-            else:
-                url_download = "https://circuitpython.org/downloads"
-            click.secho("Get it here: {}".format(url_download), fg="green")
-    except ValueError as ex:
-        logger.warning("CircuitPython has incorrect semver value.")
-        logger.warning(ex)
+
+    if not offline:
+        latest_version = get_latest_release_from_url(
+            "https://github.com/adafruit/circuitpython/releases/latest", logger
+        )
+        try:
+            if VersionInfo.parse(cpy_version) < VersionInfo.parse(latest_version):
+                click.secho(
+                    "A newer version of CircuitPython ({}) is available.".format(
+                        latest_version
+                    ),
+                    fg="green",
+                )
+                if board_id:
+                    url_download = f"https://circuitpython.org/board/{board_id}"
+                else:
+                    url_download = "https://circuitpython.org/downloads"
+                click.secho("Get it here: {}".format(url_download), fg="green")
+        except ValueError as ex:
+            logger.warning("CircuitPython has incorrect semver value.")
+            logger.warning(ex)
 
 
 @main.command()
@@ -392,7 +411,7 @@ def install(
                 upgrade,
             )
 
-            if stubs:
+            if stubs and not Bundle.offline:
                 # Check we are in a virtual environment
                 if not is_virtual_env_active():
                     if is_global_install_ok is None:
@@ -726,6 +745,10 @@ def bundle_add(ctx, bundle):
             "Must pass bundle argument, expecting github URL or `user/repository` string.",
             fg="red",
         )
+        return
+
+    if Bundle.offline:
+        click.secho("Cannot add new bundle when '--offline' flag is present.", fg="red")
         return
 
     bundles_dict = get_bundles_local_dict()

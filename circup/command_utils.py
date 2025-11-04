@@ -935,6 +935,18 @@ def sorted_by_directory_then_alpha(list_of_files):
     return sorted_full_list
 
 
+def is_virtual_env_active():
+    """
+    Check if a virtual environment is currently active.
+
+    We don't check the more commonly recommended way of checking if
+    sys.prefix != sys.base_prefix as this will always be true if running circup
+    from a pipx install. This way ensures the user manually activated a
+    virtual environment, regardless how circup is installed.
+    """
+    return "VIRTUAL_ENV" in os.environ
+
+
 def find_pyproject():
     """
     Look for a pyproject.toml in the current directory or its parent directories.

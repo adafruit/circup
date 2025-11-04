@@ -13,6 +13,8 @@ import importlib.resources
 import appdirs
 import requests
 
+from circup.lazy_metadata import LazyMetadata
+
 #: Version identifier for a bad MPY file format
 BAD_FILE_FORMAT = "Invalid"
 
@@ -50,7 +52,7 @@ NOT_MCU_LIBRARIES = [
 BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 
 
-def _get_modules_file(path, logger):
+def _get_modules_file(path, logger):  # pylint: disable=too-many-locals
     """
     Get a dictionary containing metadata about all the Python modules found in
     the referenced file system path.
@@ -70,8 +72,10 @@ def _get_modules_file(path, logger):
     ]
     single_file_mods = single_file_py_mods + single_file_mpy_mods
     for sfm in [f for f in single_file_mods if not os.path.basename(f).startswith(".")]:
-        metadata = extract_metadata(sfm, logger)
-        metadata["path"] = sfm
+        default_metadata = {"path": sfm, "mpy": sfm.endswith(".mpy")}
+        metadata = LazyMetadata(
+            lambda sfm=sfm: extract_metadata(sfm, logger), default_metadata
+        )
         result[os.path.basename(sfm).replace(".py", "").replace(".mpy", "")] = metadata
     for package_path in package_dir_mods:
         name = os.path.basename(os.path.dirname(package_path))
@@ -80,19 +84,27 @@ def _get_modules_file(path, logger):
         all_files = py_files + mpy_files
         # put __init__ first if any, assumed to have the version number
         all_files.sort()
+
+        def get_metadata(all_files=all_files):  # capture all_files
+            selected_metadata = {}
+            # explore all the submodules to detect bad ones
+            for source in [
+                f for f in all_files if not os.path.basename(f).startswith(".")
+            ]:
+                metadata = extract_metadata(source, logger)
+                if "__version__" in metadata:
+                    # don't replace metadata if already found
+                    if "__version__" not in selected_metadata:
+                        selected_metadata = metadata
+                    # break now if any of the submodules has a bad format
+                    if metadata["__version__"] == BAD_FILE_FORMAT:
+                        break
+            return selected_metadata
+
         # default value
-        result[name] = {"path": package_path, "mpy": bool(mpy_files)}
-        # explore all the submodules to detect bad ones
-        for source in [f for f in all_files if not os.path.basename(f).startswith(".")]:
-            metadata = extract_metadata(source, logger)
-            if "__version__" in metadata:
-                # don't replace metadata if already found
-                if "__version__" not in result[name]:
-                    metadata["path"] = package_path
-                    result[name] = metadata
-                # break now if any of the submodules has a bad format
-                if metadata["__version__"] == BAD_FILE_FORMAT:
-                    break
+        default_metadata = {"path": package_path, "mpy": bool(mpy_files)}
+        metadata = LazyMetadata(get_metadata, default_metadata)
+        result[name] = metadata
     return result
 
 

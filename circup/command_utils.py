@@ -105,7 +105,7 @@ def completion_for_install(ctx, param, incomplete):
     with the ``circup install`` command.
     """
     # pylint: disable=unused-argument
-    available_modules = get_bundle_versions(get_bundles_list(), avoid_download=True)
+    available_modules = get_bundle_versions(get_bundles_list(None), avoid_download=True)
     module_names = {m.replace(".py", "") for m in available_modules}
     if incomplete:
         module_names = [name for name in module_names if name.startswith(incomplete)]
@@ -120,7 +120,9 @@ def completion_for_example(ctx, param, incomplete):
     """
 
     # pylint: disable=unused-argument, consider-iterating-dictionary
-    available_examples = get_bundle_examples(get_bundles_list(), avoid_download=True)
+    available_examples = get_bundle_examples(
+        get_bundles_list(None), avoid_download=True
+    )
 
     matching_examples = [
         example_path
@@ -500,10 +502,12 @@ def get_bundles_local_dict():
         return dict()
 
 
-def get_bundles_list():
+def get_bundles_list(bundle_tags):
     """
     Retrieve the list of bundles from the config dictionary.
 
+    :param Dict[str,str]|None bundle_tags: Pinned bundle tags. These override
+    any tags found in the pyproject.toml.
     :return: List of supported bundles as Bundle objects.
     """
     bundle_config = get_bundles_dict()
@@ -512,6 +516,9 @@ def get_bundles_list():
     pinned_tags = (
         pyproject_bundle_versions(pyproject) if pyproject is not None else None
     )
+
+    if bundle_tags is not None:
+        pinned_tags = bundle_tags if pinned_tags is None else pinned_tags | bundle_tags
 
     bundles_list = [Bundle(bundle_config[b]) for b in bundle_config]
     for bundle in bundles_list:
@@ -976,3 +983,13 @@ def pyproject_bundle_versions(pyproject_file):
     """
     pyproject_toml_data = toml.load(pyproject_file)
     return pyproject_toml_data.get("tool", {}).get("circup", {}).get("bundle-versions")
+
+
+def parse_cli_bundle_tags(bundle_tags_cli):
+    """Parse bundle tags that were provided from the command line."""
+    bundle_tags = {}
+    for bundle_tag_item in bundle_tags_cli:
+        item = bundle_tag_item.split("=")
+        if len(item) == 2:
+            bundle_tags[item[0].strip()] = item[1].strip()
+    return bundle_tags if len(bundle_tags) > 0 else None

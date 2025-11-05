@@ -64,6 +64,8 @@ TEST_BUNDLE_CONFIG_LOCAL_JSON = "tests/test_bundle_config_local.json"
 with open(TEST_BUNDLE_CONFIG_LOCAL_JSON, "rb") as tbc:
     TEST_BUNDLE_LOCAL_DATA = json.load(tbc)
 
+TAG_CONTEXT_OBJ = {"BUNDLE_TAGS": {}}
+
 
 def test_Bundle_init():
     """
@@ -173,7 +175,7 @@ def test_get_bundles_list():
     ), mock.patch(
         "circup.command_utils.find_pyproject", return_value=None
     ):
-        bundles_list = circup.get_bundles_list()
+        bundles_list = circup.get_bundles_list(None)
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         assert repr(bundles_list) == repr([bundle])
 
@@ -1145,7 +1147,7 @@ def test_show_command():
     with mock.patch(
         "circup.commands.get_bundle_versions", return_value=test_bundle_modules
     ):
-        result = runner.invoke(circup.show)
+        result = runner.invoke(circup.main, ["show"], obj=TAG_CONTEXT_OBJ)
     assert result.exit_code == 0
     assert all(m.replace(".py", "") in result.output for m in test_bundle_modules)
 
@@ -1159,7 +1161,7 @@ def test_show_match_command():
     with mock.patch(
         "circup.commands.get_bundle_versions", return_value=test_bundle_modules
     ):
-        result = runner.invoke(circup.show, ["t"])
+        result = runner.invoke(circup.show, ["t"], obj=TAG_CONTEXT_OBJ)
     assert result.exit_code == 0
     assert "one" not in result.output
 
@@ -1173,7 +1175,7 @@ def test_show_match_py_command():
     with mock.patch(
         "circup.commands.get_bundle_versions", return_value=test_bundle_modules
     ):
-        result = runner.invoke(circup.show, ["py"])
+        result = runner.invoke(circup.show, ["py"], obj=TAG_CONTEXT_OBJ)
     assert result.exit_code == 0
     assert "0 shown" in result.output
 
@@ -1362,6 +1364,7 @@ def test_install_auto_file_bad():
                 "--auto-file",
                 "./tests/bad_python.py",
             ],
+            obj=TAG_CONTEXT_OBJ,
         )
     assert result.exit_code == 2
 

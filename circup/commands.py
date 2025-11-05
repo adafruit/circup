@@ -118,10 +118,9 @@ def main(  # pylint: disable=too-many-locals
     # pylint: disable=too-many-arguments,too-many-branches,too-many-statements,too-many-locals, R0801
     ctx.ensure_object(dict)
     ctx.obj["TIMEOUT"] = timeout
-    ctx.obj["BUNDLE_TAGS"] = {}
-
-    if len(bundle_versions) > 0:
-        ctx.obj["BUNDLE_TAGS"] = parse_cli_bundle_tags(bundle_versions)
+    ctx.obj["BUNDLE_TAGS"] = (
+        parse_cli_bundle_tags(bundle_versions) if len(bundle_versions) > 0 else None
+    )
 
     if password is None:
         password = os.getenv("CIRCUP_WEBWORKFLOW_PASSWORD")

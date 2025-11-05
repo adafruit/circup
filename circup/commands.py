@@ -809,3 +809,40 @@ def bundle_remove(bundle, reset):
                 )
     if modified:
         save_local_bundles(bundles_local_dict)
+
+
+@main.command()
+@click.pass_context
+def bundle_freeze(ctx):  # pragma: no cover
+    """
+    Output details of all the bundles for modules found on the connected
+    CIRCUITPYTHON device. Copying the output into pyproject.toml will pin the
+    bundles.
+    """
+    logger.info("Bundle Freeze")
+    device_modules = ctx.obj["backend"].get_device_versions()
+    if not device_modules:
+        click.echo("No modules found on the device.")
+        return
+
+    available_modules = get_bundle_versions(get_bundles_list(ctx.obj["BUNDLE_TAGS"]))
+    bundles_used = {}
+    for name in device_modules:
+        module = available_modules.get(name)
+        if module:
+            bundle = module["bundle"]
+            bundles_used[bundle.key] = bundle.current_tag
+
+    if bundles_used:
+        click.echo(
+            "Copy the following lines into your pyproject.toml to pin "
+            "the bundles used with modules on the device:\n"
+        )
+        output = ["[tool.circup.bundle-versions]"]
+        for bundle_name, version in bundles_used.items():
+            output.append(f'"{bundle_name}" = "{version}"')
+        for line in output:
+            click.echo(line)
+            logger.info(line)
+    else:
+        click.echo("No bundles used with the modules on the device.")

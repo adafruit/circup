@@ -965,8 +965,7 @@ def find_pyproject():
     """
     logger.info("Looking for pyproject.toml file.")
     cwd = Path.cwd()
-    candidates = [cwd]
-    candidates.extend(cwd.parents)
+    candidates = [cwd, cwd.parent]
 
     for path in candidates:
         pyproject_file = path / "pyproject.toml"

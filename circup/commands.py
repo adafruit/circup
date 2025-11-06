@@ -415,11 +415,24 @@ def install(
 )
 @click.pass_context
 def example(ctx, examples, op_list, rename, overwrite):
-    """
+    """\b
     Copy named example(s) from a bundle onto the device. Multiple examples
     can be installed at once by providing more than one example name, each
-    separated by a space.
+    separated by a space. Example names are in the form of:
+    [short_library_name]/[example_file_name_without_py_extension]
+    ex: circup example bmp5xx/bmp5xx_simpletest
+    \b
+    For a list of all available library short names run:
+    circup example --list
+    \b
+    To search for examples run:
+    circup example [searchterm] --list
+    ex: circup example mlx --list
     """
+    examples = list(examples)
+    for i, cur_example in enumerate(examples):
+        if cur_example.startswith("adafruit_"):
+            examples[i] = cur_example.replace("adafruit_", "")
 
     if op_list:
         if examples:

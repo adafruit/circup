@@ -122,12 +122,14 @@ def completion_for_example(ctx, param, incomplete):
 
     # pylint: disable=unused-argument, consider-iterating-dictionary
     available_examples = get_bundle_examples(get_bundles_list(), avoid_download=True)
-
-    matching_examples = [
-        example_path
-        for example_path in available_examples.keys()
-        if example_path.startswith(incomplete)
-    ]
+    matching_examples = []
+    for term in incomplete:
+        _examples = [
+            example_path
+            for example_path in available_examples.keys()
+            if term in example_path
+        ]
+        matching_examples.extend(_examples)
 
     return sorted(matching_examples)
 

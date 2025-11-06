@@ -37,6 +37,7 @@ from circup.command_utils import (
     libraries_from_auto_file,
     get_dependencies,
     get_bundles_local_dict,
+    parse_cli_bundle_tags,
     save_local_bundles,
     get_bundles_dict,
     completion_for_example,
@@ -84,13 +85,32 @@ from circup.command_utils import (
     help="Manual CircuitPython version. If provided in combination "
     "with --board-id, it overrides the detected CPy version.",
 )
+@click.option(
+    "bundle_versions",
+    "--bundle-version",
+    multiple=True,
+    help="Specify the version to use for a bundle. Include the bundle name and "
+    "the version separated by '=', similar to the format of requirements.txt. "
+    "This option can be used multiple times for different bundles. Bundle "
+    "version values provided here will override any pinned values from the "
+    "pyproject.toml.",
+)
 @click.version_option(
     prog_name="Circup",
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
 )
 @click.pass_context
 def main(  # pylint: disable=too-many-locals
-    ctx, verbose, path, host, port, password, timeout, board_id, cpy_version
+    ctx,
+    verbose,
+    path,
+    host,
+    port,
+    password,
+    timeout,
+    board_id,
+    cpy_version,
+    bundle_versions,
 ):  # pragma: no cover
     """
     A tool to manage and update libraries on a CircuitPython device.
@@ -98,6 +118,9 @@ def main(  # pylint: disable=too-many-locals
     # pylint: disable=too-many-arguments,too-many-branches,too-many-statements,too-many-locals, R0801
     ctx.ensure_object(dict)
     ctx.obj["TIMEOUT"] = timeout
+    ctx.obj["BUNDLE_TAGS"] = (
+        parse_cli_bundle_tags(bundle_versions) if len(bundle_versions) > 0 else None
+    )
 
     if password is None:
         password = os.getenv("CIRCUP_WEBWORKFLOW_PASSWORD")
@@ -210,7 +233,7 @@ def freeze(ctx, requirement):  # pragma: no cover
     device. Option -r saves output to requirements.txt file
     """
     logger.info("Freeze")
-    modules = find_modules(ctx.obj["backend"], get_bundles_list())
+    modules = find_modules(ctx.obj["backend"], get_bundles_list(ctx.obj["BUNDLE_TAGS"]))
     if modules:
         output = []
         for module in modules:
@@ -258,7 +281,9 @@ def list_cli(ctx):  # pragma: no cover
 
     modules = [
         m.row
-        for m in find_modules(ctx.obj["backend"], get_bundles_list())
+        for m in find_modules(
+            ctx.obj["backend"], get_bundles_list(ctx.obj["BUNDLE_TAGS"])
+        )
         if m.outofdate
     ]
     if modules:
@@ -334,7 +359,7 @@ def install(
 
     # pylint: disable=too-many-branches
     # TODO: Ensure there's enough space on the device
-    available_modules = get_bundle_versions(get_bundles_list())
+    available_modules = get_bundle_versions(get_bundles_list(ctx.obj["BUNDLE_TAGS"]))
     mod_names = {}
     for module, metadata in available_modules.items():
         mod_names[module.replace(".py", "").lower()] = metadata
@@ -440,7 +465,7 @@ def example(ctx, examples, op_list, rename, overwrite):
         else:
             click.echo("Available example libraries:")
             available_examples = get_bundle_examples(
-                get_bundles_list(), avoid_download=True
+                get_bundles_list(ctx.obj["BUNDLE_TAGS"]), avoid_download=True
             )
             lib_names = {
                 str(key.split(os.path.sep)[0]): value
@@ -451,7 +476,7 @@ def example(ctx, examples, op_list, rename, overwrite):
 
     for example_arg in examples:
         available_examples = get_bundle_examples(
-            get_bundles_list(), avoid_download=True
+            get_bundles_list(ctx.obj["BUNDLE_TAGS"]), avoid_download=True
         )
         if example_arg in available_examples:
             filename = available_examples[example_arg].split(os.path.sep)[-1]
@@ -485,14 +510,15 @@ def example(ctx, examples, op_list, rename, overwrite):
 
 @main.command()
 @click.argument("match", required=False, nargs=1)
-def show(match):  # pragma: no cover
+@click.pass_context
+def show(ctx, match):  # pragma: no cover
     """
     Show a list of available modules in the bundle. These are modules which
     *could* be installed on the device.
 
     If MATCH is specified only matching modules will be listed.
     """
-    available_modules = get_bundle_versions(get_bundles_list())
+    available_modules = get_bundle_versions(get_bundles_list(ctx.obj["BUNDLE_TAGS"]))
     module_names = sorted([m.replace(".py", "") for m in available_modules])
     if match is not None:
         match = match.lower()
@@ -555,7 +581,7 @@ def update(ctx, update_all):  # pragma: no cover
     """
     logger.info("Update")
     # Grab current modules.
-    bundles_list = get_bundles_list()
+    bundles_list = get_bundles_list(ctx.obj["BUNDLE_TAGS"])
     installed_modules = find_modules(ctx.obj["backend"], bundles_list)
     modules_to_update = [m for m in installed_modules if m.outofdate]
 
@@ -654,13 +680,14 @@ def update(ctx, update_all):  # pragma: no cover
 
 @main.command("bundle-show")
 @click.option("--modules", is_flag=True, help="List all the modules per bundle.")
-def bundle_show(modules):
+@click.pass_context
+def bundle_show(ctx, modules):
     """
-    Show the list of bundles, default and local, with URL, current version
-    and latest version retrieved from the web.
+    Show the list of bundles, default and local, with URL, current version,
+    available versions, and latest version retrieved from the web.
     """
     local_bundles = get_bundles_local_dict().values()
-    bundles = get_bundles_list()
+    bundles = get_bundles_list(ctx.obj["BUNDLE_TAGS"])
     available_modules = get_bundle_versions(bundles)
 
     for bundle in bundles:
@@ -669,7 +696,13 @@ def bundle_show(modules):
         else:
             click.secho(bundle.key, fg="green")
         click.echo("    " + bundle.url)
-        click.echo("    version = " + bundle.current_tag)
+        click.echo(
+            "    version = "
+            + bundle.current_tag
+            + (" (pinned)" if bundle.pinned_tag is not None else "")
+        )
+        click.echo("    available versions:")
+        click.echo("        " + "\n        ".join(bundle.available_tags))
         if modules:
             click.echo("Modules:")
             for name, mod in sorted(available_modules.items()):
@@ -739,7 +772,7 @@ def bundle_add(ctx, bundle):
         # save the bundles list
         save_local_bundles(bundles_dict)
         # update and get the new bundles for the first time
-        get_bundle_versions(get_bundles_list())
+        get_bundle_versions(get_bundles_list(ctx.obj["BUNDLE_TAGS"]))
 
 
 @main.command("bundle-remove")
@@ -788,3 +821,40 @@ def bundle_remove(bundle, reset):
                 )
     if modified:
         save_local_bundles(bundles_local_dict)
+
+
+@main.command()
+@click.pass_context
+def bundle_freeze(ctx):  # pragma: no cover
+    """
+    Output details of all the bundles for modules found on the connected
+    CIRCUITPYTHON device. Copying the output into pyproject.toml will pin the
+    bundles.
+    """
+    logger.info("Bundle Freeze")
+    device_modules = ctx.obj["backend"].get_device_versions()
+    if not device_modules:
+        click.echo("No modules found on the device.")
+        return
+
+    available_modules = get_bundle_versions(get_bundles_list(ctx.obj["BUNDLE_TAGS"]))
+    bundles_used = {}
+    for name in device_modules:
+        module = available_modules.get(name)
+        if module:
+            bundle = module["bundle"]
+            bundles_used[bundle.key] = bundle.current_tag
+
+    if bundles_used:
+        click.echo(
+            "Copy the following lines into your pyproject.toml to pin "
+            "the bundles used with modules on the device:\n"
+        )
+        output = ["[tool.circup.bundle-versions]"]
+        for bundle_name, version in bundles_used.items():
+            output.append(f'"{bundle_name}" = "{version}"')
+        for line in output:
+            click.echo(line)
+            logger.info(line)
+    else:
+        click.echo("No bundles used with the modules on the device.")

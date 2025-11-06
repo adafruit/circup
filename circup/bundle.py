@@ -14,7 +14,6 @@ from circup.shared import (
     DATA_DIR,
     PLATFORMS,
     REQUESTS_TIMEOUT,
-    tags_data_load,
     get_latest_release_from_url,
 )
 
@@ -46,6 +45,8 @@ class Bundle:
         # tag
         self._current = None
         self._latest = None
+        self.pinned_tag = None
+        self._available = []
 
     def lib_dir(self, platform):
         """
@@ -99,21 +100,27 @@ class Bundle:
     @property
     def current_tag(self):
         """
-        Lazy load current cached tag from the BUNDLE_DATA json file.
+        The current tag for the project. If the tag hasn't been explicitly set
+        this will be the pinned tag, if one is set. If there is no pinned tag,
+        this will be the latest available tag that is locally available.
 
-        :return: The current cached tag value for the project.
+        :return: The current tag value for the project.
         """
         if self._current is None:
-            self._current = tags_data_load(logger).get(self.key, "0")
+            self._current = self.pinned_tag or (
+                # This represents the latest version locally available
+                self._available[-1]
+                if len(self._available) > 0
+                else None
+            )
         return self._current
 
     @current_tag.setter
     def current_tag(self, tag):
         """
-        Set the current cached tag (after updating).
+        Set the current tag (after updating).
 
         :param str tag: The new value for the current tag.
-        :return: The current cached tag value for the project.
         """
         self._current = tag
 
@@ -129,6 +136,48 @@ class Bundle:
                 self.url + "/releases/latest", logger
             )
         return self._latest
+
+    @property
+    def available_tags(self):
+        """
+        The locally available tags to use for the project.
+
+        :return: All tags available for the project.
+        """
+        return tuple(self._available)
+
+    @available_tags.setter
+    def available_tags(self, tags):
+        """
+        Set the available tags.
+
+        :param str|list tags: The new value for the locally available tags.
+        """
+        if isinstance(tags, str):
+            tags = [tags]
+        self._available = sorted(tags)
+
+    def add_tag(self, tag: str) -> None:
+        """
+        Add a tag to the list of available tags.
+
+        This will add the tag if it isn't already present in the list of
+        available tags. The tag will be added so that the list is sorted in an
+        increasing order. This ensures that that last tag is always the latest.
+
+        :param str tag: The tag to add to the list of available tags.
+        """
+        if tag in self._available:
+            # The tag is already stored for some reason, lets not add it again
+            return
+
+        for rev_i, available_tag in enumerate(reversed(self._available)):
+            if int(tag) > int(available_tag):
+                i = len(self._available) - rev_i
+                self._available.insert(i, tag)
+                break
+        else:
+            self._available.insert(0, tag)
 
     def validate(self):
         """
@@ -166,5 +215,7 @@ class Bundle:
                 "url_format": self.url_format,
                 "current": self._current,
                 "latest": self._latest,
+                "pinned": self.pinned_tag,
+                "available": self._available,
             }
         )

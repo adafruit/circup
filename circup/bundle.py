@@ -25,6 +25,9 @@ class Bundle:
     All the links and file names for a bundle
     """
 
+    #: Avoid requests to the internet
+    offline = False
+
     def __init__(self, repo):
         """
         Initialise a Bundle created from its github info.
@@ -132,9 +135,12 @@ class Bundle:
         :return: The most recent tag value for the project.
         """
         if self._latest is None:
-            self._latest = get_latest_release_from_url(
-                self.url + "/releases/latest", logger
-            )
+            if self.offline:
+                self._latest = self._available[-1] if len(self._available) > 0 else None
+            else:
+                self._latest = get_latest_release_from_url(
+                    self.url + "/releases/latest", logger
+                )
         return self._latest
 
     @property

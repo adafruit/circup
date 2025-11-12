@@ -145,6 +145,10 @@ def ensure_bundle_tag(bundle, tag):
 
     :return: If the bundle is available.
     """
+    if tag is None:
+        logger.warning("Bundle version requested is 'None'.")
+        return False
+
     do_update = False
     if tag in bundle.available_tags:
         for platform in PLATFORMS:
@@ -155,6 +159,12 @@ def ensure_bundle_tag(bundle, tag):
         do_update = True
 
     if do_update:
+        if Bundle.offline:
+            logger.info(
+                "Bundle version not available but skipping update in offline mode."
+            )
+            return False
+
         logger.info("New version available (%s).", tag)
         try:
             get_bundle(bundle, tag)

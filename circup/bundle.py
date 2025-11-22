@@ -20,7 +20,7 @@ from circup.shared import (
 from circup.logging import logger
 
 
-class Bundle:
+class Bundle:  # pylint: disable=too-many-instance-attributes
     """
     All the links and file names for a bundle
     """
@@ -50,29 +50,40 @@ class Bundle:
         self._latest = None
         self.pinned_tag = None
         self._available = []
+        #
+        self.platform = None
 
-    def lib_dir(self, platform):
+    def lib_dir(self, source=False):
         """
-        This bundle's lib directory for the platform.
+        This bundle's lib directory for the bundle's source or compiled version.
 
-        :param str platform: The platform identifier (py/6mpy/...).
-        :return: The path to the lib directory for the platform.
+        :param bool source: Whether to return the path to the source lib
+        directory or to :py:attr:`self.platform`'s lib directory. If `source` is
+        `False` but :py:attr:`self.platform` is None, the source lib directory
+        will be returned instead.
+        :return: The path to the lib directory.
         """
         tag = self.current_tag
+        platform = "py" if source or not self.platform else self.platform
         return os.path.join(
             self.dir.format(platform=platform),
             self.basename.format(platform=PLATFORMS[platform], tag=tag),
             "lib",
         )
 
-    def examples_dir(self, platform):
+    def examples_dir(self, source=False):
         """
-        This bundle's examples directory for the platform.
+        This bundle's examples directory for the bundle's source or compiled
+        version.
 
-        :param str platform: The platform identifier (py/6mpy/...).
-        :return: The path to the examples directory for the platform.
+        :param bool source: Whether to return the path to the source examples
+        directory or to :py:attr:`self.platform`'s examples directory. If
+        `source` is `False` but :py:attr:`self.platform` is None, the source
+        examples directory will be returned instead.
+        :return: The path to the examples directory.
         """
         tag = self.current_tag
+        platform = "py" if source or not self.platform else self.platform
         return os.path.join(
             self.dir.format(platform=platform),
             self.basename.format(platform=PLATFORMS[platform], tag=tag),
@@ -104,18 +115,25 @@ class Bundle:
     def current_tag(self):
         """
         The current tag for the project. If the tag hasn't been explicitly set
-        this will be the pinned tag, if one is set. If there is no pinned tag,
-        this will be the latest available tag that is locally available.
+        this will be the pinned tag, if one is set and it is available. If there
+        is no pinned tag, this will be the latest available tag that is locally
+        available.
 
         :return: The current tag value for the project.
         """
         if self._current is None:
-            self._current = self.pinned_tag or (
-                # This represents the latest version locally available
-                self._available[-1]
-                if len(self._available) > 0
-                else None
-            )
+            if self.pinned_tag:
+                self._current = (
+                    self.pinned_tag if self.pinned_tag in self._available else None
+                )
+            else:
+                self._current = (
+                    # This represents the latest version locally available
+                    self._available[-1]
+                    if len(self._available) > 0
+                    else None
+                )
+
         return self._current
 
     @current_tag.setter
@@ -161,6 +179,7 @@ class Bundle:
         """
         if isinstance(tags, str):
             tags = [tags]
+        # TODO: Need to pass int to sorted key...otherwise this might not sort them how it should
         self._available = sorted(tags)
 
     def add_tag(self, tag: str) -> None:
@@ -187,22 +206,21 @@ class Bundle:
 
     def validate(self):
         """
-        Test the existence of the expected URLs (not their content)
+        Test the existence of the expected URL (not the content)
         """
         tag = self.latest_tag
         if not tag or tag == "releases":
             if "--verbose" in sys.argv:
                 click.secho(f'  Invalid tag "{tag}"', fg="red")
             return False
-        for platform in PLATFORMS.values():
-            url = self.url_format.format(platform=platform, tag=tag)
-            r = requests.get(url, stream=True, timeout=REQUESTS_TIMEOUT)
-            # pylint: disable=no-member
-            if r.status_code != requests.codes.ok:
-                if "--verbose" in sys.argv:
-                    click.secho(f"  Unable to find {os.path.split(url)[1]}", fg="red")
-                return False
-            # pylint: enable=no-member
+        url = self.url_format.format(platform="py", tag=tag)
+        r = requests.get(url, stream=True, timeout=REQUESTS_TIMEOUT)
+        # pylint: disable=no-member
+        if r.status_code != requests.codes.ok:
+            if "--verbose" in sys.argv:
+                click.secho(f"  Unable to find {os.path.split(url)[1]}", fg="red")
+            return False
+        # pylint: enable=no-member
         return True
 
     def __repr__(self):

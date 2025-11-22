@@ -215,6 +215,9 @@ def main(  # pylint: disable=too-many-locals
             if board_id is None or cpy_version is None
             else (cpy_version, board_id)
         )
+        major_version = cpy_version.split(".")[0]
+        bundle_platform = "{}mpy".format(major_version)
+        ctx.obj["DEVICE_PLATFORM_VERSION"] = bundle_platform
         click.echo(
             "Found device {} at {}, running CircuitPython {}.".format(
                 board_id, device_path, cpy_version
@@ -301,7 +304,10 @@ def list_cli(ctx):  # pragma: no cover
     modules = [
         m.row
         for m in find_modules(
-            ctx.obj["backend"], get_bundles_list(ctx.obj["BUNDLE_TAGS"])
+            ctx.obj["backend"],
+            get_bundles_list(
+                ctx.obj["BUNDLE_TAGS"], ctx.obj["DEVICE_PLATFORM_VERSION"]
+            ),
         )
         if m.outofdate
     ]
@@ -378,7 +384,10 @@ def install(
 
     # pylint: disable=too-many-branches
     # TODO: Ensure there's enough space on the device
-    available_modules = get_bundle_versions(get_bundles_list(ctx.obj["BUNDLE_TAGS"]))
+    platform_version = ctx.obj["DEVICE_PLATFORM_VERSION"] if not pyext else None
+    available_modules = get_bundle_versions(
+        get_bundles_list(ctx.obj["BUNDLE_TAGS"], platform_version)
+    )
     mod_names = {}
     for module, metadata in available_modules.items():
         mod_names[module.replace(".py", "").lower()] = metadata
@@ -600,7 +609,9 @@ def update(ctx, update_all):  # pragma: no cover
     """
     logger.info("Update")
     # Grab current modules.
-    bundles_list = get_bundles_list(ctx.obj["BUNDLE_TAGS"])
+    bundles_list = get_bundles_list(
+        ctx.obj["BUNDLE_TAGS"], ctx.obj["DEVICE_PLATFORM_VERSION"]
+    )
     installed_modules = find_modules(ctx.obj["backend"], bundles_list)
     modules_to_update = [m for m in installed_modules if m.outofdate]
 

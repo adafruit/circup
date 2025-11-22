@@ -79,16 +79,8 @@ class Module:
         self.max_version = compatibility[1]
         # Figure out the bundle path.
         self.bundle_path = None
-        if self.mpy:
-            # Byte compiled, now check CircuitPython version.
-
-            major_version = self.backend.get_circuitpython_version()[0].split(".")[0]
-            bundle_platform = "{}mpy".format(major_version)
-        else:
-            # Regular Python
-            bundle_platform = "py"
         # module path in the bundle
-        search_path = bundle.lib_dir(bundle_platform)
+        search_path = bundle.lib_dir(source=not self.mpy)
         if self.file:
             self.bundle_path = os.path.join(search_path, self.file)
         else:

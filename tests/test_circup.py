@@ -51,7 +51,6 @@ from circup.command_utils import (
     pyproject_bundle_versions,
     tags_data_load,
 )
-from circup.shared import PLATFORMS
 from circup.module import Module
 from circup.logging import logger
 
@@ -98,14 +97,15 @@ def test_Bundle_lib_dir():
     Check the return of Bundle.lib_dir with a test tag.
     """
     bundle = circup.Bundle(TEST_BUNDLE_NAME)
+    bundle.platform = "9mpy"
     with mock.patch.object(bundle, "_available", ["TESTTAG"]):
         assert bundle.current_tag == "TESTTAG"
-        assert bundle.lib_dir("py") == (
+        assert bundle.lib_dir(source=True) == (
             circup.shared.DATA_DIR + "/"
             "adafruit/adafruit-circuitpython-bundle-py/"
             "adafruit-circuitpython-bundle-py-TESTTAG/lib"
         )
-        assert bundle.lib_dir("9mpy") == (
+        assert bundle.lib_dir() == (
             circup.shared.DATA_DIR + "/"
             "adafruit/adafruit-circuitpython-bundle-9mpy/"
             "adafruit-circuitpython-bundle-9.x-mpy-TESTTAG/lib"
@@ -943,7 +943,7 @@ def test_ensure_latest_bundle_no_bundle_data():
     ):
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         ensure_latest_bundle(bundle)
-        mock_gb.assert_called_once_with(bundle, "12345")
+        mock_gb.assert_called_once_with(bundle, "12345", "py")
         assert mock_json.dump.call_count == 1  # Current version saved to file.
 
 
@@ -968,7 +968,7 @@ def test_ensure_latest_bundle_bad_bundle_data():
         tags = tags_data_load()
         bundle.available_tags = tags.get(bundle.key, [])
         ensure_latest_bundle(bundle)
-        mock_gb.assert_called_once_with(bundle, "12345")
+        mock_gb.assert_called_once_with(bundle, "12345", "py")
 
         assert mock_logger.error.call_count == 1
         assert mock_logger.exception.call_count == 1
@@ -987,7 +987,7 @@ def test_ensure_latest_bundle_to_update():
         mock_json.load.return_value = {TEST_BUNDLE_NAME: "12345"}
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         ensure_latest_bundle(bundle)
-        mock_gb.assert_called_once_with(bundle, "54321")
+        mock_gb.assert_called_once_with(bundle, "54321", "py")
         assert mock_json.dump.call_count == 1  # Current version saved to file.
 
 
@@ -1015,7 +1015,7 @@ def test_ensure_latest_bundle_to_update_http_error():
         tags = tags_data_load()
         bundle.available_tags = tags.get(bundle.key, [])
         ensure_latest_bundle(bundle)
-        mock_gb.assert_called_once_with(bundle, "54321")
+        mock_gb.assert_called_once_with(bundle, "54321", "py")
         assert bundle.current_tag == "67890"
         assert mock_json.dump.call_count == 0  # not saved.
         assert mock_click.call_count == 2  # friendly message.
@@ -1045,7 +1045,7 @@ def test_ensure_pinned_bundle_to_exit_http_error():
         tags = tags_data_load()
         bundle.available_tags = tags.get(bundle.key, [])
         ensure_pinned_bundle(bundle)
-        mock_gb.assert_called_once_with(bundle, "54321")
+        mock_gb.assert_called_once_with(bundle, "54321", "py")
         assert mock_json.dump.call_count == 0  # not saved.
         assert mock_click.call_count == 2  # friendly message.
         mock_exit.assert_called_once_with(1)
@@ -1074,6 +1074,34 @@ def test_ensure_latest_bundle_no_update():
         assert mock_logger.info.call_count == 2
 
 
+def test_ensure_bundle_tag_fallback_to_source():
+    """
+    If a compiled platform download fails, fallback to the source version.
+    """
+    tags_data = {TEST_BUNDLE_NAME: ["12345"]}
+    with mock.patch("circup.Bundle.latest_tag", "54321"), mock.patch(
+        "circup.os.path.isfile",
+        return_value=True,
+    ), mock.patch("circup.command_utils.open"), mock.patch(
+        "circup.command_utils.get_bundle",
+        side_effect=[None, requests.exceptions.HTTPError("404")],
+    ) as mock_gb, mock.patch(
+        "circup.command_utils.json"
+    ) as mock_json, mock.patch(
+        "circup.click.secho"
+    ):
+        mock_json.load.return_value = tags_data
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        bundle.platform = "10mpy"
+        tags = tags_data_load()
+        bundle.available_tags = tags.get(bundle.key, [])
+        ensure_latest_bundle(bundle)
+        mock_gb.assert_called_with(bundle, "54321", "10mpy")
+        assert bundle.current_tag == "54321"
+        assert bundle.platform is None
+        assert mock_json.dump.call_count == 1
+
+
 def test_get_bundle():
     """
     Ensure the expected calls are made to get the referenced bundle and the
@@ -1095,20 +1123,18 @@ def test_get_bundle():
         "circup.command_utils.zipfile"
     ) as mock_zipfile, mock.patch(
         "circup.Bundle.add_tag"
-    ) as mock_add_tag:
+    ):
         mock_click.progressbar = mock_progress
         mock_requests.get().status_code = mock_requests.codes.ok
         mock_requests.get.reset_mock()
         tag = "12345"
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        get_bundle(bundle, tag)
-        # how many bundles currently supported. i.e. 6x.mpy, 7x.mpy, py = 3 bundles
-        _bundle_count = len(PLATFORMS)
+        get_bundle(bundle, tag, "py")
+        _bundle_count = 1
         assert mock_requests.get.call_count == _bundle_count
         assert mock_open.call_count == _bundle_count
         assert mock_zipfile.ZipFile.call_count == _bundle_count
         assert mock_zipfile.ZipFile().__enter__().extractall.call_count == _bundle_count
-        assert mock_add_tag.call_count == 1
 
 
 def test_get_bundle_network_error():
@@ -1127,7 +1153,7 @@ def test_get_bundle_network_error():
         tag = "12345"
         with pytest.raises(Exception) as ex:
             bundle = circup.Bundle(TEST_BUNDLE_NAME)
-            get_bundle(bundle, tag)
+            get_bundle(bundle, tag, "py")
             assert ex.value.args[0] == "Bang!"
         url = (
             "https://github.com/" + TEST_BUNDLE_NAME + "/releases/download"

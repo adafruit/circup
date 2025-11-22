@@ -149,35 +149,67 @@ def ensure_bundle_tag(bundle, tag):
         logger.warning("Bundle version requested is 'None'.")
         return False
 
-    do_update = False
+    do_update_source = False
+    do_update_compiled = False
     if tag in bundle.available_tags:
-        for platform in PLATFORMS:
-            # missing directories (new platform added on an existing install
-            # or side effect of pytest or network errors)
-            do_update = do_update or not os.path.isdir(bundle.lib_dir(platform))
+        # missing directories (new platform added on an existing install
+        # or side effect of pytest or network errors)
+        # Check for the source
+        do_update_source = not os.path.isdir(bundle.lib_dir(source=True))
+        do_update_compiled = bundle.platform is not None and not os.path.isdir(
+            bundle.lib_dir(source=False)
+        )
     else:
-        do_update = True
+        do_update_source = True
+        do_update_compiled = bundle.platform is not None
 
-    if do_update:
-        if Bundle.offline:
+    if not (do_update_source or do_update_compiled):
+        logger.info("Current bundle version available (%s).", tag)
+        return True
+
+    if Bundle.offline:
+        if do_update_source:  # pylint: disable=no-else-return
             logger.info(
                 "Bundle version not available but skipping update in offline mode."
             )
             return False
+        else:
+            logger.info(
+                "Bundle platform not available. Falling back to source (.py) files in offline mode."
+            )
+            bundle.platform = None
+            return True
 
-        logger.info("New version available (%s).", tag)
+    logger.info("New version available (%s).", tag)
+    if do_update_source:
         try:
-            get_bundle(bundle, tag)
-            tags_data_save_tags(bundle.key, bundle.available_tags)
+            get_bundle(bundle, tag, "py")
         except requests.exceptions.HTTPError as ex:
             click.secho(
-                f"There was a problem downloading the {bundle.key} bundle.", fg="red"
+                f"There was a problem downloading the 'py' platform for the '{bundle.key}' bundle.",
+                fg="red",
             )
             logger.exception(ex)
-            return False
-    else:
-        logger.info("Current bundle version available (%s).", tag)
-    return True
+            return False  # Bundle isn't available
+        bundle.add_tag(tag)
+        tags_data_save_tags(bundle.key, bundle.available_tags)
+
+    if do_update_compiled:
+        try:
+            get_bundle(bundle, tag, bundle.platform)
+        except requests.exceptions.HTTPError as ex:
+            click.secho(
+                (
+                    f"There was a problem downloading the '{bundle.platform}' platform for the "
+                    f"'{bundle.key}' bundle.\nFalling back to source (.py) files."
+                ),
+                fg="red",
+            )
+            logger.exception(ex)
+            bundle.platform = None  # Compiled isn't available, source is good
+    bundle.current_tag = tag
+
+    return True  # bundle is available
 
 
 def ensure_latest_bundle(bundle):
@@ -364,7 +396,7 @@ def find_modules(backend, bundles_list):
     # pylint: enable=broad-except,too-many-locals
 
 
-def get_bundle(bundle, tag):
+def get_bundle(bundle, tag, platform):
     """
     Downloads and extracts the version of the bundle with the referenced tag.
     The resulting zip file is saved on the local filesystem.
@@ -372,32 +404,30 @@ def get_bundle(bundle, tag):
     :param Bundle bundle: the target Bundle object.
     :param str tag: The GIT tag to use to download the bundle.
     """
-    click.echo(f"Downloading bundles for {bundle.key} ({tag}).")
-    for platform, github_string in PLATFORMS.items():
-        # Report the platform: "8.x-mpy", etc.
-        click.echo(f"{github_string}:")
-        url = bundle.url_format.format(platform=github_string, tag=tag)
-        logger.info("Downloading bundle: %s", url)
-        r = requests.get(url, stream=True, timeout=REQUESTS_TIMEOUT)
-        # pylint: disable=no-member
-        if r.status_code != requests.codes.ok:
-            logger.warning("Unable to connect to %s", url)
-            r.raise_for_status()
-        # pylint: enable=no-member
-        total_size = int(r.headers.get("Content-Length"))
-        temp_zip = bundle.zip.format(platform=platform)
-        with click.progressbar(
-            r.iter_content(1024), label="Extracting:", length=total_size
-        ) as pbar, open(temp_zip, "wb") as zip_fp:
-            for chunk in pbar:
-                zip_fp.write(chunk)
-                pbar.update(len(chunk))
-        logger.info("Saved to %s", temp_zip)
-        temp_dir = bundle.dir.format(platform=platform)
-        with zipfile.ZipFile(temp_zip, "r") as zfile:
-            zfile.extractall(temp_dir)
-    bundle.add_tag(tag)
-    bundle.current_tag = tag
+    click.echo(f"Downloading '{platform}' bundle for {bundle.key} ({tag}).")
+    github_string = PLATFORMS[platform]
+    # Report the platform: "8.x-mpy", etc.
+    click.echo(f"{github_string}:")
+    url = bundle.url_format.format(platform=github_string, tag=tag)
+    logger.info("Downloading bundle: %s", url)
+    r = requests.get(url, stream=True, timeout=REQUESTS_TIMEOUT)
+    # pylint: disable=no-member
+    if r.status_code != requests.codes.ok:
+        logger.warning("Unable to connect to %s", url)
+        r.raise_for_status()
+    # pylint: enable=no-member
+    total_size = int(r.headers.get("Content-Length"))
+    temp_zip = bundle.zip.format(platform=platform)
+    with click.progressbar(
+        r.iter_content(1024), label="Extracting:", length=total_size
+    ) as pbar, open(temp_zip, "wb") as zip_fp:
+        for chunk in pbar:
+            zip_fp.write(chunk)
+            pbar.update(len(chunk))
+    logger.info("Saved to %s", temp_zip)
+    temp_dir = bundle.dir.format(platform=platform)
+    with zipfile.ZipFile(temp_zip, "r") as zfile:
+        zfile.extractall(temp_dir)
     click.echo("\nOK\n")
 
 
@@ -417,9 +447,9 @@ def get_bundle_examples(bundles_list, avoid_download=False):
 
     try:
         for bundle in bundles_list:
-            if not avoid_download or not os.path.isdir(bundle.lib_dir("py")):
+            if not avoid_download or not os.path.isdir(bundle.lib_dir(source=True)):
                 ensure_bundle(bundle)
-            path = bundle.examples_dir("py")
+            path = bundle.examples_dir(source=True)
             meta_saved = os.path.join(path, "../bundle_examples.json")
             if os.path.exists(meta_saved):
                 with open(meta_saved, "r", encoding="utf-8") as f:
@@ -465,9 +495,9 @@ def get_bundle_versions(bundles_list, avoid_download=False):
     """
     all_the_modules = dict()
     for bundle in bundles_list:
-        if not avoid_download or not os.path.isdir(bundle.lib_dir("py")):
+        if not avoid_download or not os.path.isdir(bundle.lib_dir(source=True)):
             ensure_bundle(bundle)
-        path = bundle.lib_dir("py")
+        path = bundle.lib_dir(source=True)
         path_modules = _get_modules_file(path, logger)
         for name, module in path_modules.items():
             module["bundle"] = bundle
@@ -514,7 +544,7 @@ def get_bundles_local_dict():
         return dict()
 
 
-def get_bundles_list(bundle_tags):
+def get_bundles_list(bundle_tags, platform_version=None):
     """
     Retrieve the list of bundles from the config dictionary.
 
@@ -534,6 +564,7 @@ def get_bundles_list(bundle_tags):
 
     bundles_list = [Bundle(bundle_config[b]) for b in bundle_config]
     for bundle in bundles_list:
+        bundle.platform = platform_version
         bundle.available_tags = tags.get(bundle.key, [])
         if pinned_tags is not None:
             bundle.pinned_tag = pinned_tags.get(bundle.key)

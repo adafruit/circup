@@ -163,12 +163,20 @@ class Bundle:
         """
         if isinstance(tags, str):
             tags = [tags]
-        self._available = sorted(
-            tags,
-            key=lambda tag: VersionInfo.parse(
-                tag.removeprefix("v"), optional_minor_and_patch=True
-            ),
-        )
+
+        try:
+            tags = sorted(
+                tags,
+                key=lambda tag: VersionInfo.parse(
+                    tag.removeprefix("v"), optional_minor_and_patch=True
+                ),
+            )
+        except ValueError as ex:
+            logger.warning(
+                "Bundle '%s' has invalid tags, cannot order by version.", self.key
+            )
+            logger.warning(ex)
+        self._available = tags
 
     def add_tag(self, tag: str) -> None:
         """
@@ -184,20 +192,27 @@ class Bundle:
             # The tag is already stored for some reason, lets not add it again
             return
 
-        version_tag = VersionInfo.parse(
-            tag.removeprefix("v"), optional_minor_and_patch=True
-        )
-
-        for rev_i, available_tag in enumerate(reversed(self._available)):
-            available_version_tag = VersionInfo.parse(
-                available_tag.removeprefix("v"), optional_minor_and_patch=True
+        try:
+            version_tag = VersionInfo.parse(
+                tag.removeprefix("v"), optional_minor_and_patch=True
             )
-            if version_tag > available_version_tag:
-                i = len(self._available) - rev_i
-                self._available.insert(i, tag)
-                break
-        else:
-            self._available.insert(0, tag)
+
+            for rev_i, available_tag in enumerate(reversed(self._available)):
+                available_version_tag = VersionInfo.parse(
+                    available_tag.removeprefix("v"), optional_minor_and_patch=True
+                )
+                if version_tag > available_version_tag:
+                    i = len(self._available) - rev_i
+                    self._available.insert(i, tag)
+                    break
+            else:
+                self._available.insert(0, tag)
+        except ValueError as ex:
+            logger.warning(
+                "Bundle tag '%s' is not a valid tag, cannot order by version.", tag
+            )
+            logger.warning(ex)
+            self._available.append(tag)
 
     def validate(self):
         """

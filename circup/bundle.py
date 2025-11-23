@@ -165,12 +165,7 @@ class Bundle:
             tags = [tags]
 
         try:
-            tags = sorted(
-                tags,
-                key=lambda tag: VersionInfo.parse(
-                    tag.removeprefix("v"), optional_minor_and_patch=True
-                ),
-            )
+            tags = sorted(tags, key=self.parse_version)
         except ValueError as ex:
             logger.warning(
                 "Bundle '%s' has invalid tags, cannot order by version.", self.key
@@ -193,14 +188,10 @@ class Bundle:
             return
 
         try:
-            version_tag = VersionInfo.parse(
-                tag.removeprefix("v"), optional_minor_and_patch=True
-            )
+            version_tag = self.parse_version(tag)
 
             for rev_i, available_tag in enumerate(reversed(self._available)):
-                available_version_tag = VersionInfo.parse(
-                    available_tag.removeprefix("v"), optional_minor_and_patch=True
-                )
+                available_version_tag = self.parse_version(available_tag)
                 if version_tag > available_version_tag:
                     i = len(self._available) - rev_i
                     self._available.insert(i, tag)
@@ -233,6 +224,22 @@ class Bundle:
                 return False
             # pylint: enable=no-member
         return True
+
+    @staticmethod
+    def parse_version(tag: str) -> VersionInfo:
+        """
+        Parse a tag to get a VersionInfo object.
+
+        `VersionInfo` objects are useful for ordering the tags from oldest to
+        newest in :py:attr:`self.available_tags`. The tags are stripped of a
+        leading 'v' (if one is present) and minor and patch components are
+        optional. This is to allow more flexibility with how a bundle is
+        versioned.
+
+        :param str tag: The tag to parse.
+        :return: A `VersionInfo` object parsed from the tag.
+        """
+        return VersionInfo.parse(tag.removeprefix("v"), optional_minor_and_patch=True)
 
     def __repr__(self):
         """

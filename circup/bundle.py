@@ -10,6 +10,8 @@ import sys
 import click
 import requests
 
+from semver import VersionInfo
+
 from circup.shared import (
     DATA_DIR,
     PLATFORMS,
@@ -161,7 +163,12 @@ class Bundle:
         """
         if isinstance(tags, str):
             tags = [tags]
-        self._available = sorted(tags)
+        self._available = sorted(
+            tags,
+            key=lambda tag: VersionInfo.parse(
+                tag.removeprefix("v"), optional_minor_and_patch=True
+            ),
+        )
 
     def add_tag(self, tag: str) -> None:
         """
@@ -177,8 +184,15 @@ class Bundle:
             # The tag is already stored for some reason, lets not add it again
             return
 
+        version_tag = VersionInfo.parse(
+            tag.removeprefix("v"), optional_minor_and_patch=True
+        )
+
         for rev_i, available_tag in enumerate(reversed(self._available)):
-            if int(tag) > int(available_tag):
+            available_version_tag = VersionInfo.parse(
+                available_tag.removeprefix("v"), optional_minor_and_patch=True
+            )
+            if version_tag > available_version_tag:
                 i = len(self._available) - rev_i
                 self._available.insert(i, tag)
                 break

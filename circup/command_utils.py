@@ -403,6 +403,7 @@ def get_bundle(bundle, tag, platform):
 
     :param Bundle bundle: the target Bundle object.
     :param str tag: The GIT tag to use to download the bundle.
+    :param str platform: The platform string (i.e. '10mpy').
     """
     click.echo(f"Downloading '{platform}' bundle for {bundle.key} ({tag}).")
     github_string = PLATFORMS[platform]
@@ -550,6 +551,8 @@ def get_bundles_list(bundle_tags, platform_version=None):
 
     :param Dict[str,str]|None bundle_tags: Pinned bundle tags. These override
     any tags found in the pyproject.toml.
+    :param str platform_version: The platform version needed for the current
+    device.
     :return: List of supported bundles as Bundle objects.
     """
     bundle_config = get_bundles_dict()

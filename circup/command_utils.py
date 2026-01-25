@@ -23,6 +23,7 @@ import click
 from circup.shared import (
     PLATFORMS,
     REQUESTS_TIMEOUT,
+    SUPPORTED_PLATFORMS,
     _get_modules_file,
     BUNDLE_CONFIG_OVERWRITE,
     BUNDLE_CONFIG_FILE,
@@ -1038,3 +1039,12 @@ def parse_cli_bundle_tags(bundle_tags_cli):
         if len(item) == 2:
             bundle_tags[item[0].strip()] = item[1].strip()
     return bundle_tags if len(bundle_tags) > 0 else None
+
+
+def pretty_supported_cpy_versions():
+    """Return a user friendly string of the supported CircuitPython versions."""
+    supported_cpy = [
+        PLATFORMS[platform].split("-", maxsplit=1)[0]
+        for platform in SUPPORTED_PLATFORMS
+    ]
+    return ", ".join(supported_cpy)

@@ -24,7 +24,11 @@ import requests
 
 from circup.backends import WebBackend, DiskBackend
 from circup.logging import logger, log_formatter, LOGFILE
-from circup.shared import BOARDLESS_COMMANDS, get_latest_release_from_url
+from circup.shared import (
+    BOARDLESS_COMMANDS,
+    SUPPORTED_PLATFORMS,
+    get_latest_release_from_url,
+)
 from circup.bundle import Bundle
 from circup.command_utils import (
     get_device_path,
@@ -38,6 +42,7 @@ from circup.command_utils import (
     get_dependencies,
     get_bundles_local_dict,
     parse_cli_bundle_tags,
+    pretty_supported_cpy_versions,
     save_local_bundles,
     get_bundles_dict,
     completion_for_example,
@@ -105,6 +110,13 @@ from circup.command_utils import (
     "version values provided here will override any pinned values from the "
     "pyproject.toml.",
 )
+@click.option(
+    "--allow-unsupported",
+    is_flag=True,
+    help="Allow using a device with a version of CircuitPython that is no longer "
+    "supported. Using an unsupported version of CircuitPython is generally not "
+    "recommended because libraries may not work with it.",
+)
 @click.version_option(
     prog_name="Circup",
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
@@ -122,6 +134,7 @@ def main(  # pylint: disable=too-many-locals
     board_id,
     cpy_version,
     bundle_versions,
+    allow_unsupported,
 ):  # pragma: no cover
     """
     A tool to manage and update libraries on a CircuitPython device.
@@ -244,6 +257,25 @@ def main(  # pylint: disable=too-many-locals
         except ValueError as ex:
             logger.warning("CircuitPython has incorrect semver value.")
             logger.warning(ex)
+
+    if not bundle_platform in SUPPORTED_PLATFORMS:
+        click.secho(
+            "The version of CircuitPython on the device is no longer supported.",
+            fg="yellow" if allow_unsupported else "red",
+        )
+        if allow_unsupported:
+            click.secho(
+                "It is recommended to update to a supported version "
+                f"({pretty_supported_cpy_versions()}) to ensure compatability.",
+                fg="yellow",
+            )
+        else:
+            click.echo(
+                f"If you would like to continue to use version {cpy_version} of CircuitPython, "
+                "pass the '--allow-unsupported' flag with this command. Otherwise, update to a "
+                f"supported version ({pretty_supported_cpy_versions()}) to ensure compatability.",
+            )
+            sys.exit(1)
 
 
 @main.command()

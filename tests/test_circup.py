@@ -680,7 +680,7 @@ def test_extract_metadata_python():
         "builtins.open", mock.mock_open(read_data=code)
     ) as mock_open, mock.patch("circup.logger.warning") as mock_logger:
         result = circup.extract_metadata(path, mock_logger)
-        mock_open.assert_called_once_with(path, "r", encoding="utf-8")
+        mock_open.assert_called_once_with(path, encoding="utf-8")
     assert len(result) == 3
     assert result["__version__"] == "1.1.4"
     assert result["__repo__"] == "https://github.com/adafruit/SomeLibrary.git"

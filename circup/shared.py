@@ -131,7 +131,7 @@ def extract_metadata(path, logger):
     logger.info("%s", path)
     if path.endswith(".py"):
         result["mpy"] = False
-        with open(path, "r", encoding="utf-8") as source_file:
+        with open(path, encoding="utf-8") as source_file:
             content = source_file.read()
         #: The regex used to extract ``__version__`` and ``__repo__`` assignments.
         dunder_key_val = r"""(__\w+__)(?:\s*:\s*\w+)?\s*=\s*(?:['"]|\(\s)(.+)['"]"""

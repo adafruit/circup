@@ -83,7 +83,7 @@ class Module:
             # Byte compiled, now check CircuitPython version.
 
             major_version = self.backend.get_circuitpython_version()[0].split(".")[0]
-            bundle_platform = "{}mpy".format(major_version)
+            bundle_platform = f"{major_version}mpy"
         else:
             # Regular Python
             bundle_platform = "py"

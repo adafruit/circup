@@ -139,7 +139,7 @@ class Backend:
             if name in device_modules:
                 if not upgrade:
                     # skip already installed modules if no -upgrade flag
-                    click.echo("'{}' is already installed.".format(name))
+                    click.echo(f"'{name}' is already installed.")
                     return
 
                 # uninstall the module before installing
@@ -205,9 +205,9 @@ class Backend:
                     self.install_module_mpy(bundle, metadata)
             else:
                 self.copy_file(metadata["path"], "lib")
-            click.echo("Installed '{}'.".format(name))
+            click.echo(f"Installed '{name}'.")
         else:
-            click.echo("Unknown module named, '{}'.".format(name))
+            click.echo(f"Unknown module named, '{name}'.")
 
     # def libraries_from_imports(self, code_py, mod_names):
     #     """
@@ -303,7 +303,7 @@ class WebBackend(Backend):
             socket.getaddrinfo(host, 80, proto=socket.IPPROTO_TCP)
         except socket.gaierror as exc:
             raise RuntimeError(
-                "Invalid host: {}.".format(host) + " You should remove the 'http://'"
+                f"Invalid host: {host}." + " You should remove the 'http://'"
                 if "http://" in host or "https://" in host
                 else "Could not find or connect to specified device"
             ) from exc
@@ -649,7 +649,7 @@ class WebBackend(Backend):
             # Must be a directory based module.
             module_name = os.path.basename(os.path.dirname(metadata["path"]))
         major_version = self.get_circuitpython_version()[0].split(".")[0]
-        bundle_platform = "{}mpy".format(major_version)
+        bundle_platform = f"{major_version}mpy"
         bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
         if os.path.isdir(bundle_path):
 
@@ -659,7 +659,7 @@ class WebBackend(Backend):
             self.install_file_http(bundle_path)
 
         else:
-            raise IOError("Cannot find compiled version of module.")
+            raise OSError("Cannot find compiled version of module.")
 
     # pylint: enable=too-many-locals,too-many-branches
     def install_module_py(self, metadata, location=None):
@@ -862,7 +862,6 @@ class DiskBackend(Backend):
             try:
                 with open(
                     os.path.join(self.device_location, "boot_out.txt"),
-                    "r",
                     encoding="utf-8",
                 ) as boot:
                     boot_out_contents = boot.read()
@@ -921,7 +920,7 @@ class DiskBackend(Backend):
             module_name = os.path.basename(os.path.dirname(metadata["path"]))
 
         major_version = self.get_circuitpython_version()[0].split(".")[0]
-        bundle_platform = "{}mpy".format(major_version)
+        bundle_platform = f"{major_version}mpy"
         bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
         if os.path.isdir(bundle_path):
             target_path = os.path.join(self.library_path, module_name)
@@ -936,7 +935,7 @@ class DiskBackend(Backend):
             # Copy file.
             shutil.copyfile(bundle_path, target_path)
         else:
-            raise IOError("Cannot find compiled version of module.")
+            raise OSError("Cannot find compiled version of module.")
 
     # pylint: enable=too-many-locals,too-many-branches
     def install_module_py(self, metadata, location=None):

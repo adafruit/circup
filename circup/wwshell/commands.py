@@ -115,7 +115,7 @@ def main(  # pylint: disable=too-many-locals
         verbose_handler.setLevel(logging.INFO)
         verbose_handler.setFormatter(log_formatter)
         logger.addHandler(verbose_handler)
-        click.echo("Logging to {}\n".format(LOGFILE))
+        click.echo(f"Logging to {LOGFILE}\n")
     else:
         ctx.obj["verbose"] = False
 
@@ -137,7 +137,7 @@ def main(  # pylint: disable=too-many-locals
         click.secho("Could not find a connected CircuitPython device.", fg="red")
         sys.exit(1)
     else:
-        click.echo("Found device at {}.".format(device_path))
+        click.echo(f"Found device at {device_path}.")
 
 
 @main.command("ls")

@@ -1183,7 +1183,7 @@ def test_show_match_py_command():
 def test_imports_from_code():
     """Ensure that various styles of import all work"""
     test_file = str(pathlib.Path(__file__).parent / "import_styles.py")
-    with open(test_file, "r", encoding="utf8") as fp:
+    with open(test_file, encoding="utf8") as fp:
         test_data = fp.read()
 
     result = imports_from_code(test_data)
@@ -1230,7 +1230,7 @@ def test_get_all_imports():
         backend = DiskBackend(tests_dir / "mock_device", mock_logger)
 
         test_file = str(tests_dir / "import_styles.py")
-        with open(test_file, "r", encoding="utf8") as fp:
+        with open(test_file, encoding="utf8") as fp:
             test_data = fp.read()
 
         result = get_all_imports(

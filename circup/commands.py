@@ -544,9 +544,7 @@ def show(ctx, match):  # pragma: no cover
         module_names = [m for m in module_names if match in m]
     click.echo("\n".join(module_names))
 
-    click.echo(
-        f"{len(module_names)} shown of {len(available_modules)} packages."
-    )
+    click.echo(f"{len(module_names)} shown of {len(available_modules)} packages.")
 
 
 @main.command()
@@ -649,8 +647,8 @@ def update(ctx, update_all):  # pragma: no cover
                 update_flag = click.confirm("Do you want to update?")
             elif module.major_update:
                 update_flag = click.confirm(
-                        "'{}' is a Major Version update and may contain breaking "
-                        "changes. Do you want to update?".format(module.name)
+                    "'{}' is a Major Version update and may contain breaking "
+                    "changes. Do you want to update?".format(module.name)
                 )
             else:
                 update_flag = click.confirm(f"Update '{module.name}'?")

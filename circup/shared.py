@@ -22,7 +22,10 @@ BAD_FILE_FORMAT = "Invalid"
 DATA_DIR = appdirs.user_data_dir(appname="circup", appauthor="adafruit")
 
 #: Module formats list (and the other form used in github files)
-PLATFORMS = {"py": "py", "9mpy": "9.x-mpy", "10mpy": "10.x-mpy"}
+PLATFORMS = {"py": "py", "8mpy": "8.x-mpy", "9mpy": "9.x-mpy", "10mpy": "10.x-mpy"}
+
+#: CircuitPython platforms that are currently supported.
+SUPPORTED_PLATFORMS = ["9mpy", "10mpy"]
 
 #: Timeout for requests calls like get()
 REQUESTS_TIMEOUT = 30

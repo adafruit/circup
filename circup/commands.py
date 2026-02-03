@@ -24,7 +24,11 @@ import requests
 
 from circup.backends import WebBackend, DiskBackend
 from circup.logging import logger, log_formatter, LOGFILE
-from circup.shared import BOARDLESS_COMMANDS, get_latest_release_from_url
+from circup.shared import (
+    BOARDLESS_COMMANDS,
+    SUPPORTED_PLATFORMS,
+    get_latest_release_from_url,
+)
 from circup.bundle import Bundle
 from circup.command_utils import (
     get_device_path,
@@ -38,6 +42,7 @@ from circup.command_utils import (
     get_dependencies,
     get_bundles_local_dict,
     parse_cli_bundle_tags,
+    pretty_supported_cpy_versions,
     save_local_bundles,
     get_bundles_dict,
     completion_for_example,
@@ -105,6 +110,13 @@ from circup.command_utils import (
     "version values provided here will override any pinned values from the "
     "pyproject.toml.",
 )
+@click.option(
+    "--allow-unsupported",
+    is_flag=True,
+    help="Allow using a device with a version of CircuitPython that is no longer "
+    "supported. Using an unsupported version of CircuitPython is generally not "
+    "recommended because libraries may not work with it.",
+)
 @click.version_option(
     prog_name="Circup",
     message="%(prog)s, A CircuitPython module updater. Version %(version)s",
@@ -122,6 +134,7 @@ def main(  # pylint: disable=too-many-locals
     board_id,
     cpy_version,
     bundle_versions,
+    allow_unsupported,
 ):  # pragma: no cover
     """
     A tool to manage and update libraries on a CircuitPython device.
@@ -215,6 +228,9 @@ def main(  # pylint: disable=too-many-locals
             if board_id is None or cpy_version is None
             else (cpy_version, board_id)
         )
+        major_version = cpy_version.split(".")[0]
+        bundle_platform = "{}mpy".format(major_version)
+        ctx.obj["DEVICE_PLATFORM_VERSION"] = bundle_platform
         click.echo(
             "Found device {} at {}, running CircuitPython {}.".format(
                 board_id, device_path, cpy_version
@@ -241,6 +257,25 @@ def main(  # pylint: disable=too-many-locals
         except ValueError as ex:
             logger.warning("CircuitPython has incorrect semver value.")
             logger.warning(ex)
+
+    if not bundle_platform in SUPPORTED_PLATFORMS:
+        click.secho(
+            "The version of CircuitPython on the device is no longer supported.",
+            fg="yellow" if allow_unsupported else "red",
+        )
+        if allow_unsupported:
+            click.secho(
+                "It is recommended to update to a supported version "
+                f"({pretty_supported_cpy_versions()}) to ensure compatability.",
+                fg="yellow",
+            )
+        else:
+            click.echo(
+                f"If you would like to continue to use version {cpy_version} of CircuitPython, "
+                "pass the '--allow-unsupported' flag with this command. Otherwise, update to a "
+                f"supported version ({pretty_supported_cpy_versions()}) to ensure compatability.",
+            )
+            sys.exit(1)
 
 
 @main.command()
@@ -301,7 +336,10 @@ def list_cli(ctx):  # pragma: no cover
     modules = [
         m.row
         for m in find_modules(
-            ctx.obj["backend"], get_bundles_list(ctx.obj["BUNDLE_TAGS"])
+            ctx.obj["backend"],
+            get_bundles_list(
+                ctx.obj["BUNDLE_TAGS"], ctx.obj["DEVICE_PLATFORM_VERSION"]
+            ),
         )
         if m.outofdate
     ]
@@ -378,7 +416,10 @@ def install(
 
     # pylint: disable=too-many-branches
     # TODO: Ensure there's enough space on the device
-    available_modules = get_bundle_versions(get_bundles_list(ctx.obj["BUNDLE_TAGS"]))
+    platform_version = ctx.obj["DEVICE_PLATFORM_VERSION"] if not pyext else None
+    available_modules = get_bundle_versions(
+        get_bundles_list(ctx.obj["BUNDLE_TAGS"], platform_version)
+    )
     mod_names = {}
     for module, metadata in available_modules.items():
         mod_names[module.replace(".py", "").lower()] = metadata
@@ -600,7 +641,9 @@ def update(ctx, update_all):  # pragma: no cover
     """
     logger.info("Update")
     # Grab current modules.
-    bundles_list = get_bundles_list(ctx.obj["BUNDLE_TAGS"])
+    bundles_list = get_bundles_list(
+        ctx.obj["BUNDLE_TAGS"], ctx.obj["DEVICE_PLATFORM_VERSION"]
+    )
     installed_modules = find_modules(ctx.obj["backend"], bundles_list)
     modules_to_update = [m for m in installed_modules if m.outofdate]
 

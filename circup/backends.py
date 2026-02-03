@@ -197,7 +197,9 @@ class Backend:
             # Create the library directory first.
             self.create_directory(device_path, library_path)
             if local_path is None:
-                if pyext:
+                # Fallback to the source version (py) if the bundle doesn't have
+                # a compiled version (mpy)
+                if pyext or bundle.platform is None:
                     # Use Python source for module.
                     self.install_module_py(metadata)
                 else:
@@ -648,9 +650,7 @@ class WebBackend(Backend):
         if not module_name:
             # Must be a directory based module.
             module_name = os.path.basename(os.path.dirname(metadata["path"]))
-        major_version = self.get_circuitpython_version()[0].split(".")[0]
-        bundle_platform = "{}mpy".format(major_version)
-        bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
+        bundle_path = os.path.join(bundle.lib_dir(), module_name)
         if os.path.isdir(bundle_path):
 
             self.install_dir_http(bundle_path)
@@ -920,9 +920,7 @@ class DiskBackend(Backend):
             # Must be a directory based module.
             module_name = os.path.basename(os.path.dirname(metadata["path"]))
 
-        major_version = self.get_circuitpython_version()[0].split(".")[0]
-        bundle_platform = "{}mpy".format(major_version)
-        bundle_path = os.path.join(bundle.lib_dir(bundle_platform), module_name)
+        bundle_path = os.path.join(bundle.lib_dir(), module_name)
         if os.path.isdir(bundle_path):
             target_path = os.path.join(self.library_path, module_name)
             # Copy the directory.

@@ -196,7 +196,7 @@ def main(  # pylint: disable=too-many-locals
         verbose_handler.setLevel(logging.INFO)
         verbose_handler.setFormatter(log_formatter)
         logger.addHandler(verbose_handler)
-        click.echo("Logging to {}\n".format(LOGFILE))
+        click.echo(f"Logging to {LOGFILE}\n")
     else:
         ctx.obj["verbose"] = False
 
@@ -253,7 +253,7 @@ def main(  # pylint: disable=too-many-locals
                     url_download = f"https://circuitpython.org/board/{board_id}"
                 else:
                     url_download = "https://circuitpython.org/downloads"
-                click.secho("Get it here: {}".format(url_download), fg="green")
+                click.secho(f"Get it here: {url_download}", fg="green")
         except ValueError as ex:
             logger.warning("CircuitPython has incorrect semver value.")
             logger.warning(ex)
@@ -291,7 +291,7 @@ def freeze(ctx, requirement):  # pragma: no cover
     if modules:
         output = []
         for module in modules:
-            output.append("{}=={}".format(module.name, module.device_version))
+            output.append(f"{module.name}=={module.device_version}")
         for module in output:
             click.echo(module)
             logger.info(module)
@@ -350,7 +350,7 @@ def list_cli(ctx):  # pragma: no cover
         for row in data:
             for i, word in enumerate(row):
                 col_width[i] = max(len(word) + 2, col_width[i])
-        dashes = tuple(("-" * (width - 1) for width in col_width))
+        dashes = tuple("-" * (width - 1) for width in col_width)
         data.insert(1, dashes)
         click.echo(
             "The following modules are out of date or probably need an update.\n"
@@ -424,7 +424,7 @@ def install(
     for module, metadata in available_modules.items():
         mod_names[module.replace(".py", "").lower()] = metadata
     if requirement:
-        with open(requirement, "r", encoding="utf-8") as rfile:
+        with open(requirement, encoding="utf-8") as rfile:
             requirements_txt = rfile.read()
         requested_installs = libraries_from_requirements(requirements_txt)
     elif auto or auto_file:
@@ -585,9 +585,7 @@ def show(ctx, match):  # pragma: no cover
         module_names = [m for m in module_names if match in m]
     click.echo("\n".join(module_names))
 
-    click.echo(
-        "{} shown of {} packages.".format(len(module_names), len(available_modules))
-    )
+    click.echo(f"{len(module_names)} shown of {len(available_modules)} packages.")
 
 
 @main.command()
@@ -611,9 +609,9 @@ def uninstall(ctx, module):  # pragma: no cover
             metadata = mod_names[name]
             module_path = metadata["path"]
             ctx.obj["backend"].uninstall(device_path, module_path)
-            click.echo("Uninstalled '{}'.".format(name))
+            click.echo(f"Uninstalled '{name}'.")
         else:
-            click.echo("Module '{}' not found on device.".format(name))
+            click.echo(f"Module '{name}' not found on device.")
         continue
 
 
@@ -653,7 +651,7 @@ def update(ctx, update_all):  # pragma: no cover
 
     # Process out of date modules
     updated_modules = []
-    click.echo("Found {} module[s] needing update.".format(len(modules_to_update)))
+    click.echo(f"Found {len(modules_to_update)} module[s] needing update.")
     if not update_all:
         click.echo("Please indicate which module[s] you wish to update:\n")
     for module in modules_to_update:
@@ -692,22 +690,20 @@ def update(ctx, update_all):  # pragma: no cover
                 update_flag = click.confirm("Do you want to update?")
             elif module.major_update:
                 update_flag = click.confirm(
-                    (
-                        "'{}' is a Major Version update and may contain breaking "
-                        "changes. Do you want to update?".format(module.name)
-                    )
+                    "'{}' is a Major Version update and may contain breaking "
+                    "changes. Do you want to update?".format(module.name)
                 )
             else:
-                update_flag = click.confirm("Update '{}'?".format(module.name))
+                update_flag = click.confirm(f"Update '{module.name}'?")
         if update_flag:
             # pylint: disable=broad-except
             try:
                 ctx.obj["backend"].update(module)
                 updated_modules.append(module.name)
-                click.echo("Updated {}".format(module.name))
+                click.echo(f"Updated {module.name}")
             except Exception as ex:
                 logger.exception(ex)
-                click.echo("Something went wrong, {} (check the logs)".format(str(ex)))
+                click.echo(f"Something went wrong, {str(ex)} (check the logs)")
             # pylint: enable=broad-except
 
     if not updated_modules:

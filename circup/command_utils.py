@@ -329,7 +329,7 @@ def find_device():
         old_mode = ctypes.windll.kernel32.SetErrorMode(1)
         try:
             for disk in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-                path = "{}:\\".format(disk)
+                path = f"{disk}:\\"
                 if os.path.exists(path) and get_volume_name(path) == "CIRCUITPY":
                     device_dir = path
                     # Report only the FIRST device found.
@@ -338,7 +338,7 @@ def find_device():
             ctypes.windll.kernel32.SetErrorMode(old_mode)
     else:
         # No support for unknown operating systems.
-        raise NotImplementedError('OS "{}" not supported.'.format(os.name))
+        raise NotImplementedError(f'OS "{os.name}" not supported.')
     logger.info("Found device: %s", device_dir)
     return device_dir
 
@@ -392,7 +392,7 @@ def find_modules(backend, bundles_list):
         # If it's not possible to get the device and bundle metadata, bail out
         # with a friendly message and indication of what's gone wrong.
         logger.exception(ex)
-        click.echo("There was a problem: {}".format(ex))
+        click.echo(f"There was a problem: {ex}")
         sys.exit(1)
     # pylint: enable=broad-except,too-many-locals
 
@@ -454,7 +454,7 @@ def get_bundle_examples(bundles_list, avoid_download=False):
             path = bundle.examples_dir(source=True)
             meta_saved = os.path.join(path, "../bundle_examples.json")
             if os.path.exists(meta_saved):
-                with open(meta_saved, "r", encoding="utf-8") as f:
+                with open(meta_saved, encoding="utf-8") as f:
                     bundle_examples = json.load(f)
                 all_the_examples.update(bundle_examples)
                 bundle_examples.clear()
@@ -929,7 +929,7 @@ def libraries_from_auto_file(backend, auto_file, mod_names):
     # pass a local file with "./" or "../"
     is_relative = auto_file.split(os.sep)[0] in [os.path.curdir, os.path.pardir]
     if os.path.isabs(auto_file) or is_relative:
-        with open(auto_file, "r", encoding="UTF8") as fp:
+        with open(auto_file, encoding="UTF8") as fp:
             auto_file_content = fp.read()
     else:
         auto_file_content = backend.get_file_content(auto_file)

@@ -32,7 +32,7 @@ classifiers = [
 ]
 keywords = ["adafruit", "blinka", "circuitpython", "micropython", "libraries"]
 
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}

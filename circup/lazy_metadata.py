@@ -5,7 +5,8 @@
 Class that acts similar to a dictionary, but defers the loading of expensive
 data until that data is accessed.
 """
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 
 class LazyMetadata:

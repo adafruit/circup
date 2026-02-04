@@ -28,7 +28,7 @@ A tool to manage and update libraries (modules) on a CircuitPython device.
 Installation
 ------------
 
-Circup requires Python 3.9 or higher.
+Circup requires Python 3.10 or higher.
 
 In a `virtualenv <https://virtualenv.pypa.io/en/latest/>`_,
 ``pip install circup`` should do the trick. This is the simplest way to make it

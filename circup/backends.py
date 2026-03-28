@@ -184,12 +184,12 @@ class Backend:
 
             if self.get_free_space() < new_module_size:
                 self.logger.error(
-                    f"Aborted installing module {name} - "
-                    f"not enough free space ({new_module_size} < {self.get_free_space()})"
+                    f"Aborted installing module {name} - it needs {new_module_size} bytes "
+                    f"but only {self.get_free_space()} bytes of storage is available"
                 )
                 click.secho(
-                    f"Aborted installing module {name} - "
-                    f"not enough free space ({new_module_size} < {self.get_free_space()})",
+                    f"Aborted installing module {name} - it needs {new_module_size} bytes "
+                    f"but only {self.get_free_space()} bytes of storage is available",
                     fg="red",
                 )
                 return

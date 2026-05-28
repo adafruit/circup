@@ -497,7 +497,10 @@ def get_bundle_versions(bundles_list, avoid_download=False):
     """
     all_the_modules = dict()
     for bundle in bundles_list:
-        if not avoid_download or not os.path.isdir(bundle.lib_dir(source=True)):
+        if not avoid_download or (
+            not Bundle.offline
+            and not os.path.isdir(bundle.lib_dir(source=True))
+        ):
             ensure_bundle(bundle)
         path = bundle.lib_dir(source=True)
         path_modules = _get_modules_file(path, logger)

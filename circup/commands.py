@@ -750,7 +750,9 @@ def bundle_show(ctx, modules):
     """
     local_bundles = get_bundles_local_dict().values()
     bundles = get_bundles_list(ctx.obj["BUNDLE_TAGS"])
-    available_modules = get_bundle_versions(bundles)
+    available_modules = (
+        get_bundle_versions(bundles, avoid_download=True) if modules else {}
+    )
 
     for bundle in bundles:
         if bundle.key in local_bundles:
@@ -760,7 +762,7 @@ def bundle_show(ctx, modules):
         click.echo("    " + bundle.url)
         click.echo(
             "    version = "
-            + bundle.current_tag
+            + (bundle.current_tag or "(not downloaded)")
             + (" (pinned)" if bundle.pinned_tag is not None else "")
         )
         click.echo("    available versions:")

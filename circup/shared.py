@@ -52,7 +52,7 @@ NOT_MCU_LIBRARIES = [
 ]
 
 #: Commands that do not require an attached board
-BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
+BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show", "bundle-extract"]
 
 
 def _get_modules_file(path, logger):  # pylint: disable=too-many-locals

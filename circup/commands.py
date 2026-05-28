@@ -16,6 +16,7 @@ import time
 import sys
 import re
 import logging
+import zipfile
 import update_checker
 from semver import VersionInfo
 import click
@@ -26,6 +27,7 @@ from circup.backends import WebBackend, DiskBackend
 from circup.logging import logger, log_formatter, LOGFILE
 from circup.shared import (
     BOARDLESS_COMMANDS,
+    PLATFORMS,
     SUPPORTED_PLATFORMS,
     get_latest_release_from_url,
 )
@@ -48,6 +50,8 @@ from circup.command_utils import (
     completion_for_example,
     get_bundle_examples,
     is_virtual_env_active,
+    tags_data_load,
+    tags_data_save_tags,
 )
 
 
@@ -883,6 +887,76 @@ def bundle_remove(bundle, reset):
                 )
     if modified:
         save_local_bundles(bundles_local_dict)
+
+
+@main.command("bundle-extract")
+@click.argument(
+    "zip_path",
+    nargs=-1,
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+def bundle_extract(zip_path):  # pragma: no cover
+    """
+    Extract one or more locally downloaded bundle zip files into circup's data
+    directory, registering them for use without downloading from GitHub.
+
+    ZIP_PATH is the path to one or more bundle zip files, e.g.
+    adafruit-circuitpython-bundle-9.x-mpy-20250115.zip
+    """
+    logger.info("Bundle Extract")
+
+    # Reverse-map platform string -> platform key (e.g. "9.x-mpy" -> "9mpy")
+    platform_by_string = {v: k for k, v in PLATFORMS.items()}
+
+    # Load all known bundles with their existing available tags
+    tags_data = tags_data_load()
+    bundles_list = []
+    for repo in get_bundles_dict().values():
+        bundle = Bundle(repo)
+        bundle.available_tags = tags_data.get(bundle.key, [])
+        bundles_list.append(bundle)
+
+    for zpath in zip_path:
+        filename = os.path.basename(zpath)
+        matched = False
+
+        for bundle in bundles_list:
+            for platform_string, platform_key in platform_by_string.items():
+                # Build the expected filename prefix, e.g.
+                # "adafruit-circuitpython-bundle-9.x-mpy-"
+                zip_prefix = bundle.urlzip.format(
+                    platform=platform_string, tag=""
+                )[: -len(".zip")]
+                if filename.startswith(zip_prefix) and filename.endswith(".zip"):
+                    tag = filename[len(zip_prefix) : -len(".zip")]
+                    if not tag:
+                        continue
+
+                    dest_dir = bundle.dir.format(platform=platform_key)
+                    os.makedirs(dest_dir, exist_ok=True)
+                    click.echo(
+                        f"Extracting '{filename}' ({platform_string}, tag={tag}) "
+                        f"into {dest_dir} ..."
+                    )
+                    with zipfile.ZipFile(zpath, "r") as zfile:
+                        zfile.extractall(dest_dir)
+                    bundle.add_tag(tag)
+                    tags_data_save_tags(bundle.key, list(bundle.available_tags))
+                    click.secho(
+                        f"OK: {bundle.key} ({tag}) [{platform_string}]", fg="green"
+                    )
+                    matched = True
+                    break
+            if matched:
+                break
+
+        if not matched:
+            click.secho(
+                f"Could not match '{filename}' to any known bundle. "
+                "Make sure the bundle is added first with 'circup bundle-add'.",
+                fg="red",
+            )
 
 
 @main.command()

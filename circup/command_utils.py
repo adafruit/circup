@@ -227,8 +227,16 @@ def ensure_latest_bundle(bundle):
         click.echo(f"Using latest bundle for {bundle.key} ({tag}).")
     else:
         if bundle.current_tag is None:
-            # See issue #20 for reason for this
-            click.secho("Please try again in a moment.", fg="red")
+            if Bundle.offline:
+                click.secho(
+                    f"Bundle '{bundle.key}' is not available locally. "
+                    "Use 'circup bundle-extract <zip>' to add a local bundle, "
+                    "or remove '--offline' to download it from GitHub.",
+                    fg="red",
+                )
+            else:
+                # See issue #20 for reason for this
+                click.secho("Please try again in a moment.", fg="red")
             sys.exit(1)
         else:
             # See PR #184 for reason for this
@@ -343,7 +351,7 @@ def find_device():
     return device_dir
 
 
-def find_modules(backend, bundles_list):
+def find_modules(backend, bundles_list, avoid_download=False):
     """
     Extracts metadata from the connected device and available bundles and
     returns this as a list of Module instances representing the modules on the
@@ -351,13 +359,15 @@ def find_modules(backend, bundles_list):
 
     :param Backend backend: Backend with the device connection.
     :param List[Bundle] bundles_list: List of supported bundles as Bundle objects.
+    :param bool avoid_download: if True, use locally cached bundle without checking
+        for updates. Defaults to False.
     :return: A list of Module instances describing the current state of the
              modules on the connected device.
     """
     # pylint: disable=broad-except,too-many-locals
     try:
         device_modules = backend.get_device_versions()
-        bundle_modules = get_bundle_versions(bundles_list)
+        bundle_modules = get_bundle_versions(bundles_list, avoid_download=avoid_download)
         result = []
         for key, device_metadata in device_modules.items():
 
@@ -449,7 +459,10 @@ def get_bundle_examples(bundles_list, avoid_download=False):
 
     try:
         for bundle in bundles_list:
-            if not avoid_download or not os.path.isdir(bundle.lib_dir(source=True)):
+            if not avoid_download or (
+                not Bundle.offline
+                and not os.path.isdir(bundle.lib_dir(source=True))
+            ):
                 ensure_bundle(bundle)
             path = bundle.examples_dir(source=True)
             meta_saved = os.path.join(path, "../bundle_examples.json")
@@ -503,6 +516,9 @@ def get_bundle_versions(bundles_list, avoid_download=False):
         ):
             ensure_bundle(bundle)
         path = bundle.lib_dir(source=True)
+        if avoid_download and not os.path.isdir(path):
+            # py bundle not extracted locally; fall back to compiled platform bundle
+            path = bundle.lib_dir(source=False)
         path_modules = _get_modules_file(path, logger)
         for name, module in path_modules.items():
             module["bundle"] = bundle

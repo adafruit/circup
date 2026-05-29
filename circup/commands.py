@@ -55,7 +55,19 @@ from circup.command_utils import (
 )
 
 
-@click.group()
+class _OfflineAwareGroup(click.Group):
+    """Move --offline/--no-offline before the subcommand so Click treats it
+    as a group-level option regardless of where the user typed it."""
+
+    def parse_args(self, ctx, args):
+        for flag in ("--offline", "--no-offline"):
+            if flag in args:
+                args.remove(flag)
+                args.insert(0, flag)
+        return super().parse_args(ctx, args)
+
+
+@click.group(cls=_OfflineAwareGroup)
 @click.option(
     "--verbose", is_flag=True, help="Comprehensive logging is sent to stdout."
 )
@@ -291,7 +303,11 @@ def freeze(ctx, requirement):  # pragma: no cover
     device. Option -r saves output to requirements.txt file
     """
     logger.info("Freeze")
-    modules = find_modules(ctx.obj["backend"], get_bundles_list(ctx.obj["BUNDLE_TAGS"]))
+    modules = find_modules(
+        ctx.obj["backend"],
+        get_bundles_list(ctx.obj["BUNDLE_TAGS"]),
+        avoid_download=Bundle.offline,
+    )
     if modules:
         output = []
         for module in modules:
@@ -344,6 +360,7 @@ def list_cli(ctx):  # pragma: no cover
             get_bundles_list(
                 ctx.obj["BUNDLE_TAGS"], ctx.obj["DEVICE_PLATFORM_VERSION"]
             ),
+            avoid_download=Bundle.offline,
         )
         if m.outofdate
     ]
@@ -422,7 +439,8 @@ def install(
     # TODO: Ensure there's enough space on the device
     platform_version = ctx.obj["DEVICE_PLATFORM_VERSION"] if not pyext else None
     available_modules = get_bundle_versions(
-        get_bundles_list(ctx.obj["BUNDLE_TAGS"], platform_version)
+        get_bundles_list(ctx.obj["BUNDLE_TAGS"], platform_version),
+        avoid_download=Bundle.offline,
     )
     mod_names = {}
     for module, metadata in available_modules.items():
@@ -582,7 +600,9 @@ def show(ctx, match):  # pragma: no cover
 
     If MATCH is specified only matching modules will be listed.
     """
-    available_modules = get_bundle_versions(get_bundles_list(ctx.obj["BUNDLE_TAGS"]))
+    available_modules = get_bundle_versions(
+        get_bundles_list(ctx.obj["BUNDLE_TAGS"]), avoid_download=True
+    )
     module_names = sorted([m.replace(".py", "") for m in available_modules])
     if match is not None:
         match = match.lower()
@@ -646,7 +666,9 @@ def update(ctx, update_all):  # pragma: no cover
     bundles_list = get_bundles_list(
         ctx.obj["BUNDLE_TAGS"], ctx.obj["DEVICE_PLATFORM_VERSION"]
     )
-    installed_modules = find_modules(ctx.obj["backend"], bundles_list)
+    installed_modules = find_modules(
+        ctx.obj["backend"], bundles_list, avoid_download=Bundle.offline
+    )
     modules_to_update = [m for m in installed_modules if m.outofdate]
 
     if not modules_to_update:
@@ -975,7 +997,9 @@ def bundle_freeze(ctx):  # pragma: no cover
         click.echo("No modules found on the device.")
         return
 
-    available_modules = get_bundle_versions(get_bundles_list(ctx.obj["BUNDLE_TAGS"]))
+    available_modules = get_bundle_versions(
+        get_bundles_list(ctx.obj["BUNDLE_TAGS"]), avoid_download=True
+    )
     bundles_used = {}
     for name in device_modules:
         module = available_modules.get(name)

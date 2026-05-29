@@ -99,18 +99,24 @@ class Bundle:  # pylint: disable=too-many-instance-attributes
         :param str library_name: The name of the library.
         :return: The path to the requirements.txt file.
         """
-        platform = "py"
         tag = self.current_tag
-        found_file = os.path.join(
-            self.dir.format(platform=platform),
-            self.basename.format(platform=PLATFORMS[platform], tag=tag),
-            "requirements",
-            library_name,
-            "requirements.txt" if not toml_file else "pyproject.toml",
-        )
-        if os.path.isfile(found_file):
-            with open(found_file, encoding="utf-8") as read_this:
-                return read_this.read()
+        filename = "requirements.txt" if not toml_file else "pyproject.toml"
+        # Prefer the py bundle (human-readable source), but fall back to any
+        # platform that has the requirements directory extracted locally.
+        platforms_to_try = ["py"] + [
+            p for p in PLATFORMS if p != "py"
+        ]
+        for platform in platforms_to_try:
+            found_file = os.path.join(
+                self.dir.format(platform=platform),
+                self.basename.format(platform=PLATFORMS[platform], tag=tag),
+                "requirements",
+                library_name,
+                filename,
+            )
+            if os.path.isfile(found_file):
+                with open(found_file, encoding="utf-8") as read_this:
+                    return read_this.read()
         return None
 
     @property

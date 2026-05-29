@@ -970,6 +970,15 @@ def bundle_extract(zip_path):  # pragma: no cover
                     click.secho(
                         f"OK: {bundle.key} ({tag}) [{platform_string}]", fg="green"
                     )
+                    if platform_key != "py":
+                        py_lib_dir = bundle.dir.format(platform="py")
+                        if not os.path.isdir(py_lib_dir):
+                            click.secho(
+                                "NOTE: The 'py' (source) bundle is not extracted. "
+                                "Dependency resolution requires it — also run "
+                                f"'circup bundle-extract <{bundle.basename.format(platform=PLATFORMS['py'], tag=tag)}.zip>'.",
+                                fg="yellow",
+                            )
                     matched = True
                     break
             if matched:

@@ -77,6 +77,7 @@ To get help, just type the command::
                          detection.
       --host TEXT        Hostname or IP address of a device. Overrides automatic
                          path detection.
+      --port INTEGER     HTTP port that the web workflow is listening on.
       --password TEXT    Password to use for authentication when --host is used.
                          You can optionally set an environment variable
                          CIRCUP_WEBWORKFLOW_PASSWORD instead of passing this
@@ -87,10 +88,12 @@ To get help, just type the command::
       --help             Show this message and exit.
 
     Commands:
-      get  Download a copy of a file or directory from the device to the...
-      ls   Lists the contents of a directory.
-      put  Upload a copy of a file or directory from the local computer to...
-      rm   Delete a file on the device.
+      get    Download a copy of a file or directory from the device to the...
+      ls     Lists the contents of a directory.
+      mkdir  Create a directory on the device with specified name.
+      mv     Rename or move a file or directory on the device to the...
+      put    Upload a copy of a file or directory from the local computer to...
+      rm     Delete a file on the device.
 
 
 .. note::

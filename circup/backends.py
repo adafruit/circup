@@ -812,6 +812,25 @@ class WebBackend(Backend):
         ) as r:
             return r.json()["files"]
 
+    def move_file(self, target_file, destination):
+        """
+        Rename or move a file or directory to the specified destination.
+        """
+        if not target_file:
+            raise ValueError("Target file cannot be empty.")
+        if not destination:
+            raise ValueError("Destination path cannot be empty.")
+        auth = HTTPBasicAuth("", self.password)
+        with self.session.request(
+            "MOVE",
+            urljoin(self.device_location, f"fs/{target_file}"),
+            auth=auth,
+            headers={"X-Destination": f"/fs/{destination}"},
+            timeout=self.timeout,
+        ) as r:
+            click.echo("move complete")
+            r.raise_for_status()
+
 
 class DiskBackend(Backend):
     """

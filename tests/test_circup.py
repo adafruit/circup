@@ -688,6 +688,25 @@ def test_extract_metadata_python():
     assert "compatibility" not in result
 
 
+def test_extract_metadata_python_not_utf8(tmp_path):
+    """
+    Ensure that metadata is extracted from a .py file that isn't valid UTF-8
+    (e.g. saved with ANSI/cp1252 encoding on Windows) instead of raising
+    UnicodeDecodeError.
+    """
+    path = tmp_path / "ansi_module.py"
+    path.write_bytes(
+        "# A comment with \u2018ANSI\u2019 quotes\n"
+        '__version__ = "1.1.4"\n'
+        '__repo__ = "https://github.com/adafruit/SomeLibrary.git"\n'.encode("cp1252")
+    )
+    result = circup.extract_metadata(str(path), logger)
+    assert len(result) == 3
+    assert result["__version__"] == "1.1.4"
+    assert result["__repo__"] == "https://github.com/adafruit/SomeLibrary.git"
+    assert result["mpy"] is False
+
+
 def test_extract_metadata_byte_code_v6():
     """
     Ensure the __version__ is correctly extracted from the bytecode ".mpy"

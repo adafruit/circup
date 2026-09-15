@@ -112,7 +112,7 @@ def _get_modules_file(path, logger):  # pylint: disable=too-many-locals
 
 
 def extract_metadata(path, logger):
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    # pylint: disable=too-many-locals,too-many-branches
     """
     Given a file path, return a dictionary containing metadata extracted from
     dunder attributes found therein. Works with both .py and .mpy files.
@@ -134,16 +134,11 @@ def extract_metadata(path, logger):
     logger.info("%s", path)
     if path.endswith(".py"):
         result["mpy"] = False
-        try:
-            with open(path, encoding="utf-8") as source_file:
-                content = source_file.read()
-        except UnicodeDecodeError:
-            # Not UTF-8, e.g. a file saved with ANSI/cp1252 encoding on
-            # Windows. Undecodable bytes are replaced so that a badly
-            # encoded file cannot crash metadata extraction.
-            logger.info("Not UTF-8 encoded, reading as cp1252: %s", path)
-            with open(path, encoding="cp1252", errors="replace") as source_file:
-                content = source_file.read()
+        # The dunder regex only reads ASCII, so replacing undecodable bytes is
+        # enough to keep a file saved in another encoding, ANSI/cp1252 on
+        # Windows for instance, from crashing metadata extraction.
+        with open(path, encoding="utf-8", errors="replace") as source_file:
+            content = source_file.read()
         #: The regex used to extract ``__version__`` and ``__repo__`` assignments.
         dunder_key_val = r"""(__\w+__)(?:\s*:\s*\w+)?\s*=\s*(?:['"]|\(\s)(.+)['"]"""
         for match in re.findall(dunder_key_val, content):

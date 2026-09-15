@@ -134,7 +134,10 @@ def extract_metadata(path, logger):
     logger.info("%s", path)
     if path.endswith(".py"):
         result["mpy"] = False
-        with open(path, encoding="utf-8") as source_file:
+        # The dunder regex only reads ASCII, so replacing undecodable bytes is
+        # enough to keep a file saved in another encoding, ANSI/cp1252 on
+        # Windows for instance, from crashing metadata extraction.
+        with open(path, encoding="utf-8", errors="replace") as source_file:
             content = source_file.read()
         #: The regex used to extract ``__version__`` and ``__repo__`` assignments.
         dunder_key_val = r"""(__\w+__)(?:\s*:\s*\w+)?\s*=\s*(?:['"]|\(\s)(.+)['"]"""

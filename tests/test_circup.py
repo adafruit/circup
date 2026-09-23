@@ -1296,6 +1296,40 @@ def test_get_all_imports():
     ]
 
 
+def test_get_all_imports_relative_imports(tmp_path):
+    """A package re-exporting symbols with `from .mod import name` and whose
+    modules use `from ..mod import name` must not recurse forever.
+    Regression test for issue #275."""
+    device = tmp_path / "device"
+    package = device / "package"
+    package.mkdir(parents=True)
+    (device / "code.py").write_text("import package\n", encoding="utf-8")
+    (package / "__init__.py").write_text(
+        "from .a import thing\nfrom .b import other\n", encoding="utf-8"
+    )
+    (package / "a.py").write_text(
+        "from ..shared import util\nimport adafruit_bar\n", encoding="utf-8"
+    )
+    (package / "b.py").write_text("other = 2\n", encoding="utf-8")
+    (device / "shared.py").write_text(
+        "import adafruit_foo\nutil = 3\n", encoding="utf-8"
+    )
+
+    mod_names = ["adafruit_bar", "adafruit_foo"]
+
+    with mock.patch("circup.logger.info") as mock_logger:
+        backend = DiskBackend(device, mock_logger)
+        result = get_all_imports(
+            backend,
+            "import package\n",
+            str(device / "code.py"),
+            mod_names,
+            current_module="code",
+        )
+
+    assert result == ["adafruit_bar", "adafruit_foo"]
+
+
 def test_libraries_from_auto_file_local():
     """Check that we get all libraries from auto file argument.
     Testing here with a local file"""

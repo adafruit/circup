@@ -849,51 +849,61 @@ def get_all_imports(  # pylint: disable=too-many-arguments,too-many-locals, too-
             continue
         if install in mod_names:
             requested_installs.append(install)
+            continue
+        # bare "." / ".." entries carry no module name; resolving them would
+        # produce a trailing-dot module name and recurse without bound
+        if not install.lstrip("."):
+            continue
+        # relative module paths
+        if install.startswith(".."):
+            install_module = ".".join(current_module.split(".")[:-2])
+            install_module = install_module + "." + install[2:]
+        elif install.startswith("."):
+            install_module = ".".join(current_module.split(".")[:-1])
+            install_module = install_module + "." + install[1:]
         else:
-            # relative module paths
-            if install.startswith(".."):
-                install_module = ".".join(current_module.split(".")[:-2])
-                install_module = install_module + "." + install[2:]
-            elif install.startswith("."):
-                install_module = ".".join(current_module.split(".")[:-1])
-                install_module = install_module + "." + install[1:]
-            else:
-                install_module = install
-            # possible files for the module: .py or __init__.py (if directory)
-            file_name = os.path.join(*install_module.split(".")) + ".py"
-            try:
-                file_location = os.path.join(
-                    *auto_file_path.replace(str(backend.device_location), "").split(
-                        "/"
-                    )[:-1]
-                )
+            install_module = install
+        # visited holds resolved module names, not the raw relative strings
+        if install_module in visited:
+            continue
+        # possible files for the module: .py or __init__.py (if directory)
+        file_name = os.path.join(*install_module.split(".")) + ".py"
+        try:
+            file_location = os.path.join(
+                *auto_file_path.replace(str(backend.device_location), "").split("/")[
+                    :-1
+                ]
+            )
 
-                full_location = os.path.join(file_location, file_name)
+            full_location = os.path.join(file_location, file_name)
 
-            except TypeError:
-                # file is in root of CIRCUITPY
-                full_location = file_name
+        except TypeError:
+            # file is in root of CIRCUITPY
+            full_location = file_name
 
+        exists = backend.file_exists(full_location)
+        if not exists:
+            file_name = os.path.join(*install_module.split("."), "__init__.py")
+            full_location = file_name
             exists = backend.file_exists(full_location)
             if not exists:
-                file_name = os.path.join(*install_module.split("."), "__init__.py")
-                full_location = file_name
-                exists = backend.file_exists(full_location)
-                if not exists:
-                    continue
-                install_module += ".__init__"
-            # get the content and parse it recursively
-            auto_file_content = backend.get_file_content(full_location)
-            if auto_file_content:
-                sub_imports = get_all_imports(
-                    backend,
-                    auto_file_content,
-                    auto_file_path,
-                    mod_names,
-                    install_module,
-                    visited,
-                )
-                requested_installs.extend(sub_imports)
+                continue
+            install_module += ".__init__"
+            if install_module in visited:
+                continue
+        visited.add(install_module)
+        # get the content and parse it recursively
+        auto_file_content = backend.get_file_content(full_location)
+        if auto_file_content:
+            sub_imports = get_all_imports(
+                backend,
+                auto_file_content,
+                auto_file_path,
+                mod_names,
+                install_module,
+                visited,
+            )
+            requested_installs.extend(sub_imports)
 
     return sorted(requested_installs)
     # [r for r in requested_installs if r in mod_names]

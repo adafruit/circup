@@ -223,9 +223,22 @@ def rm_cli(ctx, file):  # pragma: no cover
 @click.pass_context
 def mkdir_cli(ctx, directory):  # pragma: no cover
     """
-    Create
+    Create a directory on the device with specified name.
     """
     click.echo(f"running: mkdir {directory}")
     ctx.obj["backend"].create_directory(
         ctx.obj["backend"].device_location, ctx.obj["backend"].get_file_path(directory)
     )
+
+
+@main.command("mv")
+@click.argument("file", required=True, nargs=1)
+@click.argument("destination", required=True, nargs=1)
+@click.pass_context
+def mv_cli(ctx, file, destination):  # pragma: no cover
+    """
+    Rename or move a file or directory on the device to the specified destination.
+    """
+
+    click.echo(f"running: mv {file} {destination}")
+    ctx.obj["backend"].move_file(file, destination)

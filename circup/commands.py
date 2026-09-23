@@ -154,6 +154,10 @@ def main(  # pylint: disable=too-many-locals
 
     using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
 
+    version_override = None
+    if board_id or cpy_version:
+        version_override = (cpy_version, board_id)
+
     if using_webworkflow:
         if host == "circuitpython.local":
             click.echo("Checking versions.json on circuitpython.local to find hostname")
@@ -170,7 +174,7 @@ def main(  # pylint: disable=too-many-locals
                 password=password,
                 logger=logger,
                 timeout=timeout,
-                version_override=cpy_version,
+                version_override=version_override,
             )
         except ValueError as e:
             click.secho(e, fg="red")
@@ -184,7 +188,7 @@ def main(  # pylint: disable=too-many-locals
             ctx.obj["backend"] = DiskBackend(
                 device_path,
                 logger,
-                version_override=cpy_version,
+                version_override=version_override,
             )
         except ValueError as e:
             print(e)

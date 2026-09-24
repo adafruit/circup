@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2024 circup contributors
 #
 # SPDX-License-Identifier: MIT
+# pylint: disable=missing-docstring,protected-access
 """The web-workflow backend must skip dotfiles (e.g. macOS ._ AppleDouble
 metadata) during module enumeration, matching the disk backend, and must never
 fetch their contents."""

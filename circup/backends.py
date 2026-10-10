@@ -10,17 +10,33 @@ import shutil
 import sys
 import socket
 import tempfile
+from functools import cached_property
 from urllib.parse import urlparse, urljoin
 import click
 import requests
 from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 
-from circup.shared import DATA_DIR, BAD_FILE_FORMAT, extract_metadata, _get_modules_file
+from circup.shared import (
+    DATA_DIR,
+    BAD_FILE_FORMAT,
+    NATIVE_ARCHES,
+    drop_shadowed_native_files,
+    extract_metadata,
+    native_files,
+    split_arch,
+    _get_modules_file,
+)
 
 #: The location to store a local copy of code.py for use with --auto and
 #  web workflow
 LOCAL_CODE_PY_COPY = os.path.join(DATA_DIR, "code.tmp.py")
+
+
+class NativeOnlyError(OSError):
+    """
+    A module only comes as native code, and the board can't load native code.
+    """
 
 
 class Backend:
@@ -46,6 +62,97 @@ class Backend:
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
         raise NotImplementedError
+
+    @property
+    def device_arch(self):
+        """
+        Must be overridden by subclass for implementation!
+
+        The architecture the board loads native .mpy files for, like ``armv7emsp``,
+        or None if its CircuitPython can't load them.
+        """
+        raise NotImplementedError
+
+    def _compiled_module_files(self, bundle_path):
+        """
+        Return the bundle files to install for the single file module ``foo.mpy``
+        at ``bundle_path``: ``foo.mpy`` if the bundle has it, and ``foo.<arch>.mpy``
+        for this board's architecture if the bundle has it.
+
+        :param str bundle_path: Path of ``foo.mpy`` in the bundle.
+        """
+        stem = bundle_path[: -len(".mpy")]
+        files = [bundle_path] if os.path.isfile(bundle_path) else []
+        if self.device_arch and os.path.isfile(f"{stem}.{self.device_arch}.mpy"):
+            files.append(f"{stem}.{self.device_arch}.mpy")
+        if files:
+            return files
+        if any(os.path.isfile(f"{stem}.{arch}.mpy") for arch in NATIVE_ARCHES):
+            raise NativeOnlyError(
+                "This module only comes as native code, which this board can't load."
+            )
+        raise OSError("Cannot find compiled version of module.")
+
+    @staticmethod
+    def _compiled_bundle_path(bundle, metadata):
+        """
+        Return the path in the compiled bundle of the module whose source is
+        at ``metadata["path"]``: ``foo.mpy`` or the package directory.
+        """
+        module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
+        if not module_name:
+            # Must be a directory based module.
+            module_name = os.path.basename(os.path.dirname(metadata["path"]))
+        return os.path.join(bundle.lib_dir(), module_name)
+
+    def _can_install_compiled(self, name, bundle, metadata):
+        """
+        Check the board can load the compiled module before anything on the
+        device changes. Prints why not and returns False if it can't.
+        Warns when parts of a package won't load on this board.
+        """
+        bundle_path = self._compiled_bundle_path(bundle, metadata)
+        if not os.path.isdir(bundle_path):
+            try:
+                self._compiled_module_files(bundle_path)
+            except NativeOnlyError as ex:
+                click.secho(f"Could not install '{name}': {ex}", fg="red")
+                return False
+        elif not self.device_arch:
+            for _, _, files in os.walk(bundle_path):
+                if any(
+                    split_arch(os.path.splitext(f)[0])[1]
+                    for f in drop_shadowed_native_files(files)
+                ):
+                    click.secho(
+                        f"Parts of '{name}' only come as native code, "
+                        "which this board can't load.",
+                        fg="yellow",
+                    )
+                    break
+        return True
+
+    def _files_for_update(self, module):
+        """
+        Return the bundle files that replace the single file module ``module``.
+        """
+        if not module.mpy:
+            return [module.bundle_path]
+        return self._compiled_module_files(
+            os.path.join(os.path.dirname(module.bundle_path), module.name + ".mpy")
+        )
+
+    def _skip_other_arches(self, _directory, names):
+        """
+        ``shutil.copytree`` ignore function that skips native .mpy files
+        built for other architectures than this board's.
+        """
+        return [
+            name
+            for name in names
+            if name.endswith(".mpy")
+            and split_arch(name[: -len(".mpy")])[1] not in (None, self.device_arch)
+        ]
 
     def _get_modules(self, device_lib_path):
         """
@@ -134,6 +241,15 @@ class Backend:
             click.echo("No module name(s) provided.")
             return
         if name in mod_names or local_path is not None:
+            if (
+                local_path is None
+                and not pyext
+                and mod_names[name]["bundle"].platform is not None
+                and not self._can_install_compiled(
+                    name, mod_names[name]["bundle"], mod_names[name]
+                )
+            ):
+                return
 
             # Grab device modules to check if module already installed
             if name in device_modules:
@@ -269,6 +385,18 @@ class Backend:
             board_id = ""
         return circuit_python, board_id
 
+    @staticmethod
+    def parse_boot_out_arch(boot_out_contents):
+        """
+        Parse the contents of boot_out.txt
+        Returns: the architecture from the ``architecture:`` line, or None if
+        there is none because CircuitPython can't load native .mpy files.
+        """
+        for line in boot_out_contents.split("\n"):
+            if line.startswith("architecture:"):
+                return line[len("architecture:") :].strip()
+        return None
+
     def file_exists(self, filepath):
         """
         To be overriden by subclass
@@ -350,12 +478,15 @@ class WebBackend(Backend):
                 _writeable_error()
             r.raise_for_status()
 
-    def install_dir_http(self, source, location=None):
+    def install_dir_http(self, source, location=None, ignore=None):
+        # pylint: disable=too-many-locals
         """
         Install directory to device using web workflow.
         :param source source directory.
         :param location the location on the device to copy the source
           directory in to. If omitted is CIRCUITPY/lib/ used.
+        :param ignore optional function that returns the file names to skip,
+          like the ``ignore`` argument of ``shutil.copytree``.
         """
         mod_name = source.split(os.path.sep)
         mod_name = mod_name[-2] if mod_name[-1] == "" else mod_name[-1]
@@ -400,7 +531,10 @@ class WebBackend(Backend):
                     if r.status_code == 409:
                         _writeable_error()
                     r.raise_for_status()
+            skipped = ignore(root, files) if ignore else ()
             for name in files:
+                if name in skipped:
+                    continue
                 with open(os.path.join(root, name), "rb") as fp:
                     path_to_create = (
                         urljoin(
@@ -444,6 +578,21 @@ class WebBackend(Backend):
             ver_json = r.json()
         return ver_json.get("version"), ver_json.get("board_id")
 
+    @cached_property
+    def device_arch(self):
+        """
+        The architecture the board loads native .mpy files for, from the
+        /cp/version.json URL, or None if its CircuitPython can't load them.
+        """
+        with self.session.get(
+            self.device_location + "/cp/version.json", timeout=self.timeout
+        ) as r:
+            # pylint: disable=no-member
+            if r.status_code != requests.codes.ok:
+                return None
+            # pylint: enable=no-member
+            return r.json().get("architecture")
+
     def _get_modules(self, device_lib_path):
         return self._get_modules_http(device_lib_path)
 
@@ -475,6 +624,7 @@ class WebBackend(Backend):
                     if entry_name.endswith(".py") or entry_name.endswith(".mpy"):
                         single_file_mods.append(entry_name)
 
+        single_file_mods = drop_shadowed_native_files(single_file_mods)
         self._get_modules_http_single_mods(auth, result, single_file_mods, url)
         self._get_modules_http_dir_mods(auth, directory_mods, result, url)
 
@@ -561,7 +711,7 @@ class WebBackend(Backend):
             metadata = extract_metadata(tmp_name, self.logger)
             os.remove(tmp_name)
             metadata["path"] = sfm_url
-            result[sfm[:idx]] = metadata
+            result[split_arch(sfm[:idx])[0]] = metadata
 
     def create_directory(self, device_path, directory):
         auth = HTTPBasicAuth("", self.password)
@@ -646,20 +796,12 @@ class WebBackend(Backend):
         :param library_path library path
         :param metadata dictionary.
         """
-        module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
-        if not module_name:
-            # Must be a directory based module.
-            module_name = os.path.basename(os.path.dirname(metadata["path"]))
-        bundle_path = os.path.join(bundle.lib_dir(), module_name)
+        bundle_path = self._compiled_bundle_path(bundle, metadata)
         if os.path.isdir(bundle_path):
-
-            self.install_dir_http(bundle_path)
-
-        elif os.path.isfile(bundle_path):
-            self.install_file_http(bundle_path)
-
+            self.install_dir_http(bundle_path, ignore=self._skip_other_arches)
         else:
-            raise OSError("Cannot find compiled version of module.")
+            for path in self._compiled_module_files(bundle_path):
+                self.install_file_http(path)
 
     # pylint: enable=too-many-locals,too-many-branches
     def install_module_py(self, metadata, location=None):
@@ -681,10 +823,21 @@ class WebBackend(Backend):
         """
         url = urlparse(device_path)
         auth = HTTPBasicAuth("", url.password)
-        with self.session.delete(module_path, auth=auth, timeout=self.timeout) as r:
-            if r.status_code == 409:
-                _writeable_error()
-            r.raise_for_status()
+        module_paths = [module_path]
+        if not module_path.endswith("/"):
+            # A single file module can also have native files, foo.<arch>.mpy.
+            names = [f["name"] for f in self.list_dir("lib/")]
+            module_name = os.path.basename(urlparse(module_path).path)
+            module_paths += [
+                urljoin(module_path, name)
+                for name in native_files(names, module_name)
+                if name != module_name
+            ]
+        for path in module_paths:
+            with self.session.delete(path, auth=auth, timeout=self.timeout) as r:
+                if r.status_code == 409:
+                    _writeable_error()
+                r.raise_for_status()
 
     def update(self, module):
         """
@@ -712,8 +865,10 @@ class WebBackend(Backend):
         Update the module using web workflow.
         """
         if module.file:
-            # Copy the file (will overwrite).
-            self.install_file_http(module.bundle_path)
+            files = self._files_for_update(module)
+            self.uninstall(self.device_location, module.path)
+            for path in files:
+                self.install_file_http(path)
         else:
             # Delete the directory (recursive) first.
             url = urlparse(module.path)
@@ -722,7 +877,7 @@ class WebBackend(Backend):
                 if r.status_code == 409:
                     _writeable_error()
                 r.raise_for_status()
-            self.install_dir_http(module.bundle_path)
+            self.install_dir_http(module.bundle_path, ignore=self._skip_other_arches)
 
     def get_file_path(self, filename):
         """
@@ -855,6 +1010,7 @@ class DiskBackend(Backend):
         self.device_location = device_location
         self.library_path = os.path.join(self.device_location, self.LIB_DIR_PATH)
         self.version_info = None
+        self.boot_out = boot_out
         if boot_out is not None:
             self.version_info = self.parse_boot_out_file(boot_out)
         self.version_override = version_override
@@ -898,6 +1054,25 @@ class DiskBackend(Backend):
 
         return self.version_info
 
+    @cached_property
+    def device_arch(self):
+        """
+        The architecture the board loads native .mpy files for, from the
+        ``architecture:`` line in ``boot_out.txt``, or None if its CircuitPython
+        can't load them.
+        """
+        boot_out_contents = self.boot_out
+        if boot_out_contents is None:
+            try:
+                with open(
+                    os.path.join(self.device_location, "boot_out.txt"),
+                    encoding="utf-8",
+                ) as boot:
+                    boot_out_contents = boot.read()
+            except FileNotFoundError:
+                return None
+        return self.parse_boot_out_arch(boot_out_contents)
+
     def _get_modules(self, device_lib_path):
         """
         Get a dictionary containing metadata about all the Python modules found in
@@ -933,26 +1108,15 @@ class DiskBackend(Backend):
         :param bundle library bundle.
         :param metadata dictionary.
         """
-        module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
-        if not module_name:
-            # Must be a directory based module.
-            module_name = os.path.basename(os.path.dirname(metadata["path"]))
-
-        bundle_path = os.path.join(bundle.lib_dir(), module_name)
+        bundle_path = self._compiled_bundle_path(bundle, metadata)
         if os.path.isdir(bundle_path):
-            target_path = os.path.join(self.library_path, module_name)
+            target_path = os.path.join(self.library_path, os.path.basename(bundle_path))
             # Copy the directory.
-            shutil.copytree(bundle_path, target_path)
-        elif os.path.isfile(bundle_path):
-
-            target = os.path.basename(bundle_path)
-
-            target_path = os.path.join(self.library_path, target)
-
-            # Copy file.
-            shutil.copyfile(bundle_path, target_path)
+            shutil.copytree(bundle_path, target_path, ignore=self._skip_other_arches)
         else:
-            raise OSError("Cannot find compiled version of module.")
+            for path in self._compiled_module_files(bundle_path):
+                target_path = os.path.join(self.library_path, os.path.basename(path))
+                shutil.copyfile(path, target_path)
 
     # pylint: enable=too-many-locals,too-many-branches
     def install_module_py(self, metadata, location=None):
@@ -996,6 +1160,9 @@ class DiskBackend(Backend):
             target_path = os.path.join(library_path, target)
             # Remove file
             os.remove(target_path)
+            # A single file module can also have native files, foo.<arch>.mpy.
+            for name in native_files(os.listdir(library_path), target):
+                os.remove(os.path.join(library_path, name))
 
     def update(self, module):
         """
@@ -1013,11 +1180,16 @@ class DiskBackend(Backend):
         if os.path.isdir(module.path):
             # Delete and copy the directory.
             shutil.rmtree(module.path, ignore_errors=True)
-            shutil.copytree(module.bundle_path, module.path)
+            shutil.copytree(
+                module.bundle_path, module.path, ignore=self._skip_other_arches
+            )
         else:
-            # Delete and copy file.
-            os.remove(module.path)
-            shutil.copyfile(module.bundle_path, module.path)
+            files = self._files_for_update(module)
+            self.uninstall(self.device_location, module.path)
+            for path in files:
+                shutil.copyfile(
+                    path, os.path.join(self.library_path, os.path.basename(path))
+                )
 
     def file_exists(self, filepath):
         """

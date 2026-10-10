@@ -33,6 +33,24 @@ PLATFORMS = {
 #: CircuitPython platforms that are currently supported.
 SUPPORTED_PLATFORMS = ["9mpy", "10mpy", "11mpy"]
 
+#: Architectures in native .mpy files, named as in MicroPython's mpy-cross -march.
+#: A bundle can ship ``foo.<arch>.mpy`` next to ``foo.mpy``, and a board loads
+#: the one matching its architecture.
+NATIVE_ARCHES = (
+    "x86",
+    "x64",
+    "armv6",
+    "armv6m",
+    "armv7m",
+    "armv7em",
+    "armv7emsp",
+    "armv7emdp",
+    "xtensa",
+    "xtensawin",
+    "rv32imc",
+    "rv64imc",
+)
+
 #: Timeout for requests calls like get()
 REQUESTS_TIMEOUT = 30
 
@@ -61,6 +79,46 @@ NOT_MCU_LIBRARIES = [
 BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 
 
+def split_arch(name):
+    """
+    Split a native module name ``foo.<arch>`` into ``("foo", "<arch>")``.
+    Any other name gives ``(name, None)``.
+    """
+    base, _, arch = name.rpartition(".")
+    if base and arch in NATIVE_ARCHES:
+        return base, arch
+    return name, None
+
+
+def native_files(names, module_file):
+    """
+    Return the ``foo.<arch>.mpy`` names in ``names`` that belong to the
+    module in ``module_file`` (``foo.py``, ``foo.mpy`` or ``foo.<arch>.mpy``).
+    """
+    module = split_arch(os.path.splitext(module_file)[0])[0]
+    result = []
+    for name in names:
+        if name.endswith(".mpy"):
+            base, arch = split_arch(name[: -len(".mpy")])
+            if arch and base == module:
+                result.append(name)
+    return result
+
+
+def drop_shadowed_native_files(files):
+    """
+    Drop ``foo.<arch>.mpy`` from a list of module files that also has
+    ``foo.py`` or ``foo.mpy``, so each module is listed once.
+    """
+    stems = {os.path.splitext(f)[0] for f in files}
+    result = []
+    for f in files:
+        base, arch = split_arch(os.path.splitext(f)[0])
+        if not arch or base not in stems:
+            result.append(f)
+    return result
+
+
 def _get_modules_file(path, logger):  # pylint: disable=too-many-locals
     """
     Get a dictionary containing metadata about all the Python modules found in
@@ -79,13 +137,16 @@ def _get_modules_file(path, logger):  # pylint: disable=too-many-locals
         for d in glob.glob(os.path.join(path, "*", ""))
         if not os.path.basename(os.path.normpath(d)).startswith(".")
     ]
-    single_file_mods = single_file_py_mods + single_file_mpy_mods
+    single_file_mods = drop_shadowed_native_files(
+        single_file_py_mods + single_file_mpy_mods
+    )
     for sfm in [f for f in single_file_mods if not os.path.basename(f).startswith(".")]:
         default_metadata = {"path": sfm, "mpy": sfm.endswith(".mpy")}
         metadata = LazyMetadata(
             lambda sfm=sfm: extract_metadata(sfm, logger), default_metadata
         )
-        result[os.path.basename(sfm).replace(".py", "").replace(".mpy", "")] = metadata
+        name = os.path.basename(sfm).replace(".py", "").replace(".mpy", "")
+        result[split_arch(name)[0]] = metadata
     for package_path in package_dir_mods:
         name = os.path.basename(os.path.dirname(package_path))
         py_files = glob.glob(os.path.join(package_path, "**/*.py"), recursive=True)

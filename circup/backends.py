@@ -34,9 +34,7 @@ LOCAL_CODE_PY_COPY = os.path.join(DATA_DIR, "code.tmp.py")
 
 
 class NativeOnlyError(OSError):
-    """
-    A module only comes as native code, and the board can't load native code.
-    """
+    """A module only comes as native code, and the board can't load it."""
 
 
 class Backend:
@@ -65,22 +63,11 @@ class Backend:
 
     @property
     def device_architecture(self):
-        """
-        Must be overridden by subclass for implementation!
-
-        The architecture the board loads native .mpy files for, like ``armv7emsp``,
-        or None if its CircuitPython can't load them.
-        """
+        """The board's native .mpy architecture, like ``armv7emsp``, or None."""
         raise NotImplementedError
 
     def _compiled_module_files(self, bundle_path):
-        """
-        Return the bundle files to install for the single file module ``foo.mpy``
-        at ``bundle_path``: ``foo.mpy`` if the bundle has it, and ``foo.<arch>.mpy``
-        for this board's architecture if the bundle has it.
-
-        :param str bundle_path: Path of ``foo.mpy`` in the bundle.
-        """
+        """Bundle files to install for ``foo.mpy``: it and this board's native file."""
         stem = bundle_path[: -len(".mpy")]
         files = [bundle_path] if os.path.isfile(bundle_path) else []
         if self.device_architecture and os.path.isfile(
@@ -100,10 +87,7 @@ class Backend:
 
     @staticmethod
     def _compiled_bundle_path(bundle, metadata):
-        """
-        Return the path in the compiled bundle of the module whose source is
-        at ``metadata["path"]``: ``foo.mpy`` or the package directory.
-        """
+        """Path of the module in the compiled bundle: ``foo.mpy`` or the package."""
         module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
         if not module_name:
             # Must be a directory based module.
@@ -111,11 +95,7 @@ class Backend:
         return os.path.join(bundle.lib_dir(), module_name)
 
     def _can_install_compiled(self, name, bundle, metadata):
-        """
-        Check the board can load the compiled module before anything on the
-        device changes. Prints why not and returns False if it can't.
-        Warns when parts of a package won't load on this board.
-        """
+        """Check the board can load the module before anything on it changes."""
         bundle_path = self._compiled_bundle_path(bundle, metadata)
         if not os.path.isdir(bundle_path):
             try:
@@ -138,9 +118,7 @@ class Backend:
         return True
 
     def _files_for_update(self, module):
-        """
-        Return the bundle files that replace the single file module ``module``.
-        """
+        """Bundle files that replace the single file module ``module``."""
         if not module.mpy:
             return [module.bundle_path]
         return self._compiled_module_files(
@@ -148,10 +126,7 @@ class Backend:
         )
 
     def _skip_other_architectures(self, _directory, names):
-        """
-        ``shutil.copytree`` ignore function that skips native .mpy files
-        built for other architectures than this board's.
-        """
+        """``copytree`` ignore function that skips other architectures' native files."""
         return [
             name
             for name in names
@@ -393,11 +368,7 @@ class Backend:
 
     @staticmethod
     def parse_boot_out_architecture(boot_out_contents):
-        """
-        Parse the contents of boot_out.txt
-        Returns: the architecture from the ``architecture:`` line, or None if
-        there is none because CircuitPython can't load native .mpy files.
-        """
+        """The architecture from boot_out.txt's ``architecture:`` line, or None."""
         for line in boot_out_contents.split("\n"):
             if line.startswith("architecture:"):
                 return line[len("architecture:") :].strip()
@@ -586,10 +557,7 @@ class WebBackend(Backend):
 
     @cached_property
     def device_architecture(self):
-        """
-        The architecture the board loads native .mpy files for, from the
-        /cp/version.json URL, or None if its CircuitPython can't load them.
-        """
+        """The board's native .mpy architecture from /cp/version.json, or None."""
         with self.session.get(
             self.device_location + "/cp/version.json", timeout=self.timeout
         ) as r:
@@ -1064,11 +1032,7 @@ class DiskBackend(Backend):
 
     @cached_property
     def device_architecture(self):
-        """
-        The architecture the board loads native .mpy files for, from the
-        ``architecture:`` line in ``boot_out.txt``, or None if its CircuitPython
-        can't load them.
-        """
+        """The board's native .mpy architecture from boot_out.txt, or None."""
         boot_out_contents = self.boot_out
         if boot_out_contents is None:
             try:

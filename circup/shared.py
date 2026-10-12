@@ -33,9 +33,7 @@ PLATFORMS = {
 #: CircuitPython platforms that are currently supported.
 SUPPORTED_PLATFORMS = ["9mpy", "10mpy", "11mpy"]
 
-#: Architectures in native .mpy files, named as in MicroPython's mpy-cross -march.
-#: A bundle can ship ``foo.<arch>.mpy`` next to ``foo.mpy``, and a board loads
-#: the one matching its architecture.
+#: Native .mpy architectures (mpy-cross -march names), as in ``foo.<arch>.mpy``.
 NATIVE_ARCHITECTURES = (
     "x86",
     "x64",
@@ -80,10 +78,7 @@ BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 
 
 def split_architecture(name):
-    """
-    Split a native module name ``foo.<arch>`` into ``("foo", "<arch>")``.
-    Any other name gives ``(name, None)``.
-    """
+    """Split ``foo.<arch>`` into ``("foo", "<arch>")``, others into ``(name, None)``."""
     base, _, architecture = name.rpartition(".")
     if base and architecture in NATIVE_ARCHITECTURES:
         return base, architecture
@@ -91,10 +86,7 @@ def split_architecture(name):
 
 
 def native_files(names, module_file):
-    """
-    Return the ``foo.<arch>.mpy`` names in ``names`` that belong to the
-    module in ``module_file`` (``foo.py``, ``foo.mpy`` or ``foo.<arch>.mpy``).
-    """
+    """The ``foo.<arch>.mpy`` names in ``names`` for the module in ``module_file``."""
     module = split_architecture(os.path.splitext(module_file)[0])[0]
     result = []
     for name in names:
@@ -106,10 +98,7 @@ def native_files(names, module_file):
 
 
 def drop_shadowed_native_files(files):
-    """
-    Drop ``foo.<arch>.mpy`` from a list of module files that also has
-    ``foo.py`` or ``foo.mpy``, so each module is listed once.
-    """
+    """Drop ``foo.<arch>.mpy`` when ``foo.py`` or ``foo.mpy`` is listed too."""
     stems = {os.path.splitext(f)[0] for f in files}
     result = []
     for f in files:

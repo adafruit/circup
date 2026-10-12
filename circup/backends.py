@@ -600,6 +600,9 @@ class WebBackend(Backend):
             for entry in r.json()["files"]:
 
                 entry_name = entry.get("name")
+                # Skip dotfiles matching the disk backend
+                if entry_name.startswith("."):
+                    continue
                 if entry.get("directory"):
                     directory_mods.append(entry_name)
                 else:
@@ -640,6 +643,9 @@ class WebBackend(Backend):
 
                 for entry in r.json()["files"]:
                     entry_name = entry.get("name")
+                    # Skip dotfiles as the disk backend does
+                    if entry_name.startswith("."):
+                        continue
                     if not entry.get("directory") and (
                         entry_name.endswith(".py") or entry_name.endswith(".mpy")
                     ):

@@ -34,7 +34,7 @@ LOCAL_CODE_PY_COPY = os.path.join(DATA_DIR, "code.tmp.py")
 
 
 class NativeOnlyError(OSError):
-    """A module only comes as native code, and the board can't load it."""
+    """The module is only available as native code, and the chosen board can't load it."""
 
 
 class Backend:
@@ -67,13 +67,15 @@ class Backend:
         raise NotImplementedError
 
     def _compiled_module_files(self, bundle_path):
-        """Bundle files to install for ``foo.mpy``: it and this board's native file."""
+        """
+        The bundle files to install for ``foo.mpy``: ``foo.mpy`` itself and this
+        board's native ``foo.<arch>.mpy`` file.
+        """
         stem = bundle_path[: -len(".mpy")]
         files = [bundle_path] if os.path.isfile(bundle_path) else []
-        if self.device_architecture and os.path.isfile(
-            f"{stem}.{self.device_architecture}.mpy"
-        ):
-            files.append(f"{stem}.{self.device_architecture}.mpy")
+        native_path = f"{stem}.{self.device_architecture}.mpy"
+        if self.device_architecture and os.path.isfile(native_path):
+            files.append(native_path)
         if files:
             return files
         if any(
@@ -87,7 +89,10 @@ class Backend:
 
     @staticmethod
     def _compiled_bundle_path(bundle, metadata):
-        """Path of the module in the compiled bundle: ``foo.mpy`` or the package."""
+        """
+        The path of the module in the compiled bundle: ``foo.mpy`` or the
+        package directory.
+        """
         module_name = os.path.basename(metadata["path"]).replace(".py", ".mpy")
         if not module_name:
             # Must be a directory based module.
@@ -95,7 +100,7 @@ class Backend:
         return os.path.join(bundle.lib_dir(), module_name)
 
     def _can_install_compiled(self, name, bundle, metadata):
-        """Check the board can load the module before anything on it changes."""
+        """Check that the board can load the module before anything on it changes."""
         bundle_path = self._compiled_bundle_path(bundle, metadata)
         if not os.path.isdir(bundle_path):
             try:
@@ -118,7 +123,7 @@ class Backend:
         return True
 
     def _files_for_update(self, module):
-        """Bundle files that replace the single file module ``module``."""
+        """The bundle files that replace the single file module ``module``."""
         if not module.mpy:
             return [module.bundle_path]
         return self._compiled_module_files(
@@ -126,7 +131,10 @@ class Backend:
         )
 
     def _skip_other_architectures(self, _directory, names):
-        """``copytree`` ignore function that skips other architectures' native files."""
+        """
+        A ``shutil.copytree`` ignore function that skips the native files for
+        other architectures.
+        """
         return [
             name
             for name in names

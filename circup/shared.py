@@ -78,7 +78,10 @@ BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 
 
 def split_architecture(name):
-    """Split ``foo.<arch>`` into ``("foo", "<arch>")``, others into ``(name, None)``."""
+    """
+    Split ``foo.<arch>`` into ``("foo", "<arch>")``. Any other name gives
+    ``(name, None)``.
+    """
     base, _, architecture = name.rpartition(".")
     if base and architecture in NATIVE_ARCHITECTURES:
         return base, architecture

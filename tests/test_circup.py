@@ -52,7 +52,7 @@ from circup.command_utils import (
     tags_data_load,
 )
 from circup.module import Module
-from circup.shared import _get_modules_file, split_arch
+from circup.shared import _get_modules_file, split_architecture
 from circup.logging import logger
 
 TEST_BUNDLE_CONFIG_JSON = "tests/test_bundle_config.json"
@@ -1522,7 +1522,7 @@ PLAIN_BOOT_OUT = (
     "Board ID:metro_m0_express\n"
     "UID:AAAABBBBCCCC\n"
 )
-BUNDLE_ARCHES = ("armv6m", "armv7emsp", "armv7emdp", "xtensawin", "rv32imc")
+BUNDLE_ARCHITECTURES = ("armv6m", "armv7emsp", "armv7emdp", "xtensawin", "rv32imc")
 
 
 class NativeBundle:  # pylint: disable=too-few-public-methods
@@ -1549,9 +1549,9 @@ def make_native_bundle(tmp_path):
     (lib / "pkg").mkdir(parents=True)
     for name in ["maybe.mpy", "plain.mpy", "pkg/__init__.mpy", "pkg/maybe.mpy"]:
         (lib / name).write_bytes(b"C\x06")
-    for arch in BUNDLE_ARCHES:
+    for architecture in BUNDLE_ARCHITECTURES:
         for stem in ["maybe", "fast", "pkg/maybe", "pkg/fast"]:
-            (lib / f"{stem}.{arch}.mpy").write_bytes(arch.encode())
+            (lib / f"{stem}.{architecture}.mpy").write_bytes(architecture.encode())
     return NativeBundle(lib)
 
 
@@ -1563,36 +1563,39 @@ def make_native_device(tmp_path, boot_out):
     return DiskBackend(str(device), logger)
 
 
-def test_parse_boot_out_arch():
+def test_parse_boot_out_architecture():
     """
     The architecture comes from the architecture: line, and is None without one.
     """
-    assert DiskBackend.parse_boot_out_arch(NATIVE_BOOT_OUT) == "armv7emsp"
-    assert DiskBackend.parse_boot_out_arch(PLAIN_BOOT_OUT) is None
+    assert DiskBackend.parse_boot_out_architecture(NATIVE_BOOT_OUT) == "armv7emsp"
+    assert DiskBackend.parse_boot_out_architecture(PLAIN_BOOT_OUT) is None
     assert DiskBackend.parse_boot_out_file(NATIVE_BOOT_OUT) == (
         "11.0.0",
         "metro_m4_express",
     )
 
 
-def test_device_arch_from_boot_out(tmp_path):
+def test_device_architecture_from_boot_out(tmp_path):
     """
     DiskBackend reads the architecture from boot_out.txt on the device.
     """
     assert (
-        make_native_device(tmp_path / "a", NATIVE_BOOT_OUT).device_arch == "armv7emsp"
+        make_native_device(tmp_path / "a", NATIVE_BOOT_OUT).device_architecture
+        == "armv7emsp"
     )
-    assert make_native_device(tmp_path / "b", PLAIN_BOOT_OUT).device_arch is None
+    assert (
+        make_native_device(tmp_path / "b", PLAIN_BOOT_OUT).device_architecture is None
+    )
 
 
-def test_split_arch():
+def test_split_architecture():
     """
     Only a known architecture after the last dot is split off.
     """
-    assert split_arch("foo.armv7emsp") == ("foo", "armv7emsp")
-    assert split_arch("foo") == ("foo", None)
-    assert split_arch("foo.bar") == ("foo.bar", None)
-    assert split_arch("armv6m") == ("armv6m", None)
+    assert split_architecture("foo.armv7emsp") == ("foo", "armv7emsp")
+    assert split_architecture("foo") == ("foo", None)
+    assert split_architecture("foo.bar") == ("foo.bar", None)
+    assert split_architecture("armv6m") == ("armv6m", None)
 
 
 def test_get_modules_file_native(tmp_path):
@@ -1738,11 +1741,11 @@ def make_web_backend():
         return circup.WebBackend("cpy-test.local", 80, "pw", logger)
 
 
-def test_web_device_arch():
+def test_web_device_architecture():
     """
     WebBackend reads the architecture from /cp/version.json.
     """
-    for status, data, arch in [
+    for status, data, architecture in [
         (200, {"architecture": "xtensawin"}, "xtensawin"),
         (200, {"version": "10.0.0"}, None),
         (404, {}, None),
@@ -1752,7 +1755,7 @@ def test_web_device_arch():
         response.json.return_value = data
         backend.session = mock.MagicMock()
         backend.session.get.return_value.__enter__.return_value = response
-        assert backend.device_arch == arch
+        assert backend.device_architecture == architecture
 
 
 def test_web_uninstall_native():
@@ -1782,9 +1785,9 @@ def test_web_install_dir_skips_other_arches(tmp_path):
     backend.session.put.return_value.__enter__.return_value.status_code = 201
     backend.session.put.return_value.status_code = 201
     with mock.patch.object(
-        circup.WebBackend, "device_arch", new_callable=mock.PropertyMock
-    ) as arch:
-        arch.return_value = "xtensawin"
+        circup.WebBackend, "device_architecture", new_callable=mock.PropertyMock
+    ) as architecture:
+        architecture.return_value = "xtensawin"
         backend.install_module_mpy(
             bundle, {"path": str(tmp_path / "bundle" / "lib" / "pkg") + os.sep}
         )

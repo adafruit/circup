@@ -20,11 +20,11 @@ from requests.auth import HTTPBasicAuth
 from circup.shared import (
     DATA_DIR,
     BAD_FILE_FORMAT,
-    NATIVE_ARCHES,
+    NATIVE_ARCHITECTURES,
     drop_shadowed_native_files,
     extract_metadata,
     native_files,
-    split_arch,
+    split_architecture,
     _get_modules_file,
 )
 
@@ -64,7 +64,7 @@ class Backend:
         raise NotImplementedError
 
     @property
-    def device_arch(self):
+    def device_architecture(self):
         """
         Must be overridden by subclass for implementation!
 
@@ -83,11 +83,16 @@ class Backend:
         """
         stem = bundle_path[: -len(".mpy")]
         files = [bundle_path] if os.path.isfile(bundle_path) else []
-        if self.device_arch and os.path.isfile(f"{stem}.{self.device_arch}.mpy"):
-            files.append(f"{stem}.{self.device_arch}.mpy")
+        if self.device_architecture and os.path.isfile(
+            f"{stem}.{self.device_architecture}.mpy"
+        ):
+            files.append(f"{stem}.{self.device_architecture}.mpy")
         if files:
             return files
-        if any(os.path.isfile(f"{stem}.{arch}.mpy") for arch in NATIVE_ARCHES):
+        if any(
+            os.path.isfile(f"{stem}.{architecture}.mpy")
+            for architecture in NATIVE_ARCHITECTURES
+        ):
             raise NativeOnlyError(
                 "This module only comes as native code, which this board can't load."
             )
@@ -118,10 +123,10 @@ class Backend:
             except NativeOnlyError as ex:
                 click.secho(f"Could not install '{name}': {ex}", fg="red")
                 return False
-        elif not self.device_arch:
+        elif not self.device_architecture:
             for _, _, files in os.walk(bundle_path):
                 if any(
-                    split_arch(os.path.splitext(f)[0])[1]
+                    split_architecture(os.path.splitext(f)[0])[1]
                     for f in drop_shadowed_native_files(files)
                 ):
                     click.secho(
@@ -142,7 +147,7 @@ class Backend:
             os.path.join(os.path.dirname(module.bundle_path), module.name + ".mpy")
         )
 
-    def _skip_other_arches(self, _directory, names):
+    def _skip_other_architectures(self, _directory, names):
         """
         ``shutil.copytree`` ignore function that skips native .mpy files
         built for other architectures than this board's.
@@ -151,7 +156,8 @@ class Backend:
             name
             for name in names
             if name.endswith(".mpy")
-            and split_arch(name[: -len(".mpy")])[1] not in (None, self.device_arch)
+            and split_architecture(name[: -len(".mpy")])[1]
+            not in (None, self.device_architecture)
         ]
 
     def _get_modules(self, device_lib_path):
@@ -386,7 +392,7 @@ class Backend:
         return circuit_python, board_id
 
     @staticmethod
-    def parse_boot_out_arch(boot_out_contents):
+    def parse_boot_out_architecture(boot_out_contents):
         """
         Parse the contents of boot_out.txt
         Returns: the architecture from the ``architecture:`` line, or None if
@@ -579,7 +585,7 @@ class WebBackend(Backend):
         return ver_json.get("version"), ver_json.get("board_id")
 
     @cached_property
-    def device_arch(self):
+    def device_architecture(self):
         """
         The architecture the board loads native .mpy files for, from the
         /cp/version.json URL, or None if its CircuitPython can't load them.
@@ -711,7 +717,7 @@ class WebBackend(Backend):
             metadata = extract_metadata(tmp_name, self.logger)
             os.remove(tmp_name)
             metadata["path"] = sfm_url
-            result[split_arch(sfm[:idx])[0]] = metadata
+            result[split_architecture(sfm[:idx])[0]] = metadata
 
     def create_directory(self, device_path, directory):
         auth = HTTPBasicAuth("", self.password)
@@ -798,7 +804,7 @@ class WebBackend(Backend):
         """
         bundle_path = self._compiled_bundle_path(bundle, metadata)
         if os.path.isdir(bundle_path):
-            self.install_dir_http(bundle_path, ignore=self._skip_other_arches)
+            self.install_dir_http(bundle_path, ignore=self._skip_other_architectures)
         else:
             for path in self._compiled_module_files(bundle_path):
                 self.install_file_http(path)
@@ -877,7 +883,9 @@ class WebBackend(Backend):
                 if r.status_code == 409:
                     _writeable_error()
                 r.raise_for_status()
-            self.install_dir_http(module.bundle_path, ignore=self._skip_other_arches)
+            self.install_dir_http(
+                module.bundle_path, ignore=self._skip_other_architectures
+            )
 
     def get_file_path(self, filename):
         """
@@ -1055,7 +1063,7 @@ class DiskBackend(Backend):
         return self.version_info
 
     @cached_property
-    def device_arch(self):
+    def device_architecture(self):
         """
         The architecture the board loads native .mpy files for, from the
         ``architecture:`` line in ``boot_out.txt``, or None if its CircuitPython
@@ -1071,7 +1079,7 @@ class DiskBackend(Backend):
                     boot_out_contents = boot.read()
             except FileNotFoundError:
                 return None
-        return self.parse_boot_out_arch(boot_out_contents)
+        return self.parse_boot_out_architecture(boot_out_contents)
 
     def _get_modules(self, device_lib_path):
         """
@@ -1112,7 +1120,9 @@ class DiskBackend(Backend):
         if os.path.isdir(bundle_path):
             target_path = os.path.join(self.library_path, os.path.basename(bundle_path))
             # Copy the directory.
-            shutil.copytree(bundle_path, target_path, ignore=self._skip_other_arches)
+            shutil.copytree(
+                bundle_path, target_path, ignore=self._skip_other_architectures
+            )
         else:
             for path in self._compiled_module_files(bundle_path):
                 target_path = os.path.join(self.library_path, os.path.basename(path))
@@ -1181,7 +1191,7 @@ class DiskBackend(Backend):
             # Delete and copy the directory.
             shutil.rmtree(module.path, ignore_errors=True)
             shutil.copytree(
-                module.bundle_path, module.path, ignore=self._skip_other_arches
+                module.bundle_path, module.path, ignore=self._skip_other_architectures
             )
         else:
             files = self._files_for_update(module)

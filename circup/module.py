@@ -8,7 +8,7 @@ import os
 from urllib.parse import urljoin, urlparse
 from semver import VersionInfo
 
-from circup.shared import BAD_FILE_FORMAT, split_arch
+from circup.shared import BAD_FILE_FORMAT, split_architecture
 from circup.backends import WebBackend
 from circup.logging import logger
 
@@ -68,7 +68,7 @@ class Module:
         else:
             self.file = os.path.basename(url.path)
             # A native file foo.<arch>.mpy is module foo.
-            self.name = split_arch(
+            self.name = split_architecture(
                 os.path.basename(url.path).replace(".py", "").replace(".mpy", "")
             )[0]
 

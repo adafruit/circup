@@ -36,7 +36,7 @@ SUPPORTED_PLATFORMS = ["9mpy", "10mpy", "11mpy"]
 #: Architectures in native .mpy files, named as in MicroPython's mpy-cross -march.
 #: A bundle can ship ``foo.<arch>.mpy`` next to ``foo.mpy``, and a board loads
 #: the one matching its architecture.
-NATIVE_ARCHES = (
+NATIVE_ARCHITECTURES = (
     "x86",
     "x64",
     "armv6",
@@ -79,14 +79,14 @@ NOT_MCU_LIBRARIES = [
 BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 
 
-def split_arch(name):
+def split_architecture(name):
     """
     Split a native module name ``foo.<arch>`` into ``("foo", "<arch>")``.
     Any other name gives ``(name, None)``.
     """
-    base, _, arch = name.rpartition(".")
-    if base and arch in NATIVE_ARCHES:
-        return base, arch
+    base, _, architecture = name.rpartition(".")
+    if base and architecture in NATIVE_ARCHITECTURES:
+        return base, architecture
     return name, None
 
 
@@ -95,12 +95,12 @@ def native_files(names, module_file):
     Return the ``foo.<arch>.mpy`` names in ``names`` that belong to the
     module in ``module_file`` (``foo.py``, ``foo.mpy`` or ``foo.<arch>.mpy``).
     """
-    module = split_arch(os.path.splitext(module_file)[0])[0]
+    module = split_architecture(os.path.splitext(module_file)[0])[0]
     result = []
     for name in names:
         if name.endswith(".mpy"):
-            base, arch = split_arch(name[: -len(".mpy")])
-            if arch and base == module:
+            base, architecture = split_architecture(name[: -len(".mpy")])
+            if architecture and base == module:
                 result.append(name)
     return result
 
@@ -113,8 +113,8 @@ def drop_shadowed_native_files(files):
     stems = {os.path.splitext(f)[0] for f in files}
     result = []
     for f in files:
-        base, arch = split_arch(os.path.splitext(f)[0])
-        if not arch or base not in stems:
+        base, architecture = split_architecture(os.path.splitext(f)[0])
+        if not architecture or base not in stems:
             result.append(f)
     return result
 
@@ -146,7 +146,7 @@ def _get_modules_file(path, logger):  # pylint: disable=too-many-locals
             lambda sfm=sfm: extract_metadata(sfm, logger), default_metadata
         )
         name = os.path.basename(sfm).replace(".py", "").replace(".mpy", "")
-        result[split_arch(name)[0]] = metadata
+        result[split_architecture(name)[0]] = metadata
     for package_path in package_dir_mods:
         name = os.path.basename(os.path.dirname(package_path))
         py_files = glob.glob(os.path.join(package_path, "**/*.py"), recursive=True)

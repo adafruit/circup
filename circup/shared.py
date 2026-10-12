@@ -33,6 +33,22 @@ PLATFORMS = {
 #: CircuitPython platforms that are currently supported.
 SUPPORTED_PLATFORMS = ["9mpy", "10mpy", "11mpy"]
 
+#: Native .mpy architectures (mpy-cross -march names), as in ``foo.<arch>.mpy``.
+NATIVE_ARCHITECTURES = (
+    "x86",
+    "x64",
+    "armv6",
+    "armv6m",
+    "armv7m",
+    "armv7em",
+    "armv7emsp",
+    "armv7emdp",
+    "xtensa",
+    "xtensawin",
+    "rv32imc",
+    "rv64imc",
+)
+
 #: Timeout for requests calls like get()
 REQUESTS_TIMEOUT = 30
 
@@ -61,6 +77,40 @@ NOT_MCU_LIBRARIES = [
 BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
 
 
+def split_architecture(name):
+    """
+    Split ``foo.<arch>`` into ``("foo", "<arch>")``. Any other name gives
+    ``(name, None)``.
+    """
+    base, _, architecture = name.rpartition(".")
+    if base and architecture in NATIVE_ARCHITECTURES:
+        return base, architecture
+    return name, None
+
+
+def native_files(names, module_file):
+    """The ``foo.<arch>.mpy`` names in ``names`` for the module in ``module_file``."""
+    module = split_architecture(os.path.splitext(module_file)[0])[0]
+    result = []
+    for name in names:
+        if name.endswith(".mpy"):
+            base, architecture = split_architecture(name[: -len(".mpy")])
+            if architecture and base == module:
+                result.append(name)
+    return result
+
+
+def drop_shadowed_native_files(files):
+    """Drop ``foo.<arch>.mpy`` when ``foo.py`` or ``foo.mpy`` is listed too."""
+    stems = {os.path.splitext(f)[0] for f in files}
+    result = []
+    for f in files:
+        base, architecture = split_architecture(os.path.splitext(f)[0])
+        if not architecture or base not in stems:
+            result.append(f)
+    return result
+
+
 def _get_modules_file(path, logger):  # pylint: disable=too-many-locals
     """
     Get a dictionary containing metadata about all the Python modules found in
@@ -79,13 +129,16 @@ def _get_modules_file(path, logger):  # pylint: disable=too-many-locals
         for d in glob.glob(os.path.join(path, "*", ""))
         if not os.path.basename(os.path.normpath(d)).startswith(".")
     ]
-    single_file_mods = single_file_py_mods + single_file_mpy_mods
+    single_file_mods = drop_shadowed_native_files(
+        single_file_py_mods + single_file_mpy_mods
+    )
     for sfm in [f for f in single_file_mods if not os.path.basename(f).startswith(".")]:
         default_metadata = {"path": sfm, "mpy": sfm.endswith(".mpy")}
         metadata = LazyMetadata(
             lambda sfm=sfm: extract_metadata(sfm, logger), default_metadata
         )
-        result[os.path.basename(sfm).replace(".py", "").replace(".mpy", "")] = metadata
+        name = os.path.basename(sfm).replace(".py", "").replace(".mpy", "")
+        result[split_architecture(name)[0]] = metadata
     for package_path in package_dir_mods:
         name = os.path.basename(os.path.dirname(package_path))
         py_files = glob.glob(os.path.join(package_path, "**/*.py"), recursive=True)

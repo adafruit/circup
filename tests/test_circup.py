@@ -52,6 +52,7 @@ from circup.command_utils import (
     tags_data_load,
 )
 from circup.module import Module
+from circup.shared import _get_modules_file, split_architecture
 from circup.logging import logger
 
 TEST_BUNDLE_CONFIG_JSON = "tests/test_bundle_config.json"
@@ -483,7 +484,9 @@ def test_Module_update_dir():
         )
         backend.update(m)
         mock_shutil.rmtree.assert_called_once_with(m.path, ignore_errors=True)
-        mock_shutil.copytree.assert_called_once_with(m.bundle_path, m.path)
+        mock_shutil.copytree.assert_called_once_with(
+            m.bundle_path, m.path, ignore=mock.ANY
+        )
 
 
 def test_Module_update_file():
@@ -1506,3 +1509,174 @@ def test_pyproject_handling(tmp_path):
         # Make sure it works when there is no pyproject
         found_pyproject = find_pyproject()
         assert found_pyproject is None
+
+
+NATIVE_BOOT_OUT = "Board ID:metro_m4_express\narchitecture:armv7emsp\n"
+PLAIN_BOOT_OUT = "Board ID:metro_m0_express\n"
+
+
+class NativeBundle:  # pylint: disable=too-few-public-methods
+    """Bundle stand-in: maybe.mpy and native files, native-only fast, pkg, plain.mpy."""
+
+    platform = "11mpy"
+
+    def __init__(self, tmp_path):
+        self.lib = tmp_path / "bundle" / "lib"
+        (self.lib / "pkg").mkdir(parents=True)
+        for name in ["maybe.mpy", "plain.mpy", "pkg/__init__.mpy", "pkg/maybe.mpy"]:
+            (self.lib / name).write_bytes(b"C\x06")
+        for architecture in ["armv6m", "armv7emsp", "xtensawin"]:
+            for stem in ["maybe", "fast", "pkg/maybe", "pkg/fast"]:
+                (self.lib / f"{stem}.{architecture}.mpy").write_bytes(
+                    architecture.encode()
+                )
+
+    def lib_dir(self, source=False):  # pylint: disable=unused-argument
+        """The compiled lib directory."""
+        return str(self.lib)
+
+
+def make_native_device(tmp_path, boot_out):
+    """A DiskBackend for an empty device with the given boot_out.txt."""
+    (tmp_path / "device" / "lib").mkdir(parents=True)
+    (tmp_path / "device" / "boot_out.txt").write_text(boot_out)
+    return DiskBackend(str(tmp_path / "device"), logger)
+
+
+def test_native_names(tmp_path):
+    """Architecture parsing, and native files listed as their module."""
+    assert split_architecture("foo.armv7emsp") == ("foo", "armv7emsp")
+    assert split_architecture("foo.bar") == ("foo.bar", None)
+    assert split_architecture("armv6m") == ("armv6m", None)
+    assert make_native_device(tmp_path, NATIVE_BOOT_OUT).device_architecture == (
+        "armv7emsp"
+    )
+    assert DiskBackend.parse_boot_out_architecture(PLAIN_BOOT_OUT) is None
+    listed = tmp_path / "listed"
+    listed.mkdir()
+    for name in ["maybe.mpy", "maybe.armv7emsp.mpy", "fast.armv7emsp.mpy"]:
+        (listed / name).write_bytes(b"C\x06")
+    result = _get_modules_file(str(listed), logger)
+    assert sorted(result) == ["fast", "maybe"]
+    assert result["maybe"]["path"] == str(listed / "maybe.mpy")
+
+
+@pytest.mark.parametrize(
+    "boot_out, lib_files, pkg_files",
+    [
+        (
+            NATIVE_BOOT_OUT,
+            [
+                "fast.armv7emsp.mpy",
+                "maybe.armv7emsp.mpy",
+                "maybe.mpy",
+                "pkg",
+                "plain.mpy",
+            ],
+            ["__init__.mpy", "fast.armv7emsp.mpy", "maybe.armv7emsp.mpy", "maybe.mpy"],
+        ),
+        (
+            PLAIN_BOOT_OUT,
+            ["maybe.mpy", "pkg", "plain.mpy"],
+            ["__init__.mpy", "maybe.mpy"],
+        ),
+    ],
+    ids=["native", "plain"],
+)
+def test_install_native(tmp_path, boot_out, lib_files, pkg_files):
+    """Install only this board's native files, and refuse native-only on others."""
+    bundle = NativeBundle(tmp_path)
+    backend = make_native_device(tmp_path, boot_out)
+    for module in ["maybe.py", "fast.py", "plain.py", "pkg/"]:
+        metadata = {"path": str(bundle.lib / module)}
+        if module == "fast.py" and boot_out == PLAIN_BOOT_OUT:
+            with pytest.raises(OSError, match="only comes as native code"):
+                backend.install_module_mpy(bundle, metadata)
+        else:
+            backend.install_module_mpy(bundle, metadata)
+    device_lib = pathlib.Path(backend.library_path)
+    assert sorted(os.listdir(device_lib)) == lib_files
+    assert sorted(os.listdir(device_lib / "pkg")) == pkg_files
+
+
+def test_update_uninstall_native(tmp_path):
+    """Update replaces stale native files, uninstall removes them."""
+    bundle = NativeBundle(tmp_path)
+    backend = make_native_device(tmp_path, NATIVE_BOOT_OUT)
+    device_lib = pathlib.Path(backend.library_path)
+    for name in ["maybe.mpy", "maybe.armv6m.mpy", "fast.armv7emsp.mpy", "x.armv6m.mpy"]:
+        (device_lib / name).write_bytes(b"old")
+    for name in ["maybe.mpy", "fast.armv7emsp.mpy"]:
+        m = Module(name, backend, "", "1.0.0", "2.0.0", True, bundle, (None, None))
+        backend.update(m)
+    assert m.name == "fast"
+    assert sorted(os.listdir(device_lib)) == [
+        "fast.armv7emsp.mpy",
+        "maybe.armv7emsp.mpy",
+        "maybe.mpy",
+        "x.armv6m.mpy",
+    ]
+    assert (device_lib / "fast.armv7emsp.mpy").read_bytes() == b"armv7emsp"
+    backend.uninstall(backend.device_location, str(device_lib / "maybe.mpy"))
+    backend.uninstall(backend.device_location, str(device_lib / "fast.armv7emsp.mpy"))
+    assert os.listdir(device_lib) == ["x.armv6m.mpy"]
+
+
+def test_install_upgrade_native_only_keeps_module(tmp_path, capsys):
+    """Upgrading to a native-only module on a board that can't load it changes nothing."""
+    bundle = NativeBundle(tmp_path)
+    backend = make_native_device(tmp_path, PLAIN_BOOT_OUT)
+    (tmp_path / "source" / "pkg").mkdir(parents=True)
+    mod_names = {
+        "fast": {"path": str(tmp_path / "source" / "fast.py"), "bundle": bundle},
+        "pkg": {"path": str(tmp_path / "source" / "pkg") + os.sep, "bundle": bundle},
+    }
+    device_lib = pathlib.Path(backend.library_path)
+    (device_lib / "fast.mpy").write_bytes(b"C\x06")
+    for name in ["fast", "pkg"]:
+        backend.install_module(
+            backend.device_location,
+            backend.get_device_versions(),
+            name,
+            False,
+            mod_names,
+            upgrade=True,
+        )
+    out = capsys.readouterr().out
+    assert "Could not install 'fast'" in out
+    assert "Parts of 'pkg' only come as native code" in out
+    assert sorted(os.listdir(device_lib)) == ["fast.mpy", "pkg"]
+
+
+def test_web_native(tmp_path):
+    """Web workflow: architecture from version.json, install and uninstall."""
+    with mock.patch("circup.backends.socket.getaddrinfo"):
+        backend = circup.WebBackend("cpy-test.local", 80, "pw", logger)
+    backend.session = mock.MagicMock()
+    response = backend.session.get.return_value.__enter__.return_value
+    response.status_code = 200
+    response.json.return_value = {"architecture": "xtensawin"}
+    assert backend.device_architecture == "xtensawin"
+    backend.session.put.return_value.__enter__.return_value.status_code = 201
+    backend.session.put.return_value.status_code = 201
+    backend.session.delete.return_value.__enter__.return_value.status_code = 204
+    bundle = NativeBundle(tmp_path)
+    backend.install_module_mpy(bundle, {"path": str(bundle.lib / "pkg") + os.sep})
+    put = sorted(
+        c.args[0].rsplit("/", 1)[-1] for c in backend.session.put.call_args_list
+    )
+    assert put == [
+        "",
+        "__init__.mpy",
+        "fast.xtensawin.mpy",
+        "maybe.mpy",
+        "maybe.xtensawin.mpy",
+    ]
+    lib = backend.device_location + "/fs/lib/"
+    names = ["maybe.mpy", "maybe.xtensawin.mpy", "maybe_not.xtensawin.mpy"]
+    with mock.patch.object(
+        backend, "list_dir", return_value=[{"name": n} for n in names]
+    ):
+        backend.uninstall(backend.device_location, lib + "maybe.mpy")
+    deleted = [c.args[0] for c in backend.session.delete.call_args_list]
+    assert deleted == [lib + "maybe.mpy", lib + "maybe.xtensawin.mpy"]

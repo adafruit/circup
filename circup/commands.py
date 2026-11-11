@@ -495,7 +495,7 @@ def install(
                     )
 
 
-@main.command()
+@main.command(no_args_is_help=True)
 @click.option("--overwrite", is_flag=True, help="Overwrite the file if it exists.")
 @click.option("--list", "-ls", "op_list", is_flag=True, help="List available examples.")
 @click.option("--rename", is_flag=True, help="Install the example as code.py.")
@@ -566,6 +566,10 @@ def example(ctx, examples, op_list, rename, overwrite):
             click.secho(
                 f"Error: {example_arg} was not found in any local bundle examples.",
                 fg="red",
+            )
+            click.echo(
+                "Use 'circup example --list' to list library names, or "
+                "'circup example [searchterm] --list' to find example names."
             )
 
 

@@ -56,6 +56,19 @@ CODE_FILES = [
     "main.py.py",
 ]
 
+LIBRARY_NAME_MAP = {
+    # Assumed Name : Actual Name
+    "adafruit_adafruitio": "adafruit_io",
+    "adafruit_asyncio": "asyncio",
+    "adafruit_busdevice": "adafruit_bus_device",
+    "adafruit_connectionmanager": "adafruit_connection_manager",
+    "adafruit_display_button": "adafruit_button",
+    "adafruit_neopixel": "neopixel",
+    "adafruit_sd": "adafruit_sdcard",
+    "adafruit_simpleio": "simpleio",
+    "pimoroni_ltr559": "pimoroni_circuitpython_ltr559",
+}
+
 
 class CodeParsingException(Exception):
     """Exception thrown when parsing code with ast fails"""
@@ -76,18 +89,6 @@ def clean_library_name(assumed_library_name):
         or requirements.txt entry
     :return: str proper library name
     """
-    not_standard_names = {
-        # Assumed Name : Actual Name
-        "adafruit_adafruitio": "adafruit_io",
-        "adafruit_asyncio": "asyncio",
-        "adafruit_busdevice": "adafruit_bus_device",
-        "adafruit_connectionmanager": "adafruit_connection_manager",
-        "adafruit_display_button": "adafruit_button",
-        "adafruit_neopixel": "neopixel",
-        "adafruit_sd": "adafruit_sdcard",
-        "adafruit_simpleio": "simpleio",
-        "pimoroni_ltr559": "pimoroni_circuitpython_ltr559",
-    }
     if "circuitpython" in assumed_library_name:
         # convert repo or pypi name to common library name
         assumed_library_name = (
@@ -95,9 +96,26 @@ def clean_library_name(assumed_library_name):
             .replace("_circuitpython_", "_")
             .replace("-", "_")
         )
-    if assumed_library_name in not_standard_names:
-        return not_standard_names[assumed_library_name]
+    if assumed_library_name in LIBRARY_NAME_MAP:
+        return LIBRARY_NAME_MAP[assumed_library_name]
     return assumed_library_name
+
+
+def get_pypi_name(library_name):
+    """Return the Adafruit distribution name used for host-side stub installs.
+
+    Reverse the shared irregular-name mapping for Adafruit libraries. Retain
+    the existing fallback for other names; community-package discovery is not
+    implemented here.
+
+    :param str library_name: CircuitPython import name.
+    :return: str distribution name to pass to pip.
+    """
+    inverse_names = {actual: assumed for assumed, actual in LIBRARY_NAME_MAP.items()}
+    assumed_name = inverse_names.get(library_name, library_name)
+    if assumed_name.startswith("adafruit_"):
+        return "adafruit-circuitpython-" + assumed_name[len("adafruit_") :]
+    return "adafruit-circuitpython-" + library_name.replace("adafruit_", "")
 
 
 def completion_for_install(ctx, param, incomplete):

@@ -40,6 +40,7 @@ from circup.command_utils import (
     libraries_from_requirements,
     libraries_from_auto_file,
     get_dependencies,
+    get_pypi_name,
     get_bundles_local_dict,
     parse_cli_bundle_tags,
     pretty_supported_cpy_versions,
@@ -477,9 +478,7 @@ def install(
                         )
                     if not is_global_install_ok:
                         continue
-                library_stubs = "adafruit-circuitpython-{}".format(
-                    library.replace("adafruit_", "")
-                )
+                library_stubs = get_pypi_name(library)
                 try:
                     output = subprocess.check_output(["pip", "install", library_stubs])
                     if (

@@ -106,7 +106,7 @@ class Backend:
             try:
                 self._compiled_module_files(bundle_path)
             except NativeOnlyError as ex:
-                click.secho(f"Could not install '{name}': {ex}", fg="red")
+                click.secho(f"Could not install '{name}': {ex}", fg="bright_red")
                 return False
         elif not self.device_architecture:
             for _, _, files in os.walk(bundle_path):
@@ -295,7 +295,7 @@ class Backend:
                 click.secho(
                     f"Aborted installing module {name} - it needs {new_module_size} bytes "
                     f"but only {self.get_free_space()} bytes of storage is available",
-                    fg="red",
+                    fg="bright_red",
                 )
                 return
 
@@ -393,7 +393,7 @@ def _writeable_error():
     click.secho(
         "CircuitPython Web Workflow Device not writable\n - "
         "Remount storage as writable to device (not PC)",
-        fg="red",
+        fg="bright_red",
     )
     sys.exit(1)
 
@@ -556,7 +556,7 @@ class WebBackend(Backend):
             if r.status_code != requests.codes.ok:
                 click.secho(
                     f"  Unable to get version from {self.device_location}: {r.status_code}",
-                    fg="red",
+                    fg="bright_red",
                 )
                 sys.exit(1)
             # pylint: enable=no-member
@@ -748,7 +748,9 @@ class WebBackend(Backend):
             self.FS_URL + target_file, timeout=self.timeout, auth=auth
         ) as r:
             if r.status_code == 404:
-                click.secho(f"{target_file} was not found on the device", "red")
+                click.secho(
+                    f"{target_file} was not found on the device", fg="bright_red"
+                )
 
             file_name = target_file.split("/")[-1]
             if location_to_paste is None:
@@ -885,7 +887,9 @@ class WebBackend(Backend):
                 web_api_version = r.json().get("web_api_version")
                 if web_api_version is None:
                     self.logger.error("Unable to get web API version from device.")
-                    click.secho("Unable to get web API version from device.", fg="red")
+                    click.secho(
+                        "Unable to get web API version from device.", fg="bright_red"
+                    )
                     return False
 
                 if web_api_version < 4:
@@ -894,7 +898,7 @@ class WebBackend(Backend):
                     )
                     click.secho(
                         f"Device running unsupported web API version {web_api_version} < 4.",
-                        fg="red",
+                        fg="bright_red",
                     )
                     return False
         except requests.exceptions.ConnectionError:
@@ -926,10 +930,12 @@ class WebBackend(Backend):
             r.raise_for_status()
             if r.json().get("free") is None:
                 self.logger.error("Unable to get free block count from device.")
-                click.secho("Unable to get free block count from device.", fg="red")
+                click.secho(
+                    "Unable to get free block count from device.", fg="bright_red"
+                )
             elif r.json().get("block_size") is None:
                 self.logger.error("Unable to get block size from device.")
-                click.secho("Unable to get block size from device.", fg="red")
+                click.secho("Unable to get block size from device.", fg="bright_red")
             elif r.json().get("writable") is None or r.json().get("writable") is False:
                 self.logger.error(
                     "CircuitPython Web Workflow Device not writable\n - "
@@ -938,7 +944,7 @@ class WebBackend(Backend):
                 click.secho(
                     "CircuitPython Web Workflow Device not writable\n - "
                     "Remount storage as writable to device (not PC)",
-                    fg="red",
+                    fg="bright_red",
                 )
             else:
                 return r.json()["free"] * r.json()["block_size"]  # bytes
@@ -1036,7 +1042,7 @@ class DiskBackend(Backend):
             except FileNotFoundError:
                 click.secho(
                     "Missing file boot_out.txt on the device: wrong path or drive corrupted.",
-                    fg="red",
+                    fg="bright_red",
                 )
                 self.logger.error("boot_out.txt not found.")
                 sys.exit(1)

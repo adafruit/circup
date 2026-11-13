@@ -173,11 +173,11 @@ def main(  # pylint: disable=too-many-locals
                 version_override=cpy_version,
             )
         except ValueError as e:
-            click.secho(e, fg="red")
+            click.secho(e, fg="bright_red")
             time.sleep(0.3)
             sys.exit(1)
         except RuntimeError as e:
-            click.secho(e, fg="red")
+            click.secho(e, fg="bright_red")
             sys.exit(1)
     else:
         try:
@@ -220,7 +220,7 @@ def main(  # pylint: disable=too-many-locals
     ctx.obj["DEVICE_PATH"] = device_path
 
     if device_path is None or not ctx.obj["backend"].is_device_present():
-        click.secho("Could not find a connected CircuitPython device.", fg="red")
+        click.secho("Could not find a connected CircuitPython device.", fg="bright_red")
         sys.exit(1)
     else:
         cpy_version, board_id = (
@@ -247,13 +247,13 @@ def main(  # pylint: disable=too-many-locals
                     "A newer version of CircuitPython ({}) is available.".format(
                         latest_version
                     ),
-                    fg="green",
+                    fg="bright_green",
                 )
                 if board_id:
                     url_download = f"https://circuitpython.org/board/{board_id}"
                 else:
                     url_download = "https://circuitpython.org/downloads"
-                click.secho(f"Get it here: {url_download}", fg="green")
+                click.secho(f"Get it here: {url_download}", fg="bright_green")
         except ValueError as ex:
             logger.warning("CircuitPython has incorrect semver value.")
             logger.warning(ex)
@@ -306,7 +306,7 @@ def freeze(ctx, requirement):  # pragma: no cover
                     click.style(
                         "\nrequirements.txt file already exists in this location.\n"
                         "Do you want to overwrite it?",
-                        fg="red",
+                        fg="bright_red",
                     ),
                     default=False,
                 )
@@ -560,12 +560,12 @@ def example(ctx, examples, op_list, rename, overwrite):
             else:
                 click.secho(
                     f"File: {filename} already exists. Use --overwrite if you wish to replace it.",
-                    fg="red",
+                    fg="bright_red",
                 )
         else:
             click.secho(
                 f"Error: {example_arg} was not found in any local bundle examples.",
-                fg="red",
+                fg="bright_red",
             )
 
 
@@ -756,7 +756,7 @@ def bundle_show(ctx, modules):
         if bundle.key in local_bundles:
             click.secho(bundle.key, fg="yellow")
         else:
-            click.secho(bundle.key, fg="green")
+            click.secho(bundle.key, fg="bright_green")
         click.echo("    " + bundle.url)
         click.echo(
             "    version = "
@@ -786,12 +786,14 @@ def bundle_add(ctx, bundle):
     if len(bundle) == 0:
         click.secho(
             "Must pass bundle argument, expecting github URL or `user/repository` string.",
-            fg="red",
+            fg="bright_red",
         )
         return
 
     if Bundle.offline:
-        click.secho("Cannot add new bundle when '--offline' flag is present.", fg="red")
+        click.secho(
+            "Cannot add new bundle when '--offline' flag is present.", fg="bright_red"
+        )
         return
 
     bundles_dict = get_bundles_local_dict()
@@ -810,24 +812,27 @@ def bundle_add(ctx, bundle):
         except ValueError:
             click.secho(
                 "Bundle string invalid, expecting github URL or `user/repository` string.",
-                fg="red",
+                fg="bright_red",
             )
-            click.secho("    " + bundle_repo, fg="red")
+            click.secho("    " + bundle_repo, fg="bright_red")
             continue
         result = requests.get(
             "https://github.com/" + bundle_repo, timeout=ctx.obj["TIMEOUT"]
         )
         # pylint: disable=no-member
         if result.status_code == requests.codes.NOT_FOUND:
-            click.secho("Bundle invalid, the repository doesn't exist (404).", fg="red")
-            click.secho("    " + bundle_repo, fg="red")
+            click.secho(
+                "Bundle invalid, the repository doesn't exist (404).", fg="bright_red"
+            )
+            click.secho("    " + bundle_repo, fg="bright_red")
             continue
         # pylint: enable=no-member
         if not bundle_added.validate():
             click.secho(
-                "Bundle invalid, is the repository a valid circup bundle ?", fg="red"
+                "Bundle invalid, is the repository a valid circup bundle ?",
+                fg="bright_red",
             )
-            click.secho("    " + bundle_repo, fg="red")
+            click.secho("    " + bundle_repo, fg="bright_red")
             continue
         # note: use bun as the dictionary key for uniqueness
         bundles_dict[bundle_repo] = bundle_repo
@@ -856,7 +861,7 @@ def bundle_remove(bundle, reset):
         click.secho(
             "Must pass bundle argument or --reset, expecting github URL or "
             "`user/repository` string. Run circup bundle-show to see a list of bundles.",
-            fg="red",
+            fg="bright_red",
         )
         return
     bundle_config = list(get_bundles_dict().values())
@@ -878,12 +883,14 @@ def bundle_remove(bundle, reset):
                     del bundles_local_dict[name]
         if not found:
             if bun in bundle_config:
-                click.secho("Cannot remove built-in module:" "\n    " + bun, fg="red")
+                click.secho(
+                    "Cannot remove built-in module:" "\n    " + bun, fg="bright_red"
+                )
             else:
                 click.secho(
                     "Bundle not found in the local list, nothing removed:"
                     "\n    " + bun,
-                    fg="red",
+                    fg="bright_red",
                 )
     if modified:
         save_local_bundles(bundles_local_dict)

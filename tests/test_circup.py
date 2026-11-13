@@ -872,6 +872,30 @@ def test_get_device_versions():
         mock_gm.assert_called_once_with(os.path.join("tests", "mock_device", "lib"))
 
 
+def test_main_passes_version_override_and_board_id_together(tmp_path):
+    """Backends need the manual version and board ID as a tuple."""
+    with mock.patch("circup.commands.DiskBackend") as mock_backend, mock.patch.object(
+        circup.Bundle, "offline", False
+    ):
+        mock_backend.return_value.is_device_present.return_value = False
+        result = CliRunner().invoke(
+            circup.main,
+            [
+                "--offline",
+                "--path",
+                str(tmp_path),
+                "--cpy-version",
+                "8.0.0",
+                "--board-id",
+                "fake",
+                "list",
+            ],
+        )
+
+    assert result.exit_code == 1
+    assert mock_backend.call_args.kwargs["version_override"] == ("8.0.0", "fake")
+
+
 def test_get_modules_empty_path():
     """
     Sometimes a path to a device or bundle may be empty. Ensure, if this is the

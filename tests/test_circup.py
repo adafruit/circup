@@ -1200,6 +1200,35 @@ def test_show_command():
     assert all(m.replace(".py", "") in result.output for m in test_bundle_modules)
 
 
+def test_update_command_numbers_progress():
+    """Updated modules include a count so long updates show their progress."""
+    runner = CliRunner()
+    modules = []
+    for name in ("adafruit_first", "adafruit_second"):
+        module = mock.Mock()
+        module.name = name
+        module.outofdate = True
+        modules.append(module)
+    backend = mock.Mock()
+    context = {
+        "BUNDLE_TAGS": {},
+        "DEVICE_PLATFORM_VERSION": "10mpy",
+        "DEVICE_PATH": "mock_device",
+        "backend": backend,
+    }
+
+    with mock.patch("circup.commands.get_bundles_list", return_value=[]), mock.patch(
+        "circup.commands.find_modules", return_value=modules
+    ), mock.patch("circup.commands.get_bundle_versions", return_value={}), mock.patch(
+        "circup.commands.get_dependencies", return_value=None
+    ):
+        result = runner.invoke(circup.update, ["--all"], obj=context)
+
+    assert result.exit_code == 0
+    assert "1/2 Updated adafruit_first" in result.output
+    assert "2/2 Updated adafruit_second" in result.output
+
+
 def test_show_match_command():
     """
     test_show_match_command

@@ -658,7 +658,7 @@ def update(ctx, update_all):  # pragma: no cover
     click.echo(f"Found {len(modules_to_update)} module[s] needing update.")
     if not update_all:
         click.echo("Please indicate which module[s] you wish to update:\n")
-    for module in modules_to_update:
+    for index, module in enumerate(modules_to_update, start=1):
         update_flag = update_all
         if "--verbose" in sys.argv:
             click.echo(
@@ -704,7 +704,7 @@ def update(ctx, update_all):  # pragma: no cover
             try:
                 ctx.obj["backend"].update(module)
                 updated_modules.append(module.name)
-                click.echo(f"Updated {module.name}")
+                click.echo(f"{index}/{len(modules_to_update)} Updated {module.name}")
             except Exception as ex:
                 logger.exception(ex)
                 click.echo(f"Something went wrong, {str(ex)} (check the logs)")

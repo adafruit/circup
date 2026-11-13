@@ -89,36 +89,58 @@ To get help, just type the command::
       A tool to manage and update libraries on a CircuitPython device.
 
     Options:
-      --verbose           Comprehensive logging is sent to stdout.
-      --path DIRECTORY    Path to CircuitPython directory. Overrides automatic
-                          path detection.
-      --host TEXT         Hostname or IP address of a device. Overrides automatic
-                          path detection.
-      --password TEXT     Password to use for authentication when --host is used.
-      --timeout INTEGER   Specify the timeout in seconds for any network
-                          operations.
-      --board-id TEXT     Manual Board ID of the CircuitPython device. If provided
-                          in combination with --cpy-version, it overrides the
-                          detected board ID.
-      --cpy-version TEXT  Manual CircuitPython version. If provided in combination
-                          with --board-id, it overrides the detected CPy version.
-      --version           Show the version and exit.
-      --help              Show this message and exit.
+      --verbose              Comprehensive logging is sent to stdout.
+      --path DIRECTORY       Path to CircuitPython directory. Overrides automatic
+                             path detection.
+      --host TEXT            Hostname or IP address of a device. Overrides automatic
+                             path detection.
+      --port INTEGER         Port to contact. Overrides automatic path detection.
+      --password TEXT        Password to use for authentication when --host is used.
+                             You can optionally set an environment variable
+                             CIRCUP_WEBWORKFLOW_PASSWORD instead of passing this
+                             argument. If both exist the CLI arg takes precedent.
+      --offline              Prevents Circup from accessing the internet for any
+                             reason. Without this flag, Circup will fail with an
+                             error if it needs to access the network and the network
+                             is not available. With this flag, Circup will attempt
+                             to proceed without the network if possible. Circup will
+                             only use bundles downloaded locally even if there might
+                             be newer versions available.
+      --timeout INTEGER      Specify the timeout in seconds for any network
+                             operations.
+      --board-id TEXT        Manual Board ID of the CircuitPython device. If
+                             provided in combination with --cpy-version, it
+                             overrides the detected board ID.
+      --cpy-version TEXT     Manual CircuitPython version. If provided in
+                             combination with --board-id, it overrides the detected
+                             CPy version.
+      --bundle-version TEXT  Specify the version to use for a bundle. Include the
+                             bundle name and the version separated by '=', similar
+                             to the format of requirements.txt. This option can be
+                             used multiple times for different bundles. Bundle
+                             version values provided here will override any pinned
+                             values from the pyproject.toml.
+      --allow-unsupported    Allow using a device with a version of CircuitPython
+                             that is no longer supported. Using an unsupported
+                             version of CircuitPython is generally not recommended
+                             because libraries may not work with it.
+      --version              Show the version and exit.
+      --help                 Show this message and exit.
 
     Commands:
       bundle-add     Add bundles to the local bundles list, by "user/repo"...
+      bundle-freeze  Output details of all the bundles for modules found on the...
       bundle-remove  Remove one or more bundles from the local bundles list.
       bundle-show    Show the list of bundles, default and local, with URL,...
-      clear-cache    Remove downloaded bundles and local bundle settings.
+      clear-cache    Remove downloaded bundles and locally saved Circup data.
       example        Copy named example(s) from a bundle onto the device.
       freeze         Output details of all the modules found on the connected...
       install        Install a named module(s) onto the device.
       list           Lists all out of date modules found on the connected...
       show           Show a list of available modules in the bundle.
       uninstall      Uninstall a named module(s) from the connected device.
-      update         Update modules on the device. Use --all to automatically
-                     update all modules without Major Version warnings.
-
+      update         Update modules on the device. Use --all to automatically update
+                     all modules without Major Version warnings.
 
 
 To automatically install all modules imported by ``code.py``,

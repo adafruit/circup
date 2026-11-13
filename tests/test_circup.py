@@ -1200,6 +1200,25 @@ def test_show_command():
     assert all(m.replace(".py", "") in result.output for m in test_bundle_modules)
 
 
+def test_readme_cli_help_matches_current_cli():
+    """The README help example stays in sync with the Click command."""
+    readme = pathlib.Path(__file__).parent.parent / "README.rst"
+    content = readme.read_text(encoding="utf-8")
+    marker = "    $ circup\n"
+    start = content.index(marker) + len(marker)
+    end = content.index(
+        "\n\n\nTo automatically install all modules imported by ``code.py``", start
+    )
+    documented_help = "\n".join(
+        line[4:] if line.startswith("    ") else line
+        for line in content[start:end].splitlines()
+    ).rstrip()
+    result = CliRunner().invoke(circup.main, ["--help"], prog_name="circup")
+
+    assert result.exit_code == 0
+    assert documented_help == result.output.rstrip()
+
+
 def test_clear_cache_removes_data_after_confirmation(tmp_path):
     """Clearing Circup's cache removes data only after user confirmation."""
     data_dir = tmp_path / "circup"

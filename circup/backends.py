@@ -852,7 +852,12 @@ class WebBackend(Backend):
         """
         Update the module using web workflow.
         """
-        if module.file:
+        if module.file and os.path.isdir(module.bundle_path):
+            self.uninstall(self.device_location, module.path)
+            self.install_dir_http(
+                module.bundle_path, ignore=self._skip_other_architectures
+            )
+        elif module.file:
             files = self._files_for_update(module)
             self.uninstall(self.device_location, module.path)
             for path in files:
@@ -1170,6 +1175,13 @@ class DiskBackend(Backend):
             shutil.rmtree(module.path, ignore_errors=True)
             shutil.copytree(
                 module.bundle_path, module.path, ignore=self._skip_other_architectures
+            )
+        elif os.path.isdir(module.bundle_path):
+            self.uninstall(self.device_location, module.path)
+            shutil.copytree(
+                module.bundle_path,
+                os.path.join(self.library_path, module.name),
+                ignore=self._skip_other_architectures,
             )
         else:
             files = self._files_for_update(module)

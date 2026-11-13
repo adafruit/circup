@@ -1200,6 +1200,67 @@ def test_show_command():
     assert all(m.replace(".py", "") in result.output for m in test_bundle_modules)
 
 
+def test_readme_cli_help_matches_current_cli():
+    """The README help example stays in sync with the Click command."""
+    readme = pathlib.Path(__file__).parent.parent / "README.rst"
+    content = readme.read_text(encoding="utf-8")
+    marker = "    $ circup\n"
+    start = content.index(marker) + len(marker)
+    end = content.index(
+        "\n\n\nTo automatically install all modules imported by ``code.py``", start
+    )
+    documented_help = "\n".join(
+        line[4:] if line.startswith("    ") else line
+        for line in content[start:end].splitlines()
+    ).rstrip()
+    result = CliRunner().invoke(circup.main, ["--help"], prog_name="circup")
+
+    assert result.exit_code == 0
+    assert documented_help == result.output.rstrip()
+
+
+def test_clear_cache_removes_data_after_confirmation(tmp_path):
+    """Clearing Circup's cache removes data only after user confirmation."""
+    data_dir = tmp_path / "circup"
+    data_dir.mkdir()
+    (data_dir / "circup.json").write_text("{}", encoding="utf-8")
+
+    with mock.patch.object(circup.Bundle, "offline", False), mock.patch(
+        "circup.commands.DATA_DIR", str(data_dir)
+    ), mock.patch("circup.commands.get_device_path", return_value=str(tmp_path)):
+        result = CliRunner().invoke(
+            circup.main,
+            ["--offline", "clear-cache"],
+            input="y\n",
+            obj={},
+        )
+
+    assert result.exit_code == 0, result.output
+    assert not data_dir.exists()
+    assert "Circup cache cleared." in result.output
+
+
+def test_clear_cache_cancel_preserves_data(tmp_path):
+    """Declining the clear-cache prompt must leave data untouched."""
+    data_dir = tmp_path / "circup"
+    data_dir.mkdir()
+    cached_file = data_dir / "circup.json"
+    cached_file.write_text("{}", encoding="utf-8")
+
+    with mock.patch.object(circup.Bundle, "offline", False), mock.patch(
+        "circup.commands.DATA_DIR", str(data_dir)
+    ), mock.patch("circup.commands.get_device_path", return_value=str(tmp_path)):
+        result = CliRunner().invoke(
+            circup.main,
+            ["--offline", "clear-cache"],
+            input="n\n",
+            obj={},
+        )
+
+    assert result.exit_code == 1
+    assert cached_file.exists()
+
+
 def test_show_match_command():
     """
     test_show_match_command

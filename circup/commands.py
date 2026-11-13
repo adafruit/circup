@@ -11,6 +11,7 @@ and the respective Backends which *are* tested. Most of the logic of the followi
 functions is to prepare things for presentation to / interaction with the user.
 """
 import os
+import shutil
 import subprocess
 import time
 import sys
@@ -26,6 +27,7 @@ from circup.backends import WebBackend, DiskBackend
 from circup.logging import logger, log_formatter, LOGFILE
 from circup.shared import (
     BOARDLESS_COMMANDS,
+    DATA_DIR,
     SUPPORTED_PLATFORMS,
     get_latest_release_from_url,
 )
@@ -887,6 +889,21 @@ def bundle_remove(bundle, reset):
                 )
     if modified:
         save_local_bundles(bundles_local_dict)
+
+
+@main.command("clear-cache")
+def clear_cache():
+    """Remove downloaded bundles and locally saved Circup data."""
+    if not os.path.exists(DATA_DIR):
+        click.echo("Circup cache is already empty.")
+        return
+
+    click.confirm(
+        "This removes downloaded bundles and local bundle settings. Continue?",
+        abort=True,
+    )
+    shutil.rmtree(DATA_DIR)
+    click.echo("Circup cache cleared.")
 
 
 @main.command()

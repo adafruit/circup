@@ -520,6 +520,68 @@ def test_Module_update_file():
         mock_shutil.copyfile.assert_called_once_with(m.bundle_path, m.path)
 
 
+def test_Module_update_file_to_directory(tmp_path):
+    """Update a legacy file module after the bundle changes it to a directory."""
+    device_lib = tmp_path / "device" / "lib"
+    device_lib.mkdir(parents=True)
+    (device_lib / "legacy_module.py").write_text("old module")
+    bundle_lib = tmp_path / "bundle"
+    package = bundle_lib / "legacy_module"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("new package")
+    (package / "helper.py").write_text("new helper")
+
+    with mock.patch("circup.bundle.Bundle.lib_dir", return_value=str(bundle_lib)):
+        backend = DiskBackend(str(tmp_path / "device"), logger)
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        module = Module(
+            "legacy_module.py",
+            backend,
+            "",
+            "1.0.0",
+            "2.0.0",
+            False,
+            bundle,
+            (None, None),
+        )
+        backend.update(module)
+
+    assert not (device_lib / "legacy_module.py").exists()
+    assert sorted(path.name for path in (device_lib / "legacy_module").iterdir()) == [
+        "__init__.py",
+        "helper.py",
+    ]
+
+
+def test_Module_update_file_to_directory_web(tmp_path):
+    """Use the web workflow to replace a legacy file with a package."""
+    package = tmp_path / "legacy_module"
+    package.mkdir()
+    with mock.patch("circup.backends.socket.getaddrinfo"), mock.patch(
+        "circup.bundle.Bundle.lib_dir", return_value=str(tmp_path)
+    ):
+        backend = circup.WebBackend("cpy-test.local", 80, "pw", logger)
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        module = Module(
+            "legacy_module.py",
+            backend,
+            "",
+            "1.0.0",
+            "2.0.0",
+            False,
+            bundle,
+            (None, None),
+        )
+
+    with mock.patch.object(backend, "uninstall") as mock_uninstall, mock.patch.object(
+        backend, "install_dir_http"
+    ) as mock_install:
+        backend.update(module)
+
+    mock_uninstall.assert_called_once_with(backend.device_location, module.path)
+    mock_install.assert_called_once_with(module.bundle_path, ignore=mock.ANY)
+
+
 def test_Module_repr():
     """
     Ensure the repr(dict) is returned (helps when logging).

@@ -56,6 +56,27 @@ CODE_FILES = [
     "main.py.py",
 ]
 
+#: The libraries whose repository or PyPI name differs from the name they use
+#: on a CircuitPython device.
+NOT_STANDARD_NAMES = {
+    # Assumed Name : Actual Name
+    "adafruit_adafruitio": "adafruit_io",
+    "adafruit_asyncio": "asyncio",
+    "adafruit_busdevice": "adafruit_bus_device",
+    "adafruit_connectionmanager": "adafruit_connection_manager",
+    "adafruit_display_button": "adafruit_button",
+    "adafruit_neopixel": "neopixel",
+    "adafruit_sd": "adafruit_sdcard",
+    "adafruit_simpleio": "simpleio",
+    "pimoroni_ltr559": "pimoroni_circuitpython_ltr559",
+}
+
+#: The inverse of :py:data:`NOT_STANDARD_NAMES`: the name a library uses in its
+#: repository and PyPI package, keyed by the name it uses on the device.
+STANDARD_TO_PACKAGE_NAMES = {
+    actual: assumed for assumed, actual in NOT_STANDARD_NAMES.items()
+}
+
 
 class CodeParsingException(Exception):
     """Exception thrown when parsing code with ast fails"""
@@ -76,18 +97,6 @@ def clean_library_name(assumed_library_name):
         or requirements.txt entry
     :return: str proper library name
     """
-    not_standard_names = {
-        # Assumed Name : Actual Name
-        "adafruit_adafruitio": "adafruit_io",
-        "adafruit_asyncio": "asyncio",
-        "adafruit_busdevice": "adafruit_bus_device",
-        "adafruit_connectionmanager": "adafruit_connection_manager",
-        "adafruit_display_button": "adafruit_button",
-        "adafruit_neopixel": "neopixel",
-        "adafruit_sd": "adafruit_sdcard",
-        "adafruit_simpleio": "simpleio",
-        "pimoroni_ltr559": "pimoroni_circuitpython_ltr559",
-    }
     if "circuitpython" in assumed_library_name:
         # convert repo or pypi name to common library name
         assumed_library_name = (
@@ -95,9 +104,28 @@ def clean_library_name(assumed_library_name):
             .replace("_circuitpython_", "_")
             .replace("-", "_")
         )
-    if assumed_library_name in not_standard_names:
-        return not_standard_names[assumed_library_name]
+    if assumed_library_name in NOT_STANDARD_NAMES:
+        return NOT_STANDARD_NAMES[assumed_library_name]
     return assumed_library_name
+
+
+def pypi_package_name(library_name):
+    """
+    The PyPI package name of a library, given the name it uses on a device.
+
+    Most Adafruit libraries are published as ``adafruit-circuitpython-NAME``,
+    but a few are published under the name used by their repository, which
+    differs from the name the library uses on a CircuitPython device. For
+    example ``adafruit_bus_device`` is published as
+    ``adafruit-circuitpython-busdevice``.
+
+    :param str library_name: The name of a library as used on the device.
+    :return: str the name of the library's package on PyPI.
+    """
+    package_name = STANDARD_TO_PACKAGE_NAMES.get(library_name, library_name)
+    return "adafruit-circuitpython-" + package_name.removeprefix("adafruit_").replace(
+        "_", "-"
+    )
 
 
 def completion_for_install(ctx, param, incomplete):

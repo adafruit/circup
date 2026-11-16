@@ -38,6 +38,8 @@ import requests
 import circup
 from circup import DiskBackend
 from circup.command_utils import (
+    NOT_STANDARD_NAMES,
+    clean_library_name,
     ensure_bundle,
     ensure_pinned_bundle,
     find_device,
@@ -48,6 +50,7 @@ from circup.command_utils import (
     imports_from_code,
     get_all_imports,
     libraries_from_auto_file,
+    pypi_package_name,
     pyproject_bundle_versions,
     tags_data_load,
 )
@@ -1345,6 +1348,68 @@ def test_imports_from_code():
         "os",
         "sys",
     ]
+
+
+def test_pypi_package_name():
+    """
+    The PyPI package name of a library is built from the name it uses on the
+    device, including for the libraries whose repository name differs from the
+    name the library uses on the device.
+    """
+    # Libraries published under the name of their repository.
+    assert (
+        pypi_package_name("adafruit_bus_device") == "adafruit-circuitpython-busdevice"
+    )
+    assert (
+        pypi_package_name("adafruit_button") == "adafruit-circuitpython-display-button"
+    )
+    assert pypi_package_name("adafruit_io") == "adafruit-circuitpython-adafruitio"
+    assert pypi_package_name("adafruit_sdcard") == "adafruit-circuitpython-sd"
+    assert (
+        pypi_package_name("adafruit_connection_manager")
+        == "adafruit-circuitpython-connectionmanager"
+    )
+    # Libraries whose name already matches the name of their package.
+    assert pypi_package_name("neopixel") == "adafruit-circuitpython-neopixel"
+    assert pypi_package_name("adafruit_bme280") == "adafruit-circuitpython-bme280"
+
+
+def test_clean_library_name_round_trip():
+    """Every name in the mapping is mapped back to the device library name."""
+    for package_name, library_name in NOT_STANDARD_NAMES.items():
+        assert clean_library_name(package_name) == library_name
+
+
+def test_install_stubs_uses_pypi_package_name():
+    """
+    Installing stubs asks pip for the PyPI package of the library, not for a
+    package name built by stripping the ``adafruit_`` prefix.
+    """
+    backend = mock.MagicMock()
+    backend.get_device_versions.return_value = {}
+    context = {
+        "BUNDLE_TAGS": None,
+        "DEVICE_PLATFORM_VERSION": None,
+        "DEVICE_PATH": "tests/mock_device",
+        "backend": backend,
+    }
+    with mock.patch.object(circup.Bundle, "offline", False), mock.patch(
+        "circup.commands.get_bundle_versions", return_value={}
+    ), mock.patch("circup.commands.get_bundles_list", return_value=[]), mock.patch(
+        "circup.commands.get_dependencies", return_value=("adafruit_bus_device",)
+    ), mock.patch(
+        "circup.commands.is_virtual_env_active", return_value=True
+    ), mock.patch(
+        "circup.commands.subprocess.check_output", return_value=b"Installed"
+    ) as check_output:
+        result = CliRunner().invoke(
+            circup.install, ["--stubs", "adafruit_bus_device"], obj=context
+        )
+
+    assert result.exit_code == 0, result.output
+    check_output.assert_called_once_with(
+        ["pip", "install", "adafruit-circuitpython-busdevice"]
+    )
 
 
 def test_get_all_imports():

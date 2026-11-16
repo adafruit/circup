@@ -74,7 +74,13 @@ NOT_MCU_LIBRARIES = [
 ]
 
 #: Commands that do not require an attached board
-BOARDLESS_COMMANDS = ["show", "bundle-add", "bundle-remove", "bundle-show"]
+BOARDLESS_COMMANDS = [
+    "show",
+    "bundle-add",
+    "bundle-remove",
+    "bundle-show",
+    "clear-cache",
+]
 
 
 def split_architecture(name):

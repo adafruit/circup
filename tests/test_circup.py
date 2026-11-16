@@ -1200,6 +1200,39 @@ def test_show_command():
     assert all(m.replace(".py", "") in result.output for m in test_bundle_modules)
 
 
+def test_bundle_add_error_uses_bright_red():
+    """The no-argument bundle error should be visible on black terminals."""
+    result = CliRunner().invoke(circup.bundle_add, [], color=True, obj={})
+
+    assert result.exit_code == 0
+    assert "\x1b[91m" in result.output
+
+
+def test_bundle_show_uses_bright_green():
+    """Default bundle names should be visible on black terminals."""
+    bundle = mock.Mock(
+        key="default-bundle",
+        url="https://github.com/example/default-bundle",
+        current_tag="1.0.0",
+        pinned_tag=None,
+        available_tags=["1.0.0"],
+    )
+
+    with mock.patch(
+        "circup.commands.get_bundles_local_dict", return_value={}
+    ), mock.patch(
+        "circup.commands.get_bundles_list", return_value=[bundle]
+    ), mock.patch(
+        "circup.commands.get_bundle_versions", return_value={}
+    ):
+        result = CliRunner().invoke(
+            circup.bundle_show, [], color=True, obj={"BUNDLE_TAGS": {}}
+        )
+
+    assert result.exit_code == 0
+    assert "\x1b[92mdefault-bundle" in result.output
+
+
 def test_show_match_command():
     """
     test_show_match_command

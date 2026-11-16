@@ -101,11 +101,11 @@ def main(  # pylint: disable=too-many-locals
                 host=host, port=port, password=password, logger=logger, timeout=timeout
             )
         except ValueError as e:
-            click.secho(e, fg="red")
+            click.secho(e, fg="bright_red")
             time.sleep(0.3)
             sys.exit(1)
         except RuntimeError as e:
-            click.secho(e, fg="red")
+            click.secho(e, fg="bright_red")
             sys.exit(1)
 
     if verbose:
@@ -134,7 +134,7 @@ def main(  # pylint: disable=too-many-locals
     ctx.obj["DEVICE_PATH"] = device_path
 
     if device_path is None or not ctx.obj["backend"].is_device_present():
-        click.secho("Could not find a connected CircuitPython device.", fg="red")
+        click.secho("Could not find a connected CircuitPython device.", fg="bright_red")
         sys.exit(1)
     else:
         click.echo(f"Found device at {device_path}.")
@@ -185,7 +185,7 @@ def put_cli(ctx, file, location, overwrite):
         else:
             click.secho(
                 f"{location}{file} already exists. Pass --overwrite if you wish to replace it.",
-                fg="red",
+                fg="bright_red",
             )
 
 

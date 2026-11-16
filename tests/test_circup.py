@@ -45,9 +45,11 @@ from circup.command_utils import (
     find_pyproject,
     get_bundle,
     get_bundles_dict,
+    get_dependencies,
     imports_from_code,
     get_all_imports,
     libraries_from_auto_file,
+    libraries_from_requirements,
     pyproject_bundle_versions,
     tags_data_load,
 )
@@ -1344,6 +1346,49 @@ def test_show_match_py_command():
         result = runner.invoke(circup.show, ["py"], obj=TAG_CONTEXT_OBJ)
     assert result.exit_code == 0
     assert "0 shown" in result.output
+
+
+def test_libraries_from_requirements():
+    """
+    Requirement lines give library names, without the pip comments and the
+    version specifiers that may follow them.
+    """
+    requirements = (
+        "# a whole line comment\n"
+        "adafruit-blinka\n"
+        "\n"
+        "adafruit-circuitpython-bme280  # temperature sensor\n"
+        "adafruit-circuitpython-busdevice==1.2.3\n"
+        "adafruit-circuitpython-requests>=1.0.0 ; python_version > '3'\n"
+        "adafruit-circuitpython-typing[extras]>=1.0\n"
+    )
+
+    assert libraries_from_requirements(requirements) == (
+        "adafruit-blinka",
+        "adafruit-circuitpython-bme280",
+        "adafruit-circuitpython-busdevice",
+        "adafruit-circuitpython-requests",
+        "adafruit-circuitpython-typing",
+    )
+
+
+def test_get_dependencies_ignores_requirement_comments():
+    """
+    A comment after a library name in the requirements.txt of a bundle does not
+    end up in the name of the dependency, so the dependency is installed.
+    """
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
+    metadata = {"bundle": bundle, "__version__": "1.0.0", "mpy": False}
+    mod_names = {"adafruit_foo": metadata, "adafruit_bar": metadata}
+    requirements = "adafruit-circuitpython-bar  # needed by foo\n"
+
+    with mock.patch.object(
+        bundle, "requirements_for", return_value=requirements
+    ), mock.patch("circup.command_utils.get_circup_dependencies", return_value=()):
+        assert get_dependencies(("adafruit_foo",), mod_names=mod_names) == (
+            "adafruit_foo",
+            "adafruit_bar",
+        )
 
 
 def test_imports_from_code():

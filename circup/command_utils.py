@@ -188,7 +188,7 @@ def ensure_bundle_tag(bundle, tag):
         except requests.exceptions.HTTPError as ex:
             click.secho(
                 f"There was a problem downloading the 'py' platform for the '{bundle.key}' bundle.",
-                fg="red",
+                fg="bright_red",
             )
             logger.exception(ex)
             return False  # Bundle isn't available
@@ -204,7 +204,7 @@ def ensure_bundle_tag(bundle, tag):
                     f"There was a problem downloading the '{bundle.platform}' platform for the "
                     f"'{bundle.key}' bundle.\nFalling back to source (.py) files."
                 ),
-                fg="red",
+                fg="bright_red",
             )
             logger.exception(ex)
             bundle.platform = None  # Compiled isn't available, source is good
@@ -228,13 +228,13 @@ def ensure_latest_bundle(bundle):
     else:
         if bundle.current_tag is None:
             # See issue #20 for reason for this
-            click.secho("Please try again in a moment.", fg="red")
+            click.secho("Please try again in a moment.", fg="bright_red")
             sys.exit(1)
         else:
             # See PR #184 for reason for this
             click.secho(
                 f"Skipping and using existing bundle for {bundle.key} ({bundle.current_tag}).",
-                fg="red",
+                fg="bright_red",
             )
 
 
@@ -256,7 +256,7 @@ def ensure_pinned_bundle(bundle):
                 "Check pinned version to make sure it is correct and check "
                 f"{bundle.url} to make sure the version ({tag}) exists."
             ),
-            fg="red",
+            fg="bright_red",
         )
         sys.exit(1)
 
@@ -841,7 +841,7 @@ def get_all_imports(  # pylint: disable=too-many-arguments,too-many-locals, too-
     try:
         imports = imports_from_code(auto_file_content)
     except CodeParsingException as err:
-        click.secho(f"Error parsing {current_module}:\n  {err}", fg="red")
+        click.secho(f"Error parsing {current_module}:\n  {err}", fg="bright_red")
         sys.exit(2)
 
     for install in imports:
@@ -932,7 +932,7 @@ def libraries_from_auto_file(backend, auto_file, mod_names):
         click.secho(
             "No default code file found. See valid names:\n"
             "https://docs.circuitpython.org/en/latest/README.html#behavior",
-            fg="red",
+            fg="bright_red",
         )
         sys.exit(1)
 
@@ -945,11 +945,11 @@ def libraries_from_auto_file(backend, auto_file, mod_names):
         auto_file_content = backend.get_file_content(auto_file)
 
     if auto_file_content is None:
-        click.secho(f"Auto file not found: {auto_file}", fg="red")
+        click.secho(f"Auto file not found: {auto_file}", fg="bright_red")
         sys.exit(1)
 
     # from file name to module name (in case it's in a subpackage)
-    click.secho(f"Finding imports from: {auto_file}", fg="green")
+    click.secho(f"Finding imports from: {auto_file}", fg="bright_green")
     current_module = auto_file.rstrip(".py").replace(os.path.sep, ".")
     return get_all_imports(
         backend, auto_file_content, auto_file, mod_names, current_module

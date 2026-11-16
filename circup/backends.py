@@ -61,6 +61,23 @@ class Backend:
         """
         raise NotImplementedError
 
+    def version_override_info(self):
+        """
+        The manually given version as ``(version, board_id)``, like the value
+        returned by :py:meth:`get_circuitpython_version`.
+
+        :py:attr:`version_override` is set from the ``--cpy-version`` value, so
+        it is usually a bare version string without a board ID.
+
+        :return: The override as a ``(version, board ID)`` tuple, or None if no
+            version was given.
+        """
+        if self.version_override is None:
+            return None
+        if isinstance(self.version_override, tuple):
+            return self.version_override
+        return self.version_override, None
+
     @property
     def device_architecture(self):
         """The board's native .mpy architecture, like ``armv7emsp``, or None."""
@@ -546,7 +563,7 @@ class WebBackend(Backend):
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
         if self.version_override is not None:
-            return self.version_override
+            return self.version_override_info()
 
         # pylint: disable=arguments-renamed
         with self.session.get(
@@ -1027,7 +1044,7 @@ class DiskBackend(Backend):
         :return: A tuple with the version string for CircuitPython and the board ID string.
         """
         if self.version_override is not None:
-            return self.version_override
+            return self.version_override_info()
 
         if not self.version_info:
             try:

@@ -406,6 +406,26 @@ def test_Module_mpy_mismatch():
         assert m3.outofdate is True
 
 
+def test_Module_mpy_mismatch_bad_circuitpython_version():
+    """
+    A CircuitPython version that is not valid semver must not crash the mpy
+    format check. Without a version to compare against, there is no mismatch.
+    """
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
+    name = "module.mpy"
+    repo = "https://github.com/adafruit/SomeLibrary.git"
+    with mock.patch("circup.logger.warning") as mock_logger:
+        backend = DiskBackend("tests/mock_device", mock_logger)
+        module = Module(
+            name, backend, repo, "1.2.3", "2.0.0", True, bundle, ("9.0.0", None)
+        )
+    with mock.patch(
+        "circup.backends.DiskBackend.get_circuitpython_version",
+        return_value=("not-a-version", ""),
+    ):
+        assert module.mpy_mismatch is False
+
+
 def test_Module_major_update_bad_versions():
     """
     Sometimes, the version is not a valid semver value. In this case, the
@@ -860,6 +880,34 @@ def test_get_circuitpython_version():
         )
 
 
+def test_get_circuitpython_version_override():
+    """
+    A manually given CircuitPython version is returned in the same
+    ``(version, board ID)`` shape as a detected one. A bare version string used
+    to be returned, which crashed callers that unpack the two values.
+    """
+    with mock.patch("circup.logger.warning") as mock_logger:
+        backend = DiskBackend(
+            "tests/mock_device", mock_logger, version_override="8.0.0"
+        )
+        assert backend.get_circuitpython_version() == ("8.0.0", None)
+        backend = DiskBackend(
+            "tests/mock_device", mock_logger, version_override=("8.0.0", "a_board")
+        )
+        assert backend.get_circuitpython_version() == ("8.0.0", "a_board")
+
+
+def test_web_get_circuitpython_version_override():
+    """The web workflow backend returns the same shape for a version override."""
+    with mock.patch("circup.logger.warning") as mock_logger, mock.patch(
+        "socket.getaddrinfo"
+    ):
+        backend = circup.WebBackend(
+            "192.168.1.2", 80, "password", mock_logger, version_override="8.0.0"
+        )
+        assert backend.get_circuitpython_version() == ("8.0.0", None)
+
+
 def test_get_device_versions():
     """
     Ensure get_modules is called with the path for the attached device.
@@ -1184,6 +1232,60 @@ def test_get_bundle_network_error():
         mock_requests.get.assert_called_once_with(url, stream=True, timeout=mock.ANY)
         assert mock_logger.warning.call_count == 1
         mock_requests.get().raise_for_status.assert_called_once_with()
+
+
+def test_list_with_cpy_version_override():
+    """
+    A manual CircuitPython version is used on its own, without a manual board
+    ID, instead of crashing while unpacking the detected version.
+    """
+    # The command stores the offline flag on the Bundle class, so restore it.
+    with mock.patch.object(circup.Bundle, "offline", False), mock.patch(
+        "circup.commands.get_device_path", return_value="tests/mock_device"
+    ), mock.patch("circup.commands.get_bundles_list", return_value=[]), mock.patch(
+        "circup.commands.find_modules", return_value=[]
+    ):
+        result = CliRunner().invoke(
+            circup.main,
+            [
+                "--offline",
+                "--path",
+                "tests/mock_device",
+                "--cpy-version",
+                "9.2.1",
+                "list",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "running CircuitPython 9.2.1." in result.output
+
+
+def test_list_with_board_id_override():
+    """
+    A manual board ID is kept, rather than replaced by the detected board ID,
+    when no manual CircuitPython version is given.
+    """
+    # The command stores the offline flag on the Bundle class, so restore it.
+    with mock.patch.object(circup.Bundle, "offline", False), mock.patch(
+        "circup.commands.get_device_path", return_value="tests/mock_device"
+    ), mock.patch("circup.commands.get_bundles_list", return_value=[]), mock.patch(
+        "circup.commands.find_modules", return_value=[]
+    ):
+        result = CliRunner().invoke(
+            circup.main,
+            [
+                "--offline",
+                "--path",
+                "tests/mock_device",
+                "--board-id",
+                "fake_board",
+                "list",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "Found device fake_board at tests/mock_device" in result.output
 
 
 def test_show_command():

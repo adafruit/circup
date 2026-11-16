@@ -225,11 +225,14 @@ def main(  # pylint: disable=too-many-locals
         click.secho("Could not find a connected CircuitPython device.", fg="bright_red")
         sys.exit(1)
     else:
-        cpy_version, board_id = (
-            ctx.obj["backend"].get_circuitpython_version()
-            if board_id is None or cpy_version is None
-            else (cpy_version, board_id)
-        )
+        if cpy_version is None or board_id is None:
+            detected_cpy_version, detected_board_id = ctx.obj[
+                "backend"
+            ].get_circuitpython_version()
+            if cpy_version is None:
+                cpy_version = detected_cpy_version
+            if board_id is None:
+                board_id = detected_board_id
         major_version = cpy_version.split(".")[0]
         bundle_platform = "{}mpy".format(major_version)
         ctx.obj["DEVICE_PLATFORM_VERSION"] = bundle_platform

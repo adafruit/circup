@@ -128,9 +128,12 @@ class Module:
             return False
         try:
             cpv = VersionInfo.parse(self.backend.get_circuitpython_version()[0])
-        except ValueError as ex:
+        except (TypeError, ValueError) as ex:
+            # Without a version to compare with, the module can't be marked as
+            # having a mismatched mpy format.
             logger.warning("CircuitPython has incorrect semver value.")
             logger.warning(ex)
+            return False
         try:
             if self.min_version and cpv < VersionInfo.parse(self.min_version):
                 return True  # CP version too old

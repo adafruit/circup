@@ -68,6 +68,9 @@ LIBRARY_NAME_MAP = {
     "adafruit_simpleio": "simpleio",
     "pimoroni_ltr559": "pimoroni_circuitpython_ltr559",
 }
+REVERSE_LIBRARY_NAME_MAP = {
+    actual: assumed for assumed, actual in LIBRARY_NAME_MAP.items()
+}
 
 
 class CodeParsingException(Exception):
@@ -111,8 +114,7 @@ def get_pypi_name(library_name):
     :param str library_name: CircuitPython import name.
     :return: str distribution name to pass to pip.
     """
-    inverse_names = {actual: assumed for assumed, actual in LIBRARY_NAME_MAP.items()}
-    assumed_name = inverse_names.get(library_name, library_name)
+    assumed_name = REVERSE_LIBRARY_NAME_MAP.get(library_name, library_name)
     if assumed_name.startswith("adafruit_"):
         return "adafruit-circuitpython-" + assumed_name[len("adafruit_") :]
     return "adafruit-circuitpython-" + library_name.replace("adafruit_", "")

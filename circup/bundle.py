@@ -230,14 +230,16 @@ class Bundle:  # pylint: disable=too-many-instance-attributes
         tag = self.latest_tag
         if not tag or tag == "releases":
             if "--verbose" in sys.argv:
-                click.secho(f'  Invalid tag "{tag}"', fg="red")
+                click.secho(f'  Invalid tag "{tag}"', fg="bright_red")
             return False
         url = self.url_format.format(platform="py", tag=tag)
         r = requests.get(url, stream=True, timeout=REQUESTS_TIMEOUT)
         # pylint: disable=no-member
         if r.status_code != requests.codes.ok:
             if "--verbose" in sys.argv:
-                click.secho(f"  Unable to find {os.path.split(url)[1]}", fg="red")
+                click.secho(
+                    f"  Unable to find {os.path.split(url)[1]}", fg="bright_red"
+                )
             return False
         # pylint: enable=no-member
         return True

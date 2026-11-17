@@ -885,7 +885,7 @@ def test_main_passes_version_override_and_board_id_together(tmp_path):
                 "--path",
                 str(tmp_path),
                 "--cpy-version",
-                "8.0.0",
+                "11.0.0",
                 "--board-id",
                 "fake",
                 "list",
@@ -893,7 +893,7 @@ def test_main_passes_version_override_and_board_id_together(tmp_path):
         )
 
     assert result.exit_code == 1
-    assert mock_backend.call_args.kwargs["version_override"] == ("8.0.0", "fake")
+    assert mock_backend.call_args.kwargs["version_override"] == ("11.0.0", "fake")
 
 
 def test_get_modules_empty_path():

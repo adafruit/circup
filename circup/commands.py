@@ -153,6 +153,11 @@ def main(  # pylint: disable=too-many-locals
         password = os.getenv("CIRCUP_WEBWORKFLOW_PASSWORD")
 
     device_path = get_device_path(host, port, password, path)
+    version_override = (
+        (cpy_version, board_id)
+        if cpy_version is not None and board_id is not None
+        else None
+    )
 
     using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
 
@@ -172,7 +177,7 @@ def main(  # pylint: disable=too-many-locals
                 password=password,
                 logger=logger,
                 timeout=timeout,
-                version_override=cpy_version,
+                version_override=version_override,
             )
         except ValueError as e:
             click.secho(e, fg="bright_red")
@@ -186,7 +191,7 @@ def main(  # pylint: disable=too-many-locals
             ctx.obj["backend"] = DiskBackend(
                 device_path,
                 logger,
-                version_override=cpy_version,
+                version_override=version_override,
             )
         except ValueError as e:
             print(e)

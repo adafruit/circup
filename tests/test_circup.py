@@ -521,36 +521,25 @@ def test_Module_update_file():
 
 
 def test_Module_update_file_to_directory(tmp_path):
-    """Update a legacy file module after the bundle changes it to a directory."""
+    """Replace a legacy file with an existing package from the bundle."""
     device_lib = tmp_path / "device" / "lib"
     device_lib.mkdir(parents=True)
-    (device_lib / "legacy_module.py").write_text("old module")
-    bundle_lib = tmp_path / "bundle"
-    package = bundle_lib / "legacy_module"
-    package.mkdir(parents=True)
-    (package / "__init__.py").write_text("new package")
-    (package / "helper.py").write_text("new helper")
+    (device_lib / "circup.py").write_text("old module", encoding="utf-8")
+    bundle_lib = pathlib.Path(circup.__file__).parent.parent
 
     with mock.patch("circup.bundle.Bundle.lib_dir", return_value=str(bundle_lib)):
         backend = DiskBackend(str(tmp_path / "device"), logger)
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         module = Module(
-            "legacy_module.py",
-            backend,
-            "",
-            "1.0.0",
-            "2.0.0",
-            False,
-            bundle,
-            (None, None),
+            "circup.py", backend, "", "1.0.0", "2.0.0", False, bundle, (None, None)
         )
         backend.update(module)
 
-    assert not (device_lib / "legacy_module.py").exists()
-    assert sorted(path.name for path in (device_lib / "legacy_module").iterdir()) == [
-        "__init__.py",
-        "helper.py",
-    ]
+    assert not (device_lib / "circup.py").exists()
+    assert (device_lib / "circup" / "__init__.py").read_bytes() == (
+        bundle_lib / "circup" / "__init__.py"
+    ).read_bytes()
+    assert (device_lib / "circup" / "backends.py").is_file()
 
 
 def test_Module_update_file_to_directory_web(tmp_path):

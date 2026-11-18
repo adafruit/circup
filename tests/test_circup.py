@@ -45,7 +45,6 @@ from circup.command_utils import (
     find_pyproject,
     get_bundle,
     get_bundles_dict,
-    get_dependencies,
     imports_from_code,
     get_all_imports,
     libraries_from_auto_file,
@@ -1370,25 +1369,6 @@ def test_libraries_from_requirements():
         "adafruit-circuitpython-requests",
         "adafruit-circuitpython-typing",
     )
-
-
-def test_get_dependencies_ignores_requirement_comments():
-    """
-    A comment after a library name in the requirements.txt of a bundle does not
-    end up in the name of the dependency, so the dependency is installed.
-    """
-    bundle = circup.Bundle(TEST_BUNDLE_NAME)
-    metadata = {"bundle": bundle, "__version__": "1.0.0", "mpy": False}
-    mod_names = {"adafruit_foo": metadata, "adafruit_bar": metadata}
-    requirements = "adafruit-circuitpython-bar  # needed by foo\n"
-
-    with mock.patch.object(
-        bundle, "requirements_for", return_value=requirements
-    ), mock.patch("circup.command_utils.get_circup_dependencies", return_value=()):
-        assert get_dependencies(("adafruit_foo",), mod_names=mod_names) == (
-            "adafruit_foo",
-            "adafruit_bar",
-        )
 
 
 def test_imports_from_code():

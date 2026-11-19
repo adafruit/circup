@@ -48,6 +48,7 @@ from circup.command_utils import (
     imports_from_code,
     get_all_imports,
     libraries_from_auto_file,
+    libraries_from_requirements,
     pyproject_bundle_versions,
     tags_data_load,
 )
@@ -1344,6 +1345,30 @@ def test_show_match_py_command():
         result = runner.invoke(circup.show, ["py"], obj=TAG_CONTEXT_OBJ)
     assert result.exit_code == 0
     assert "0 shown" in result.output
+
+
+def test_libraries_from_requirements():
+    """
+    Requirement lines give library names, without the pip comments and the
+    version specifiers that may follow them.
+    """
+    requirements = (
+        "# a whole line comment\n"
+        "adafruit-blinka\n"
+        "\n"
+        "adafruit-circuitpython-bme280  # temperature sensor\n"
+        "adafruit-circuitpython-busdevice==1.2.3\n"
+        "adafruit-circuitpython-requests>=1.0.0 ; python_version > '3'\n"
+        "adafruit-circuitpython-typing[extras]>=1.0\n"
+    )
+
+    assert libraries_from_requirements(requirements) == (
+        "adafruit-blinka",
+        "adafruit-circuitpython-bme280",
+        "adafruit-circuitpython-busdevice",
+        "adafruit-circuitpython-requests",
+        "adafruit-circuitpython-typing",
+    )
 
 
 def test_imports_from_code():

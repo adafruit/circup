@@ -710,7 +710,10 @@ def libraries_from_requirements(requirements):
     libraries = ()
     for line in requirements.split("\n"):
         line = line.lower().strip()
-        if line.startswith("#") or line == "":
+        # Remove comments, including pip style comments that follow a
+        # requirement on the same line.
+        line = re.sub(r"(^|\s+)#.*$", "", line).strip()
+        if line == "":
             # skip comments
             pass
         else:

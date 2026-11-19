@@ -161,6 +161,10 @@ def main(  # pylint: disable=too-many-locals
 
     using_webworkflow = "host" in ctx.params.keys() and ctx.params["host"] is not None
 
+    version_override = None
+    if board_id or cpy_version:
+        version_override = (cpy_version, board_id)
+
     if using_webworkflow:
         if host == "circuitpython.local":
             click.echo("Checking versions.json on circuitpython.local to find hostname")

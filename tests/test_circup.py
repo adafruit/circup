@@ -30,6 +30,8 @@ import os
 import ctypes
 import json
 import pathlib
+import shutil
+from contextlib import nullcontext
 from unittest import mock
 from click.testing import CliRunner
 import pytest
@@ -56,6 +58,7 @@ from circup.shared import _get_modules_file, split_architecture
 from circup.logging import logger
 
 TEST_BUNDLE_CONFIG_JSON = "tests/test_bundle_config.json"
+EMC2101_PACKAGE = pathlib.Path(__file__).parent / "fixtures" / "adafruit_emc2101"
 with open(TEST_BUNDLE_CONFIG_JSON, "rb") as tbc:
     TEST_BUNDLE_DATA = json.load(tbc)
 TEST_BUNDLE_NAME = TEST_BUNDLE_DATA["test_bundle"]
@@ -65,6 +68,68 @@ with open(TEST_BUNDLE_CONFIG_LOCAL_JSON, "rb") as tbc:
     TEST_BUNDLE_LOCAL_DATA = json.load(tbc)
 
 TAG_CONTEXT_OBJ = {"BUNDLE_TAGS": {}}
+
+
+def _mock_webworkflow_requests(backend, device_path):
+    """Route web-workflow requests to a temporary directory."""
+    backend.session = mock.MagicMock()
+
+    def response(json_data=None):
+        result = mock.MagicMock()
+        result.status_code = 200
+        result.json.return_value = json_data or {}
+        result.__enter__.return_value = result
+        return result
+
+    def local_path(url):
+        relative = url.split("/fs/", 1)[1].split("?", 1)[0].strip("/")
+        return device_path.joinpath(*relative.split("/")) if relative else device_path
+
+    def get(url, *_args, **_kwargs):
+        if url.endswith("/cp/version.json"):
+            data = {"web_api_version": 4}
+        elif url.endswith("/fs/"):
+            data = {"free": 1_000_000, "block_size": 1, "writable": True}
+        elif url.endswith("/fs/lib/"):
+            data = {
+                "files": [
+                    {"name": path.name} for path in (device_path / "lib").iterdir()
+                ]
+            }
+        else:
+            data = {}
+        return response(data)
+
+    def put(url, *_args, **_kwargs):
+        target = local_path(url)
+        if url.split("?", 1)[0].endswith("/") or not _args:
+            target.mkdir(parents=True, exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(_args[0])
+        return response()
+
+    def delete(url, *_args, **_kwargs):
+        target = local_path(url)
+        if target.is_dir():
+            shutil.rmtree(target)
+        elif target.exists():
+            target.unlink()
+        return response()
+
+    backend.session.get.side_effect = get
+    backend.session.put.side_effect = put
+    backend.session.delete.side_effect = delete
+
+
+def _assert_emc2101_package_installed(device_lib):
+    assert not (device_lib / "adafruit_emc2101.py").exists()
+    installed_package = device_lib / "adafruit_emc2101"
+    assert sorted(path.name for path in installed_package.iterdir()) == sorted(
+        path.name for path in EMC2101_PACKAGE.iterdir()
+    )
+    for source in EMC2101_PACKAGE.iterdir():
+        assert (installed_package / source.name).read_bytes() == source.read_bytes()
 
 
 def test_Bundle_init():
@@ -521,38 +586,20 @@ def test_Module_update_file():
 
 
 def test_Module_update_file_to_directory(tmp_path):
-    """Replace a legacy file with an existing package from the bundle."""
-    device_lib = tmp_path / "device" / "lib"
+    """Replace the library's old single-file module with its package."""
+    device = tmp_path / "device"
+    device_lib = device / "lib"
     device_lib.mkdir(parents=True)
-    (device_lib / "circup.py").write_text("old module", encoding="utf-8")
-    bundle_lib = pathlib.Path(circup.__file__).parent.parent
+    legacy_module = device_lib / "adafruit_emc2101.py"
+    legacy_module.write_text('__version__ = "1.0.0"\n', encoding="utf-8")
 
-    with mock.patch("circup.bundle.Bundle.lib_dir", return_value=str(bundle_lib)):
-        backend = DiskBackend(str(tmp_path / "device"), logger)
-        bundle = circup.Bundle(TEST_BUNDLE_NAME)
-        module = Module(
-            "circup.py", backend, "", "1.0.0", "2.0.0", False, bundle, (None, None)
-        )
-        backend.update(module)
-
-    assert not (device_lib / "circup.py").exists()
-    assert (device_lib / "circup" / "__init__.py").read_bytes() == (
-        bundle_lib / "circup" / "__init__.py"
-    ).read_bytes()
-    assert (device_lib / "circup" / "backends.py").is_file()
-
-
-def test_Module_update_file_to_directory_web(tmp_path):
-    """Use the web workflow to replace a legacy file with a package."""
-    package = tmp_path / "legacy_module"
-    package.mkdir()
-    with mock.patch("circup.backends.socket.getaddrinfo"), mock.patch(
-        "circup.bundle.Bundle.lib_dir", return_value=str(tmp_path)
+    with mock.patch(
+        "circup.bundle.Bundle.lib_dir", return_value=str(EMC2101_PACKAGE.parent)
     ):
-        backend = circup.WebBackend("cpy-test.local", 80, "pw", logger)
+        backend = DiskBackend(str(device), logger)
         bundle = circup.Bundle(TEST_BUNDLE_NAME)
         module = Module(
-            "legacy_module.py",
+            str(legacy_module),
             backend,
             "",
             "1.0.0",
@@ -561,14 +608,90 @@ def test_Module_update_file_to_directory_web(tmp_path):
             bundle,
             (None, None),
         )
-
-    with mock.patch.object(backend, "uninstall") as mock_uninstall, mock.patch.object(
-        backend, "install_dir_http"
-    ) as mock_install:
         backend.update(module)
 
-    mock_uninstall.assert_called_once_with(backend.device_location, module.path)
-    mock_install.assert_called_once_with(module.bundle_path, ignore=mock.ANY)
+    _assert_emc2101_package_installed(device_lib)
+
+
+def test_Module_update_file_to_directory_web(tmp_path):
+    """Use web workflow to replace the old module with the bundle package."""
+    device = tmp_path / "device"
+    device_lib = device / "lib"
+    device_lib.mkdir(parents=True)
+    legacy_module = device_lib / "adafruit_emc2101.py"
+    legacy_module.write_text('__version__ = "1.0.0"\n', encoding="utf-8")
+
+    with mock.patch("circup.backends.socket.getaddrinfo"):
+        backend = circup.WebBackend("cpy-test.local", 80, "pw", logger)
+    _mock_webworkflow_requests(backend, device)
+
+    with mock.patch(
+        "circup.bundle.Bundle.lib_dir", return_value=str(EMC2101_PACKAGE.parent)
+    ):
+        bundle = circup.Bundle(TEST_BUNDLE_NAME)
+        module = Module(
+            backend.get_file_path("lib/adafruit_emc2101.py"),
+            backend,
+            "",
+            "1.0.0",
+            "2.0.0",
+            False,
+            bundle,
+            (None, None),
+        )
+        backend.update(module)
+
+    _assert_emc2101_package_installed(device_lib)
+
+
+@pytest.mark.parametrize("web_workflow", [False, True], ids=["disk", "web"])
+def test_install_update_file_to_package(tmp_path, web_workflow):
+    """Run install --update against the old file and real bundle package."""
+    device = tmp_path / "device"
+    device_lib = device / "lib"
+    device_lib.mkdir(parents=True)
+    (device_lib / "adafruit_emc2101.py").write_text(
+        '__version__ = "1.0.0"\n', encoding="utf-8"
+    )
+
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
+    bundle.platform = None
+    module_data = {"path": os.path.join(str(EMC2101_PACKAGE), ""), "bundle": bundle}
+    args = ["--offline", "--cpy-version", "9.0.0", "--board-id", "test"]
+    backend_context = nullcontext()
+    if web_workflow:
+        args += ["--host", "cpy-test.local", "--password", "pw"]
+        with mock.patch("circup.backends.socket.getaddrinfo"):
+            backend = circup.WebBackend("cpy-test.local", 80, "pw", logger)
+        _mock_webworkflow_requests(backend, device)
+        backend.get_device_versions = mock.Mock(
+            return_value={
+                "adafruit_emc2101": {
+                    "path": backend.get_file_path("lib/adafruit_emc2101.py")
+                }
+            }
+        )
+        backend_context = mock.patch("circup.commands.WebBackend", return_value=backend)
+    else:
+        args += ["--path", str(device)]
+
+    args += ["install", "--update", "adafruit_emc2101"]
+    with (
+        backend_context,
+        mock.patch.object(circup.Bundle, "offline", False),
+        mock.patch("circup.commands.get_bundles_list", return_value=[bundle]),
+        mock.patch(
+            "circup.commands.get_bundle_versions",
+            return_value={"adafruit_emc2101": module_data},
+        ),
+        mock.patch(
+            "circup.commands.get_dependencies", return_value={"adafruit_emc2101"}
+        ),
+    ):
+        result = CliRunner().invoke(circup.main, args)
+
+    assert result.exit_code == 0, result.output
+    _assert_emc2101_package_installed(device_lib)
 
 
 def test_Module_repr():

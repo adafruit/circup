@@ -116,6 +116,18 @@ class Module:
         return self.mpy and self.device_version == BAD_FILE_FORMAT
 
     @property
+    def bad_bundle_version(self):
+        """
+        A boolean indicating that the bundle's copy of this module has missing
+        or invalid ``__version__`` metadata, so it can't be compared to the
+        device version and will always look out of date.
+        """
+        return not (
+            isinstance(self.bundle_version, str)
+            and VersionInfo.is_valid(self.bundle_version)
+        )
+
+    @property
     def mpy_mismatch(self):
         """
         Returns a boolean to indicate if this module's MPY version is compatible

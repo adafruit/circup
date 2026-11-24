@@ -436,6 +436,27 @@ def test_Module_major_update_bad_versions():
         assert mock_logger.call_count == 2
 
 
+def test_Module_bad_bundle_version():
+    """
+    A bundle version that is missing (e.g. no ``__version__`` in the library)
+    or not valid semver is flagged, so ``update`` can warn about it instead of
+    silently updating the module on every run.
+    """
+    bundle = circup.Bundle(TEST_BUNDLE_NAME)
+    name = "module.py"
+    repo = "https://github.com/adafruit/SomeLibrary.git"
+    backend = DiskBackend("mock_device", mock.MagicMock())
+    for bundle_version, expected in (
+        (None, True),
+        ("version-3", True),
+        ("1.2.3", False),
+    ):
+        m = Module(
+            name, backend, repo, "1.2.3", bundle_version, False, bundle, (None, None)
+        )
+        assert m.bad_bundle_version is expected
+
+
 def test_Module_row():
     """
     Ensure the tuple contains the expected items to be correctly displayed in

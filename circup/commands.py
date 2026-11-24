@@ -676,12 +676,10 @@ def update(ctx, update_all):  # pragma: no cover
                     module.device_version, module.bundle_version
                 )
             )
-        if isinstance(module.bundle_version, str) and not VersionInfo.is_valid(
-            module.bundle_version
-        ):
+        if module.bad_bundle_version:
             click.secho(
-                f"WARNING: Library {module.name} repo has incorrect __version__"
-                "\n\tmetadata. Circup will assume it needs updating."
+                f"WARNING: Library {module.name} repo has missing or incorrect"
+                "\n\t__version__ metadata. Circup will assume it needs updating."
                 "\n\tPlease file an issue in the library repo.",
                 fg="yellow",
             )

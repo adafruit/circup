@@ -49,6 +49,7 @@ from circup.command_utils import (
     save_local_bundles,
     get_bundles_dict,
     completion_for_example,
+    resolve_example_name,
     get_bundle_examples,
     is_virtual_env_active,
 )
@@ -516,6 +517,8 @@ def example(ctx, examples, op_list, rename, overwrite):
     separated by a space. Example names are in the form of:
     [short_library_name]/[example_file_name_without_py_extension]
     ex: circup example bmp5xx/bmp5xx_simpletest
+    The .py suffix is optional. An adafruit_ library prefix and an examples/
+    directory after the library name are also accepted when a match exists.
     \b
     For a list of all available library short names run:
     circup example --list
@@ -524,14 +527,10 @@ def example(ctx, examples, op_list, rename, overwrite):
     circup example [searchterm] --list
     ex: circup example mlx --list
     """
-    examples = list(examples)
-    for i, cur_example in enumerate(examples):
-        if cur_example.startswith("adafruit_"):
-            examples[i] = cur_example.replace("adafruit_", "")
-
     if op_list:
         if examples:
-            click.echo("\n".join(completion_for_example(ctx, "", examples)))
+            terms = [term.removeprefix("adafruit_") for term in examples]
+            click.echo("\n".join(completion_for_example(ctx, "", terms)))
         else:
             click.echo("Available example libraries:")
             available_examples = get_bundle_examples(
@@ -548,6 +547,7 @@ def example(ctx, examples, op_list, rename, overwrite):
         available_examples = get_bundle_examples(
             get_bundles_list(ctx.obj["BUNDLE_TAGS"]), avoid_download=True
         )
+        example_arg = resolve_example_name(example_arg, available_examples)
         if example_arg in available_examples:
             filename = available_examples[example_arg].split(os.path.sep)[-1]
             install_metadata = {"path": available_examples[example_arg]}

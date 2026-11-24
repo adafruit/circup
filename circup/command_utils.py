@@ -134,6 +134,28 @@ def completion_for_install(ctx, param, incomplete):
     return sorted(module_names)
 
 
+def resolve_example_name(name, available_examples):
+    """Resolve common example spellings, preferring an exact bundle key.
+
+    Accept optional .py suffixes, an adafruit_ library prefix, and the
+    examples directory copied from a library's source tree. Only return
+    fallback names that actually exist in the bundle index.
+    """
+    if name in available_examples:
+        return name
+    parts = name.replace("/", os.path.sep).split(os.path.sep)
+    tails = [parts[1:]]
+    if len(parts) > 2 and parts[1] == "examples":
+        tails.append(parts[2:])
+    for library in (parts[0], parts[0].removeprefix("adafruit_")):
+        for tail in tails:
+            path = os.path.sep.join([library, *tail])
+            for candidate in (path, path.removesuffix(".py")):
+                if candidate in available_examples:
+                    return candidate
+    return name
+
+
 def completion_for_example(ctx, param, incomplete):
     """
     Returns the list of available modules for the command line tab-completion
